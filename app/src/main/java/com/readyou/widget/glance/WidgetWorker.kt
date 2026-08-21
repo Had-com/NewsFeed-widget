@@ -10,6 +10,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.readyou.widget.data.ReadStatusStore
 import com.readyou.widget.data.ReadYouRepository
 import com.readyou.widget.data.WidgetConfigStore
 import com.readyou.widget.data.WidgetStateKey
@@ -26,13 +27,16 @@ class WidgetWorker(
     override suspend fun doWork(): Result {
         val store = WidgetConfigStore(context)
         val repo = ReadYouRepository(context)
+        val readIds = ReadStatusStore(context).readIdsFlow().first()
         val manager = GlanceAppWidgetManager(context)
         val widgetIds = manager.getGlanceIds(ReadYouWidget::class.java)
 
         for (glanceId in widgetIds) {
             val appWidgetId = manager.getAppWidgetId(glanceId)
             val config = store.configFlow(appWidgetId).first()
-            val articles = repo.getArticles(config)
+            val articles = repo.getArticles(config).map { article ->
+                if (article.id in readIds) article.copy(isRead = true) else article
+            }
             val serialized = Json.encodeToString(articles)
 
             updateAppWidgetState(context, glanceId) { prefs ->
