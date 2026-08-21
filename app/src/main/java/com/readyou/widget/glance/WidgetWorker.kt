@@ -52,12 +52,13 @@ class WidgetWorker(
     companion object {
         private const val WORK_NAME = "ReadYouWidgetRefresh"
 
-        fun schedule(context: Context) {
-            val request = PeriodicWorkRequestBuilder<WidgetWorker>(15, TimeUnit.MINUTES)
-                .build()
+        fun schedule(context: Context, intervalMinutes: Long = 15) {
+            val request = PeriodicWorkRequestBuilder<WidgetWorker>(
+                intervalMinutes.coerceAtLeast(15), TimeUnit.MINUTES
+            ).build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.REPLACE, // replace so interval changes take effect immediately
                 request,
             )
         }

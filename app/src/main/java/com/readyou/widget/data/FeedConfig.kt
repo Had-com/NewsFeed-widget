@@ -21,6 +21,7 @@ data class WidgetConfig(
     val filter: String = "all",             // "all" | "unread" | "read"
     val feedOrder: List<String> = emptyList(),
     val feeds: List<FeedConfig> = emptyList(),
+    val refreshIntervalMinutes: Int = 15,   // minimum 15 (Android WorkManager floor)
 )
 
 @Serializable

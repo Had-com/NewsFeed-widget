@@ -106,6 +106,17 @@ class WidgetConfigActivity : ComponentActivity() {
 
                 var showSortMenu by remember { mutableStateOf(false) }
                 var showFilterMenu by remember { mutableStateOf(false) }
+                var showRefreshMenu by remember { mutableStateOf(false) }
+
+                val refreshOptions = listOf(
+                    15 to "15 minutes",
+                    30 to "30 minutes",
+                    60 to "1 hour",
+                    120 to "2 hours",
+                    240 to "4 hours",
+                    360 to "6 hours",
+                    720 to "12 hours",
+                )
                 var addFeedUrl by remember { mutableStateOf("") }
                 var isAddingFeed by remember { mutableStateOf(false) }
                 var addFeedError by remember { mutableStateOf<String?>(null) }
@@ -194,7 +205,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                     val final = config.copy(feedOrder = feedOrder.toList())
                                     scope.launch {
                                         store.save(final)
-                                        WidgetWorker.schedule(this@WidgetConfigActivity)
+                                        WidgetWorker.schedule(this@WidgetConfigActivity, final.refreshIntervalMinutes.toLong())
                                         WidgetWorker.refreshNow(this@WidgetConfigActivity)
                                         val glanceId = GlanceAppWidgetManager(this@WidgetConfigActivity)
                                             .getGlanceIdBy(appWidgetId)
@@ -243,6 +254,20 @@ class WidgetConfigActivity : ComponentActivity() {
                                             FilterMode.entries.forEach { m ->
                                                 DropdownMenuItem(text = { Text(m.labelRes) },
                                                     onClick = { config = config.copy(filter = m.key); showFilterMenu = false })
+                                            }
+                                        }
+                                    }
+                                }
+                                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                                    Text("Refresh every", style = MaterialTheme.typography.bodyMedium)
+                                    androidx.compose.foundation.layout.Box {
+                                        val label = refreshOptions.firstOrNull { it.first == config.refreshIntervalMinutes }?.second
+                                            ?: "${config.refreshIntervalMinutes} min"
+                                        TextButton(onClick = { showRefreshMenu = true }) { Text("$label ▾", fontSize = 13.sp) }
+                                        DropdownMenu(showRefreshMenu, { showRefreshMenu = false }) {
+                                            refreshOptions.forEach { (minutes, label) ->
+                                                DropdownMenuItem(text = { Text(label) },
+                                                    onClick = { config = config.copy(refreshIntervalMinutes = minutes); showRefreshMenu = false })
                                             }
                                         }
                                     }
