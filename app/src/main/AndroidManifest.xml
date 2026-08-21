@@ -10,7 +10,7 @@
         android:allowBackup="true"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat">
+        android:theme="@android:style/Theme.DeviceDefault">
 
         <!-- Widget receiver -->
         <receiver
@@ -29,7 +29,7 @@
         <activity
             android:name=".config.WidgetConfigActivity"
             android:exported="true"
-            android:theme="@style/Theme.AppCompat">
+            android:theme="@android:style/Theme.DeviceDefault">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
             </intent-filter>
