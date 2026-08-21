@@ -1,6 +1,6 @@
 # Read You Widget
 
-A customizable Android home screen widget for the [Read You](https://github.com/Ashinch/ReadYou) RSS reader app, designed for the **Galaxy Z Fold 8 Ultra** inner display. Built with Jetpack Compose Glance and full **RTL Hebrew support**.
+A standalone Android home screen widget that fetches and displays RSS/Atom feeds directly, styled to match the [Read You](https://github.com/Ashinch/ReadYou) RSS reader's Material You card design. Built for the **Galaxy Z Fold 8 Ultra** inner display with full **RTL Hebrew support**.
 
 ---
 
@@ -20,22 +20,33 @@ A customizable Android home screen widget for the [Read You](https://github.com/
   <tr>
     <td align="center"><sub>Mixed Hebrew RTL + English LTR<br>feeds with per-feed accent colors</sub></td>
     <td align="center"><sub>Same layout in system light theme</sub></td>
-    <td align="center"><sub>Long-press widget → Edit widget<br>Drag ⠿ to reorder feeds</sub></td>
+    <td align="center"><sub>Long-press widget → Edit widget<br>Drag ⠿ to reorder · × to remove</sub></td>
   </tr>
 </table>
+
+---
+
+## How it works
+
+The widget is **fully standalone** — it fetches RSS/Atom feeds directly over the network using OkHttp. It does **not** require access to the Read You app's internal database. You add feed URLs yourself (or import them from an OPML file exported by Read You or any other RSS reader).
 
 ---
 
 ## Features
 
 ### Feed display
-- Shows your latest RSS articles directly on the home screen
+- Shows your latest RSS/Atom articles directly on the home screen
 - Unread count badge in the widget header
 - Unread dot indicator per article
 - Per-feed colored left/right accent stripe
 - Relative timestamps (5m, 2h, 3d)
-- Tap any article to open it in the Read You app
-- "All articles" shortcut at the bottom
+- Tap any article to open it in Read You or your browser
+
+### Tap to open + mark as read
+Tapping an article:
+1. Opens the article URL in the **Read You app** (if installed). Falls back to your default browser if Read You is not installed or the URL cannot be handled.
+2. **Marks the article as read** — the unread dot disappears and read status is remembered across widget refreshes (stored locally via DataStore, keeping up to 500 recent entries).
+3. Triggers an immediate widget refresh so the unread count updates right away.
 
 ### Sort options
 | Option | Description |
@@ -78,8 +89,12 @@ Each feed has its own direction toggle:
 
 You can mix RTL and LTR feeds in the same widget simultaneously.
 
-### Feed order
-Drag and drop feeds in the config screen to control the order they appear in the widget.
+### Feed management
+- **Add by URL** — paste any RSS or Atom feed URL; the widget fetches and validates the feed title automatically
+- **Import OPML** — import feeds from any OPML file (supports grouped and flat OPML, as exported by Read You, Feedly, Reeder, etc.)
+- **Export OPML** — share your current feed list as a standard OPML 2.0 file
+- **Drag to reorder** — drag feeds in the config screen to control their display order in the widget
+- **Remove** — tap × on any feed row to delete it from the widget
 
 ---
 
@@ -101,8 +116,11 @@ Long-press the widget on your home screen → tap **Edit widget** to open the se
 
 ### Settings screen layout
 1. **Sort & Filter** — global sort order and read/unread filter
-2. **Feed order & style** — one row per feed with:
-   - Grip handle (drag to reorder)
+2. **Refresh every** — choose how often the widget polls for new articles (15 min / 30 min / 1 h / 2 h / 4 h / 6 h / 12 h)
+3. **Add Feed** — enter a feed URL and tap **Add**, or use **Import OPML** / **Export OPML**
+4. **Feed order & style** — one draggable row per feed with:
+   - Grip handle (drag ⠿ to reorder)
+   - × button to remove
    - Color swatch (tap to open color picker)
    - Font dropdown
    - **B** / *I* / <u>U</u> style toggles
@@ -114,7 +132,19 @@ Changes take effect immediately after tapping **Save**.
 
 ## Background refresh
 
-The widget refreshes automatically every **15 minutes** using WorkManager. This is the minimum interval Android allows for background tasks. The last refresh time is shown at the bottom of the widget.
+The widget polls your feeds automatically using WorkManager. You can configure the interval in the settings screen:
+
+| Interval | Notes |
+|---|---|
+| 15 minutes | Minimum (Android WorkManager floor) — default |
+| 30 minutes | |
+| 1 hour | |
+| 2 hours | |
+| 4 hours | |
+| 6 hours | |
+| 12 hours | Maximum battery-friendly |
+
+Changing the interval takes effect immediately on next Save. The last refresh time is shown at the bottom of the widget.
 
 ---
 
@@ -124,10 +154,11 @@ The widget refreshes automatically every **15 minutes** using WorkManager. This 
 1. Go to the [Actions tab](../../actions) of this repo
 2. Click the latest **Build APK** run
 3. Download the **ReadYouWidget-debug** artifact
-4. Transfer the `.apk` to your phone
+4. Unzip and transfer the `.apk` to your phone
 5. On your Galaxy Z Fold: **Settings → Apps → Special app access → Install unknown apps** → allow your file manager
 6. Tap the `.apk` to install
 7. Long-press your home screen → **Widgets** → find **Read You Feeds** → drag to place it
+8. The config screen opens automatically — add your first feed URL or import an OPML file
 
 ### Option B — Build from source
 ```bash
@@ -139,24 +170,13 @@ cd readyou-widget
 
 ---
 
-## Connecting to Read You data
+## Importing feeds from Read You
 
-The widget currently ships with a placeholder data layer (`ReadYouRepository.kt`). To show your actual RSS feeds and articles, choose one of these integration paths:
+The easiest way to populate the widget with your existing Read You subscriptions:
 
-### Option A — Integrate inside the Read You app (recommended)
-Add this widget module directly to a fork of Read You. Replace the `TODO` stubs in `ReadYouRepository.kt` with calls to Read You's existing Room DAO:
-
-```kotlin
-// Replace in ReadYouRepository.kt:
-fun getFeeds(): List<FeedConfig> {
-    return feedDao.getAll().map { it.toFeedConfig() }
-}
-```
-
-No ContentProvider needed — the widget shares the same database directly.
-
-### Option B — Standalone APK via ContentProvider
-Fork Read You, add a `ContentProvider` that exposes feeds and articles, then query it from `ReadYouRepository.kt` using `context.contentResolver.query(...)`.
+1. In Read You: **Settings → Data & backup → Export as OPML** → save the file
+2. In the widget config screen: tap **Import OPML** → select the file
+3. All your feeds are added automatically (duplicates are skipped)
 
 ---
 
@@ -176,22 +196,25 @@ app/src/main/
 ├── java/com/readyou/widget/
 │   ├── glance/
 │   │   ├── ReadYouWidget.kt          # Glance widget + receiver
-│   │   ├── FeedItemRow.kt            # Per-article composable
+│   │   ├── FeedItemRow.kt            # Per-article Glance composable
 │   │   └── WidgetWorker.kt           # WorkManager refresh job
 │   ├── config/
 │   │   ├── WidgetConfigActivity.kt   # Settings screen
 │   │   ├── FeedConfigRow.kt          # Per-feed controls row
 │   │   └── ColorPickerGrid.kt        # 12-color preset picker
 │   ├── data/
-│   │   ├── FeedConfig.kt             # Data models
-│   │   ├── WidgetConfigStore.kt      # DataStore persistence
-│   │   ├── ReadYouRepository.kt      # Data bridge (fill in TODOs)
+│   │   ├── FeedConfig.kt             # Data models (FeedConfig, WidgetConfig, ArticleItem)
+│   │   ├── WidgetConfigStore.kt      # DataStore — widget config persistence
+│   │   ├── ReadStatusStore.kt        # DataStore — read article ID persistence
+│   │   ├── ReadYouRepository.kt      # RSS/Atom fetching (OkHttp + XmlPullParser)
+│   │   ├── OpmlManager.kt            # OPML 2.0 import/export
 │   │   └── WidgetStateKey.kt         # Glance state keys
-│   └── DeepLinkActivity.kt           # Article tap handler
+│   └── DeepLinkActivity.kt           # Tap handler: open URL, mark read, refresh
 └── res/
     ├── values/strings.xml            # English strings
     ├── values-iw/strings.xml         # Hebrew strings (עברית)
-    └── xml/appwidget_info.xml        # Widget metadata
+    ├── xml/appwidget_info.xml        # Widget metadata
+    └── xml/file_paths.xml            # FileProvider paths (OPML export)
 ```
 
 ---
@@ -202,8 +225,9 @@ app/src/main/
 |---|---|---|
 | `androidx.glance:glance-appwidget` | 1.1.0 | Widget framework (Compose-based) |
 | `androidx.work:work-runtime-ktx` | 2.9.0 | Background refresh |
-| `androidx.datastore:datastore-preferences` | 1.1.1 | Config persistence |
+| `androidx.datastore:datastore-preferences` | 1.1.1 | Config + read-status persistence |
 | `kotlinx-serialization-json` | 1.6.3 | Config JSON serialization |
+| `com.squareup.okhttp3:okhttp` | 4.12.0 | RSS/Atom feed HTTP fetching |
 | `sh.calvin.reorderable` | 2.3.0 | Drag-to-reorder in config screen |
 
 ---
@@ -211,7 +235,8 @@ app/src/main/
 ## Requirements
 
 - Android 8.0 (API 26) or higher
-- [Read You](https://github.com/Ashinch/ReadYou) app installed
+- Internet permission (for RSS fetching)
+- [Read You](https://github.com/Ashinch/ReadYou) app — **optional**: tap-to-open falls back to the system browser if Read You is not installed
 - Galaxy Z Fold inner display recommended (widget scales to any screen size)
 
 ---
