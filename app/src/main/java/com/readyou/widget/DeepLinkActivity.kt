@@ -6,20 +6,31 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 
 /**
- * Receives article taps from the widget and forwards them to the Read You app.
- * When integrated inside the Read You app directly, replace this with a direct
- * navigation call to the article detail screen.
+ * Receives article taps from the Glance widget.
+ * Tries to open the article URL inside the Read You app;
+ * falls back to the system browser if Read You is not installed or
+ * does not handle web URLs.
  */
 class DeepLinkActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val articleId = intent.getStringExtra("articleId")
-        if (articleId != null) {
-            // Deep-link into Read You's article view
-            startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse("readyou://article/$articleId"))
-                    .setPackage("io.github.ashinch.readyou")
-            )
+        val url = intent.getStringExtra("articleUrl")
+        if (!url.isNullOrBlank()) {
+            val uri = Uri.parse(url)
+            // Prefer Read You's internal browser when available
+            val readYouIntent = Intent(Intent.ACTION_VIEW, uri)
+                .setPackage("io.github.ashinch.readyou")
+            val opened = runCatching {
+                if (readYouIntent.resolveActivity(packageManager) != null) {
+                    startActivity(readYouIntent)
+                    true
+                } else false
+            }.getOrDefault(false)
+
+            if (!opened) {
+                // Fall back to default browser
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+            }
         }
         finish()
     }

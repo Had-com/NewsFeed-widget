@@ -4,7 +4,9 @@ import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -42,19 +44,24 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import com.readyou.widget.data.FeedConfig
 import com.readyou.widget.data.FilterMode
+import com.readyou.widget.data.OpmlManager
 import com.readyou.widget.data.ReadYouRepository
 import com.readyou.widget.data.SortOrder
 import com.readyou.widget.data.WidgetConfig
 import com.readyou.widget.data.WidgetConfigStore
 import com.readyou.widget.glance.ReadYouWidget
 import com.readyou.widget.glance.WidgetWorker
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import java.io.File
 
 class WidgetConfigActivity : ComponentActivity() {
 
@@ -82,7 +89,7 @@ class WidgetConfigActivity : ComponentActivity() {
                 var config by remember { mutableStateOf(WidgetConfig(widgetId = appWidgetId)) }
                 val scope = rememberCoroutineScope()
 
-                // Load saved config on first composition
+                // Load saved config
                 androidx.compose.runtime.LaunchedEffect(appWidgetId) {
                     val saved = store.configFlow(appWidgetId).first()
                     val order = saved.feedOrder.ifEmpty { saved.feeds.map { it.feedId } }
@@ -102,7 +109,38 @@ class WidgetConfigActivity : ComponentActivity() {
                 var addFeedUrl by remember { mutableStateOf("") }
                 var isAddingFeed by remember { mutableStateOf(false) }
                 var addFeedError by remember { mutableStateOf<String?>(null) }
+                var statusMessage by remember { mutableStateOf("") }
 
+                // ── OPML import launcher ────────────────────────────────────
+                val importLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.OpenDocument()
+                ) { uri ->
+                    uri ?: return@rememberLauncherForActivityResult
+                    scope.launch {
+                        val xml = withContext(Dispatchers.IO) {
+                            runCatching {
+                                contentResolver.openInputStream(uri)?.bufferedReader()?.readText()
+                            }.getOrNull()
+                        } ?: run { statusMessage = "Could not read file"; return@launch }
+
+                        val parsed = OpmlManager.parse(xml)
+                        val existing = config.feeds.map { it.feedId }.toSet()
+                        val toAdd = parsed
+                            .filter { (_, url) -> url !in existing }
+                            .map { (title, url) ->
+                                FeedConfig(feedId = url, displayName = title, feedUrl = url)
+                            }
+                        if (toAdd.isNotEmpty()) {
+                            config = config.copy(feeds = config.feeds + toAdd)
+                            toAdd.forEach { feedOrder.add(it.feedId) }
+                            statusMessage = "Added ${toAdd.size} feed(s)"
+                        } else {
+                            statusMessage = "No new feeds found"
+                        }
+                    }
+                }
+
+                // ── helpers ─────────────────────────────────────────────────
                 fun doAddFeed() {
                     val raw = addFeedUrl.trim()
                     if (raw.isBlank()) return
@@ -110,13 +148,10 @@ class WidgetConfigActivity : ComponentActivity() {
                     scope.launch {
                         isAddingFeed = true
                         addFeedError = null
+                        statusMessage = ""
                         val title = repo.fetchFeedTitle(url)
                         if (title != null) {
-                            val newFeed = FeedConfig(
-                                feedId = url,
-                                displayName = title,
-                                feedUrl = url,
-                            )
+                            val newFeed = FeedConfig(feedId = url, displayName = title, feedUrl = url)
                             config = config.copy(feeds = config.feeds + newFeed)
                             feedOrder.add(url)
                             addFeedUrl = ""
@@ -127,6 +162,29 @@ class WidgetConfigActivity : ComponentActivity() {
                     }
                 }
 
+                fun doExport() {
+                    scope.launch {
+                        val file = withContext(Dispatchers.IO) {
+                            val dir = File(cacheDir, "opml").also { it.mkdirs() }
+                            File(dir, "feeds.opml").also { it.writeText(OpmlManager.export(config.feeds)) }
+                        }
+                        val uri = FileProvider.getUriForFile(
+                            this@WidgetConfigActivity,
+                            "${packageName}.fileprovider",
+                            file,
+                        )
+                        startActivity(Intent.createChooser(
+                            Intent(Intent.ACTION_SEND).apply {
+                                type = "text/xml"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            },
+                            "Export OPML",
+                        ))
+                    }
+                }
+
+                // ── UI ───────────────────────────────────────────────────────
                 Scaffold(
                     topBar = {
                         TopAppBar(
@@ -159,47 +217,31 @@ class WidgetConfigActivity : ComponentActivity() {
                         // ── Sort & Filter ──
                         item {
                             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                                Text(
-                                    "SORT & FILTER",
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    letterSpacing = 0.05.sp,
-                                )
+                                Text("SORT & FILTER", fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.05.sp)
                                 Spacer(Modifier.height(8.dp))
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
+                                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                                     Text("Sort by", style = MaterialTheme.typography.bodyMedium)
                                     androidx.compose.foundation.layout.Box {
-                                        val sortLabel = SortOrder.entries.first { it.key == config.sortOrder }.labelRes
-                                        TextButton(onClick = { showSortMenu = true }) { Text("$sortLabel ▾", fontSize = 13.sp) }
+                                        val label = SortOrder.entries.first { it.key == config.sortOrder }.labelRes
+                                        TextButton(onClick = { showSortMenu = true }) { Text("$label ▾", fontSize = 13.sp) }
                                         DropdownMenu(showSortMenu, { showSortMenu = false }) {
-                                            SortOrder.entries.forEach { order ->
-                                                DropdownMenuItem(
-                                                    text = { Text(order.labelRes) },
-                                                    onClick = { config = config.copy(sortOrder = order.key); showSortMenu = false },
-                                                )
+                                            SortOrder.entries.forEach { o ->
+                                                DropdownMenuItem(text = { Text(o.labelRes) },
+                                                    onClick = { config = config.copy(sortOrder = o.key); showSortMenu = false })
                                             }
                                         }
                                     }
                                 }
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
+                                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                                     Text("Show", style = MaterialTheme.typography.bodyMedium)
                                     androidx.compose.foundation.layout.Box {
-                                        val filterLabel = FilterMode.entries.first { it.key == config.filter }.labelRes
-                                        TextButton(onClick = { showFilterMenu = true }) { Text("$filterLabel ▾", fontSize = 13.sp) }
+                                        val label = FilterMode.entries.first { it.key == config.filter }.labelRes
+                                        TextButton(onClick = { showFilterMenu = true }) { Text("$label ▾", fontSize = 13.sp) }
                                         DropdownMenu(showFilterMenu, { showFilterMenu = false }) {
-                                            FilterMode.entries.forEach { mode ->
-                                                DropdownMenuItem(
-                                                    text = { Text(mode.labelRes) },
-                                                    onClick = { config = config.copy(filter = mode.key); showFilterMenu = false },
-                                                )
+                                            FilterMode.entries.forEach { m ->
+                                                DropdownMenuItem(text = { Text(m.labelRes) },
+                                                    onClick = { config = config.copy(filter = m.key); showFilterMenu = false })
                                             }
                                         }
                                     }
@@ -211,16 +253,10 @@ class WidgetConfigActivity : ComponentActivity() {
                         // ── Add Feed ──
                         item {
                             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                                Text(
-                                    "ADD FEED",
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    letterSpacing = 0.05.sp,
-                                )
+                                Text("ADD FEED", fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.05.sp)
                                 Spacer(Modifier.height(8.dp))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     OutlinedTextField(
                                         value = addFeedUrl,
                                         onValueChange = { addFeedUrl = it; addFeedError = null },
@@ -228,25 +264,33 @@ class WidgetConfigActivity : ComponentActivity() {
                                         modifier = Modifier.weight(1f),
                                         singleLine = true,
                                         isError = addFeedError != null,
-                                        supportingText = addFeedError?.let { err -> { Text(err, color = MaterialTheme.colorScheme.error) } },
-                                        keyboardOptions = KeyboardOptions(
-                                            keyboardType = KeyboardType.Uri,
-                                            imeAction = ImeAction.Done,
-                                        ),
+                                        supportingText = addFeedError?.let { e -> { Text(e, color = MaterialTheme.colorScheme.error) } },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
                                         keyboardActions = KeyboardActions(onDone = { doAddFeed() }),
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     if (isAddingFeed) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(24.dp),
-                                            strokeWidth = 2.dp,
-                                        )
+                                        CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
                                     } else {
-                                        TextButton(
-                                            onClick = { doAddFeed() },
-                                            enabled = addFeedUrl.isNotBlank(),
-                                        ) { Text("Add") }
+                                        TextButton(onClick = { doAddFeed() }, enabled = addFeedUrl.isNotBlank()) {
+                                            Text("Add")
+                                        }
                                     }
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                                    TextButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
+                                        Text("Import OPML")
+                                    }
+                                    TextButton(
+                                        onClick = { doExport() },
+                                        enabled = config.feeds.isNotEmpty(),
+                                    ) {
+                                        Text("Export OPML")
+                                    }
+                                }
+                                if (statusMessage.isNotEmpty()) {
+                                    Text(statusMessage, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                                 }
                             }
                             HorizontalDivider()
@@ -255,25 +299,15 @@ class WidgetConfigActivity : ComponentActivity() {
                         // ── Feed order & style header ──
                         item {
                             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                                Text(
-                                    "FEED ORDER & STYLE",
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    letterSpacing = 0.05.sp,
-                                )
-                                Text(
-                                    "Drag to reorder  ·  × to remove",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                )
+                                Text("FEED ORDER & STYLE", fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.05.sp)
+                                Text("Drag to reorder  ·  × to remove", fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                             }
                         }
 
                         // ── Per-feed rows (draggable) ──
-                        items(
-                            count = feedOrder.size,
-                            key = { feedOrder[it] },
-                        ) { index ->
+                        items(count = feedOrder.size, key = { feedOrder[it] }) { index ->
                             val feedId = feedOrder[index]
                             val feedConfig = config.feeds.firstOrNull { it.feedId == feedId }
                                 ?: return@items
@@ -284,16 +318,12 @@ class WidgetConfigActivity : ComponentActivity() {
                                         feedConfig = feedConfig,
                                         onUpdate = { updated ->
                                             config = config.copy(
-                                                feeds = config.feeds.map {
-                                                    if (it.feedId == updated.feedId) updated else it
-                                                },
+                                                feeds = config.feeds.map { if (it.feedId == updated.feedId) updated else it },
                                             )
                                         },
                                         onRemove = {
-                                            feedOrder.removeAt(index)
-                                            config = config.copy(
-                                                feeds = config.feeds.filter { it.feedId != feedId },
-                                            )
+                                            feedOrder.remove(feedId)
+                                            config = config.copy(feeds = config.feeds.filter { it.feedId != feedId })
                                         },
                                     )
                                     HorizontalDivider()

@@ -50,7 +50,7 @@ fun FeedItemRow(article: ArticleItem, feedConfig: FeedConfig) {
         modifier = GlanceModifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
-            .clickable(openArticleAction(context, article.id)),
+            .clickable(openArticleAction(context, article.articleUrl)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (isRtl) {
@@ -162,10 +162,10 @@ private fun ArticleContent(
     }
 }
 
-private fun openArticleAction(context: android.content.Context, articleId: String) =
+private fun openArticleAction(context: android.content.Context, articleUrl: String) =
     actionStartActivity(
         android.content.Intent(context, com.readyou.widget.DeepLinkActivity::class.java).also {
-            it.putExtra("articleId", articleId)
+            it.putExtra("articleUrl", articleUrl)
         }
     )
 

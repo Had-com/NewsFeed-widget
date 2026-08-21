@@ -91,7 +91,8 @@ class ReadYouRepository(private val context: Context) {
     private fun parseItem(parser: XmlPullParser, feed: FeedConfig): ArticleItem? {
         val entryTag = parser.name
         var title = ""
-        var guid = ""
+        var guid = ""       // deduplication id — may be a URN
+        var articleUrl = "" // the actual web URL to open
         var pubDate = 0L
 
         try { parser.next() } catch (_: Exception) { return null }
@@ -111,10 +112,11 @@ class ReadYouRepository(private val context: Context) {
                         val rel = parser.getAttributeValue(null, "rel") ?: "alternate"
                         if (href != null) {
                             // Atom self-closing: <link href="..." rel="alternate" />
-                            if (rel == "alternate" && guid.isEmpty()) guid = href
-                        } else if (guid.isEmpty()) {
+                            if (rel == "alternate" && articleUrl.isEmpty()) articleUrl = href
+                        } else {
                             // RSS text: <link>url</link>
-                            guid = runCatching { parser.nextText() }.getOrDefault("").trim()
+                            val text = runCatching { parser.nextText() }.getOrDefault("").trim()
+                            if (text.isNotBlank() && articleUrl.isEmpty()) articleUrl = text
                         }
                     }
                     "pubdate" -> if (pubDate == 0L) {
@@ -131,10 +133,11 @@ class ReadYouRepository(private val context: Context) {
 
         if (title.isBlank()) return null
         return ArticleItem(
-            id = guid.ifBlank { "${feed.feedId}_${System.nanoTime()}" },
+            id = guid.ifBlank { articleUrl.ifBlank { "${feed.feedId}_${System.nanoTime()}" } },
             feedId = feed.feedId,
             feedName = feed.displayName,
             title = title,
+            articleUrl = articleUrl,
             publishedAt = if (pubDate > 0) pubDate else System.currentTimeMillis(),
             isRead = false,
         )

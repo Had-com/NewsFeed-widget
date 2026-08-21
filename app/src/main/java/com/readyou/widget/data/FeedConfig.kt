@@ -29,6 +29,7 @@ data class ArticleItem(
     val feedId: String,
     val feedName: String,
     val title: String,
+    val articleUrl: String = "",
     val publishedAt: Long,
     val isRead: Boolean,
 )
