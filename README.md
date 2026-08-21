@@ -4,9 +4,25 @@ A customizable Android home screen widget for the [Read You](https://github.com/
 
 ---
 
-## Screenshot
+## Screenshots
 
-> Widget shown in dark mode with mixed Hebrew RTL and English LTR feeds, each with individual accent colors and text styles.
+<table>
+  <tr>
+    <td align="center"><b>Dark mode</b></td>
+    <td align="center"><b>Light mode</b></td>
+    <td align="center"><b>Config panel</b></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/widget-dark.svg" width="220" alt="Widget dark mode — Hebrew RTL feeds with accent colors"/></td>
+    <td><img src="screenshots/widget-light.svg" width="220" alt="Widget light mode — Hebrew RTL feeds with accent colors"/></td>
+    <td><img src="screenshots/config-panel.svg" width="260" alt="Config panel — drag to reorder, per-feed color, font, B/I/U, RTL/LTR"/></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Mixed Hebrew RTL + English LTR<br>feeds with per-feed accent colors</sub></td>
+    <td align="center"><sub>Same layout in system light theme</sub></td>
+    <td align="center"><sub>Long-press widget → Edit widget<br>Drag ⠿ to reorder feeds</sub></td>
+  </tr>
+</table>
 
 ---
 
