@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -29,6 +30,7 @@ val PRESET_COLORS = listOf(
     "#455a64", // dark grey
 )
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ColorPickerGrid(
     selectedColor: String,

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,7 +53,7 @@ class WidgetConfigActivity : ComponentActivity() {
 
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
 
-    @OptIn(ExperimentalMaterial3Api::class)
+    @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -90,7 +92,8 @@ class WidgetConfigActivity : ComponentActivity() {
                 val feedOrder = remember(config.feedOrder) {
                     androidx.compose.runtime.mutableStateListOf(*config.feedOrder.toTypedArray())
                 }
-                val reorderState = rememberReorderableLazyListState(onMove = { from, to ->
+                val lazyListState = rememberLazyListState()
+                val reorderState = rememberReorderableLazyListState(lazyListState, onMove = { from, to ->
                     feedOrder.apply { add(to.index, removeAt(from.index)) }
                 })
 
@@ -123,7 +126,7 @@ class WidgetConfigActivity : ComponentActivity() {
                     },
                 ) { paddingValues ->
                     LazyColumn(
-                        state = reorderState.lazyListState,
+                        state = lazyListState,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(paddingValues),

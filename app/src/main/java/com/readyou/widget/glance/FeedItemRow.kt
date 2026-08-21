@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit
 
 @Composable
 fun FeedItemRow(article: ArticleItem, feedConfig: FeedConfig) {
+    val context = LocalContext.current
     val isRtl = feedConfig.layoutDirection == "rtl"
     val accentColor = runCatching { Color.parseColor(feedConfig.accentColor) }
         .getOrDefault(Color.parseColor("#9B72E3"))
@@ -49,7 +50,7 @@ fun FeedItemRow(article: ArticleItem, feedConfig: FeedConfig) {
         modifier = GlanceModifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
-            .clickable(openArticleAction(article.id)),
+            .clickable(openArticleAction(context, article.id)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (isRtl) {
@@ -161,11 +162,11 @@ private fun ArticleContent(
     }
 }
 
-private fun openArticleAction(articleId: String) =
-    actionStartActivity<com.readyou.widget.DeepLinkActivity>(
-        parameters = androidx.glance.appwidget.action.ActionParameters.of(
-            androidx.glance.appwidget.action.ActionParameters.Key<String>("articleId") to articleId
-        )
+private fun openArticleAction(context: android.content.Context, articleId: String) =
+    actionStartActivity(
+        android.content.Intent(context, com.readyou.widget.DeepLinkActivity::class.java).also {
+            it.putExtra("articleId", articleId)
+        }
     )
 
 private fun relativeTime(epochMs: Long): String {
