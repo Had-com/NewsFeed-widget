@@ -14,13 +14,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,10 +38,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.appwidget.GlanceAppWidgetManager
-import androidx.lifecycle.lifecycleScope
 import com.readyou.widget.data.FeedConfig
 import com.readyou.widget.data.FilterMode
 import com.readyou.widget.data.ReadYouRepository
@@ -61,7 +68,6 @@ class WidgetConfigActivity : ComponentActivity() {
             ?.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
             ?: AppWidgetManager.INVALID_APPWIDGET_ID
 
-        // Return cancelled if no valid widget id
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
             setResult(RESULT_CANCELED)
             finish()
@@ -76,19 +82,13 @@ class WidgetConfigActivity : ComponentActivity() {
                 var config by remember { mutableStateOf(WidgetConfig(widgetId = appWidgetId)) }
                 val scope = rememberCoroutineScope()
 
-                // Load existing config + merge with available feeds on first composition
+                // Load saved config on first composition
                 androidx.compose.runtime.LaunchedEffect(appWidgetId) {
                     val saved = store.configFlow(appWidgetId).first()
-                    val availableFeeds = repo.getFeeds()
-                    // Merge: preserve saved configs, add new feeds with defaults
-                    val mergedFeeds = availableFeeds.map { available ->
-                        saved.feeds.firstOrNull { it.feedId == available.feedId } ?: available
-                    }
-                    val orderedIds = saved.feedOrder.ifEmpty { mergedFeeds.map { it.feedId } }
-                    config = saved.copy(feeds = mergedFeeds, feedOrder = orderedIds)
+                    val order = saved.feedOrder.ifEmpty { saved.feeds.map { it.feedId } }
+                    config = saved.copy(feedOrder = order)
                 }
 
-                // Reorderable list state
                 val feedOrder = remember(config.feedOrder) {
                     androidx.compose.runtime.mutableStateListOf(*config.feedOrder.toTypedArray())
                 }
@@ -99,6 +99,33 @@ class WidgetConfigActivity : ComponentActivity() {
 
                 var showSortMenu by remember { mutableStateOf(false) }
                 var showFilterMenu by remember { mutableStateOf(false) }
+                var addFeedUrl by remember { mutableStateOf("") }
+                var isAddingFeed by remember { mutableStateOf(false) }
+                var addFeedError by remember { mutableStateOf<String?>(null) }
+
+                fun doAddFeed() {
+                    val raw = addFeedUrl.trim()
+                    if (raw.isBlank()) return
+                    val url = if (raw.startsWith("http")) raw else "https://$raw"
+                    scope.launch {
+                        isAddingFeed = true
+                        addFeedError = null
+                        val title = repo.fetchFeedTitle(url)
+                        if (title != null) {
+                            val newFeed = FeedConfig(
+                                feedId = url,
+                                displayName = title,
+                                feedUrl = url,
+                            )
+                            config = config.copy(feeds = config.feeds + newFeed)
+                            feedOrder.add(url)
+                            addFeedUrl = ""
+                        } else {
+                            addFeedError = "Could not load feed — check the URL"
+                        }
+                        isAddingFeed = false
+                    }
+                }
 
                 Scaffold(
                     topBar = {
@@ -118,9 +145,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                         })
                                         finish()
                                     }
-                                }) {
-                                    Text("Save")
-                                }
+                                }) { Text("Save") }
                             },
                         )
                     },
@@ -141,8 +166,6 @@ class WidgetConfigActivity : ComponentActivity() {
                                     letterSpacing = 0.05.sp,
                                 )
                                 Spacer(Modifier.height(8.dp))
-
-                                // Sort
                                 Row(
                                     Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -156,17 +179,12 @@ class WidgetConfigActivity : ComponentActivity() {
                                             SortOrder.entries.forEach { order ->
                                                 DropdownMenuItem(
                                                     text = { Text(order.labelRes) },
-                                                    onClick = {
-                                                        config = config.copy(sortOrder = order.key)
-                                                        showSortMenu = false
-                                                    },
+                                                    onClick = { config = config.copy(sortOrder = order.key); showSortMenu = false },
                                                 )
                                             }
                                         }
                                     }
                                 }
-
-                                // Filter
                                 Row(
                                     Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -180,10 +198,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                             FilterMode.entries.forEach { mode ->
                                                 DropdownMenuItem(
                                                     text = { Text(mode.labelRes) },
-                                                    onClick = {
-                                                        config = config.copy(filter = mode.key)
-                                                        showFilterMenu = false
-                                                    },
+                                                    onClick = { config = config.copy(filter = mode.key); showFilterMenu = false },
                                                 )
                                             }
                                         }
@@ -193,7 +208,51 @@ class WidgetConfigActivity : ComponentActivity() {
                             HorizontalDivider()
                         }
 
-                        // ── Feed order & per-feed config header ──
+                        // ── Add Feed ──
+                        item {
+                            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                Text(
+                                    "ADD FEED",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    letterSpacing = 0.05.sp,
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    OutlinedTextField(
+                                        value = addFeedUrl,
+                                        onValueChange = { addFeedUrl = it; addFeedError = null },
+                                        label = { Text("RSS or Atom feed URL") },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true,
+                                        isError = addFeedError != null,
+                                        supportingText = addFeedError?.let { err -> { Text(err, color = MaterialTheme.colorScheme.error) } },
+                                        keyboardOptions = KeyboardOptions(
+                                            keyboardType = KeyboardType.Uri,
+                                            imeAction = ImeAction.Done,
+                                        ),
+                                        keyboardActions = KeyboardActions(onDone = { doAddFeed() }),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    if (isAddingFeed) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(24.dp),
+                                            strokeWidth = 2.dp,
+                                        )
+                                    } else {
+                                        TextButton(
+                                            onClick = { doAddFeed() },
+                                            enabled = addFeedUrl.isNotBlank(),
+                                        ) { Text("Add") }
+                                    }
+                                }
+                            }
+                            HorizontalDivider()
+                        }
+
+                        // ── Feed order & style header ──
                         item {
                             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                                 Text(
@@ -203,7 +262,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                     letterSpacing = 0.05.sp,
                                 )
                                 Text(
-                                    "Drag rows to reorder",
+                                    "Drag to reorder  ·  × to remove",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                 )
@@ -228,6 +287,12 @@ class WidgetConfigActivity : ComponentActivity() {
                                                 feeds = config.feeds.map {
                                                     if (it.feedId == updated.feedId) updated else it
                                                 },
+                                            )
+                                        },
+                                        onRemove = {
+                                            feedOrder.removeAt(index)
+                                            config = config.copy(
+                                                feeds = config.feeds.filter { it.feedId != feedId },
                                             )
                                         },
                                     )

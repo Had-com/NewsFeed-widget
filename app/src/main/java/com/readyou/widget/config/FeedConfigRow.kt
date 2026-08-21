@@ -44,6 +44,7 @@ import sh.calvin.reorderable.ReorderableCollectionItemScope
 fun ReorderableCollectionItemScope.FeedConfigRow(
     feedConfig: FeedConfig,
     onUpdate: (FeedConfig) -> Unit,
+    onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showColorPicker by remember { mutableStateOf(false) }
@@ -90,6 +91,18 @@ fun ReorderableCollectionItemScope.FeedConfigRow(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
             )
+
+            // Remove button
+            Text(
+                text = "×",
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .clickable(onClick = onRemove)
+                    .padding(4.dp),
+            )
+
+            Spacer(Modifier.width(4.dp))
 
             // RTL / LTR toggle
             val isRtl = feedConfig.layoutDirection == "rtl"

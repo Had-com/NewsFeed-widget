@@ -6,10 +6,11 @@ import kotlinx.serialization.Serializable
 data class FeedConfig(
     val feedId: String,
     val displayName: String,
+    val feedUrl: String = "",
     val accentColor: String = "#9B72E3",
     val fontFamily: String = "sans",         // "sans" | "serif" | "mono"
     val textStyle: Set<String> = emptySet(), // "bold", "italic", "underline"
-    val layoutDirection: String = "rtl",     // "rtl" | "ltr"
+    val layoutDirection: String = "ltr",     // "rtl" | "ltr"
     val enabled: Boolean = true,
 )
 
