@@ -6,6 +6,7 @@ import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.appwidget.updateAll
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -55,6 +56,11 @@ class WidgetWorker(
                 ExistingPeriodicWorkPolicy.KEEP,
                 request,
             )
+        }
+
+        /** Triggers an immediate one-shot refresh — call after the user saves config. */
+        fun refreshNow(context: Context) {
+            WorkManager.getInstance(context).enqueue(OneTimeWorkRequestBuilder<WidgetWorker>().build())
         }
 
         fun cancel(context: Context) {

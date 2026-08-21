@@ -195,6 +195,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                     scope.launch {
                                         store.save(final)
                                         WidgetWorker.schedule(this@WidgetConfigActivity)
+                                        WidgetWorker.refreshNow(this@WidgetConfigActivity)
                                         val glanceId = GlanceAppWidgetManager(this@WidgetConfigActivity)
                                             .getGlanceIdBy(appWidgetId)
                                         ReadYouWidget().update(this@WidgetConfigActivity, glanceId)
