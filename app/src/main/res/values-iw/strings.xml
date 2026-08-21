@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ווידג\'ט Read You</string>
+    <string name="widget_description">מציג את הפידים של Read You עם התאמה אישית לכל פיד</string>
+    <string name="widget_label">פידים של Read You</string>
+
+    <string name="sort_newest">החדש ביותר קודם</string>
+    <string name="sort_oldest">הישן ביותר קודם</string>
+    <string name="sort_by_feed">לפי פיד</string>
+    <string name="sort_unread_first">לא נקרא קודם</string>
+
+    <string name="filter_all">הכל</string>
+    <string name="filter_unread">לא נקרא בלבד</string>
+    <string name="filter_read">נקרא בלבד</string>
+
+    <string name="config_sort_label">מיין לפי</string>
+    <string name="config_filter_label">הצג</string>
+    <string name="config_feed_order_title">סדר פידים וסגנון</string>
+    <string name="config_drag_hint">גרור שורות לשינוי הסדר</string>
+    <string name="config_save">שמור</string>
+    <string name="config_title">הגדרות ווידג\'ט</string>
+
+    <string name="dir_rtl">ימין לשמאל</string>
+    <string name="dir_ltr">שמאל לימין</string>
+
+    <string name="font_default">ברירת מחדל</string>
+    <string name="font_serif">סריף</string>
+    <string name="font_mono">מונו</string>
+
+    <string name="no_articles">אין כתבות</string>
+    <string name="all_articles">כל הכתבות ←</string>
+</resources>

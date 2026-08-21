@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Read You Widget</string>
+    <string name="widget_description">Displays your Read You RSS feeds with per-feed customization</string>
+    <string name="widget_label">Read You Feeds</string>
+
+    <string name="sort_newest">Newest first</string>
+    <string name="sort_oldest">Oldest first</string>
+    <string name="sort_by_feed">By feed</string>
+    <string name="sort_unread_first">Unread first</string>
+
+    <string name="filter_all">All</string>
+    <string name="filter_unread">Unread only</string>
+    <string name="filter_read">Read only</string>
+
+    <string name="config_sort_label">Sort by</string>
+    <string name="config_filter_label">Show</string>
+    <string name="config_feed_order_title">Feed order &amp; style</string>
+    <string name="config_drag_hint">Drag rows to reorder</string>
+    <string name="config_save">Save</string>
+    <string name="config_title">Widget settings</string>
+
+    <string name="dir_rtl">RTL</string>
+    <string name="dir_ltr">LTR</string>
+
+    <string name="font_default">Default</string>
+    <string name="font_serif">Serif</string>
+    <string name="font_mono">Mono</string>
+
+    <string name="no_articles">No articles</string>
+    <string name="all_articles">All articles →</string>
+</resources>
