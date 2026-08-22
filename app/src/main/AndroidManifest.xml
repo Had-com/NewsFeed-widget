@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Required on Android 11+ to resolve Read You's package at runtime -->
     <queries>
         <package android:name="me.ash.reader" />
         <package android:name="io.github.ashinch.readyou" />
@@ -9,8 +8,6 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <application
         android:allowBackup="true"
@@ -18,7 +15,6 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault">
 
-        <!-- Widget receiver -->
         <receiver
             android:name=".glance.ReadYouWidgetReceiver"
             android:exported="true"
@@ -31,7 +27,6 @@
                 android:resource="@xml/appwidget_info" />
         </receiver>
 
-        <!-- Widget config activity -->
         <activity
             android:name=".config.WidgetConfigActivity"
             android:exported="true"
@@ -41,19 +36,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Deep-link handler — forwards widget taps to Read You app -->
-        <activity
-            android:name=".DeepLinkActivity"
-            android:exported="false"
-            android:theme="@android:style/Theme.NoDisplay" />
-
-        <!-- WorkManager worker -->
-        <service
-            android:name="androidx.work.impl.background.systemjob.SystemJobService"
-            android:permission="android.permission.BIND_JOB_SERVICE"
-            android:exported="true" />
-
-        <!-- FileProvider for sharing exported OPML files -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

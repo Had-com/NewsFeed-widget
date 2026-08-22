@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -45,10 +44,11 @@ fun ReorderableCollectionItemScope.FeedConfigRow(
     feedConfig: FeedConfig,
     onUpdate: (FeedConfig) -> Unit,
     onRemove: () -> Unit,
+    onEditRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showColorPicker by remember { mutableStateOf(false) }
-    var showFontMenu by remember { mutableStateOf(false) }
+    var showFontMenu    by remember { mutableStateOf(false) }
 
     val accentColor = runCatching {
         Color(android.graphics.Color.parseColor(feedConfig.accentColor))
@@ -59,7 +59,6 @@ fun ReorderableCollectionItemScope.FeedConfigRow(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
-        // Top row: drag handle | swatch | name | RTL/LTR toggle
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -67,15 +66,11 @@ fun ReorderableCollectionItemScope.FeedConfigRow(
             Icon(
                 painter = painterResource(R.drawable.ic_drag_handle),
                 contentDescription = "Drag to reorder",
-                modifier = Modifier
-                    .size(20.dp)
-                    .draggableHandle(),
+                modifier = Modifier.size(20.dp).draggableHandle(),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             )
-
             Spacer(Modifier.width(8.dp))
 
-            // Color swatch — tap to open picker
             Box(
                 modifier = Modifier
                     .size(16.dp)
@@ -83,36 +78,33 @@ fun ReorderableCollectionItemScope.FeedConfigRow(
                     .background(accentColor)
                     .clickable { showColorPicker = !showColorPicker }
             )
-
             Spacer(Modifier.width(8.dp))
 
+            // Tappable name → opens edit dialog
             Text(
                 text = feedConfig.displayName,
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onEditRequest),
             )
 
-            // Remove button
             Text(
                 text = "×",
                 fontSize = 16.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier
-                    .clickable(onClick = onRemove)
-                    .padding(4.dp),
+                modifier = Modifier.clickable(onClick = onRemove).padding(4.dp),
             )
-
             Spacer(Modifier.width(4.dp))
 
             // RTL / LTR toggle
             val isRtl = feedConfig.layoutDirection == "rtl"
-            val dirLabel = if (isRtl) "RTL" else "LTR"
             val dirBorderColor by animateColorAsState(
                 if (isRtl) Color(0xFF6750A4) else MaterialTheme.colorScheme.outline,
                 label = "dirBorder",
             )
             Text(
-                text = dirLabel,
+                text = if (isRtl) "RTL" else "LTR",
                 fontSize = 11.sp,
                 color = if (isRtl) Color(0xFFC4A9FF) else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
@@ -120,9 +112,25 @@ fun ReorderableCollectionItemScope.FeedConfigRow(
                     .clickable { onUpdate(feedConfig.copy(layoutDirection = if (isRtl) "ltr" else "rtl")) }
                     .padding(horizontal = 8.dp, vertical = 3.dp),
             )
+            Spacer(Modifier.width(4.dp))
+
+            // Text / Image toggle
+            val isImage = feedConfig.displayMode == "image"
+            val imgBorderColor by animateColorAsState(
+                if (isImage) Color(0xFF6750A4) else MaterialTheme.colorScheme.outline,
+                label = "imgBorder",
+            )
+            Text(
+                text = if (isImage) "IMG" else "TXT",
+                fontSize = 11.sp,
+                color = if (isImage) Color(0xFFC4A9FF) else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .border(0.5.dp, imgBorderColor, RoundedCornerShape(6.dp))
+                    .clickable { onUpdate(feedConfig.copy(displayMode = if (isImage) "text" else "image")) }
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+            )
         }
 
-        // Color picker (inline, shown on tap)
         if (showColorPicker) {
             Spacer(Modifier.height(8.dp))
             ColorPickerGrid(
@@ -136,17 +144,13 @@ fun ReorderableCollectionItemScope.FeedConfigRow(
 
         Spacer(Modifier.height(8.dp))
 
-        // Bottom row: font selector | B / I / U toggles
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // Font dropdown
             Box {
                 val fontLabel = when (feedConfig.fontFamily) {
-                    "serif" -> "Serif"
-                    "mono" -> "Mono"
-                    else -> "Default"
+                    "serif" -> "Serif"; "mono" -> "Mono"; else -> "Default"
                 }
                 Text(
                     text = "$fontLabel ▾",
@@ -161,18 +165,13 @@ fun ReorderableCollectionItemScope.FeedConfigRow(
                     listOf("sans" to "Default", "serif" to "Serif", "mono" to "Mono").forEach { (key, label) ->
                         DropdownMenuItem(
                             text = { Text(label) },
-                            onClick = {
-                                onUpdate(feedConfig.copy(fontFamily = key))
-                                showFontMenu = false
-                            },
+                            onClick = { onUpdate(feedConfig.copy(fontFamily = key)); showFontMenu = false },
                         )
                     }
                 }
             }
-
-            // B / I / U toggles
-            StyleToggle("B", "bold", FontWeight.Bold, feedConfig, onUpdate)
-            StyleToggle("I", "italic", null, feedConfig, onUpdate, fontStyle = FontStyle.Italic)
+            StyleToggle("B", "bold",      FontWeight.Bold, feedConfig, onUpdate)
+            StyleToggle("I", "italic",    null, feedConfig, onUpdate, fontStyle = FontStyle.Italic)
             StyleToggle("U", "underline", null, feedConfig, onUpdate, textDecoration = TextDecoration.Underline)
         }
     }
@@ -189,14 +188,8 @@ private fun StyleToggle(
     textDecoration: TextDecoration? = null,
 ) {
     val isOn = styleKey in feedConfig.textStyle
-    val bgColor by animateColorAsState(
-        if (isOn) Color(0x296750A4) else Color.Transparent,
-        label = "styleBg",
-    )
-    val borderColor by animateColorAsState(
-        if (isOn) Color(0xFF6750A4) else Color(0xFF666666),
-        label = "styleBorder",
-    )
+    val bgColor     by animateColorAsState(if (isOn) Color(0x296750A4) else Color.Transparent, label = "styleBg")
+    val borderColor by animateColorAsState(if (isOn) Color(0xFF6750A4) else Color(0xFF666666),   label = "styleBorder")
     Text(
         text = label,
         fontSize = 12.sp,

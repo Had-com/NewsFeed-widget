@@ -8,20 +8,23 @@ data class FeedConfig(
     val displayName: String,
     val feedUrl: String = "",
     val accentColor: String = "#9B72E3",
-    val fontFamily: String = "sans",         // "sans" | "serif" | "mono"
-    val textStyle: Set<String> = emptySet(), // "bold", "italic", "underline"
-    val layoutDirection: String = "ltr",     // "rtl" | "ltr"
+    val fontFamily: String = "sans",
+    val textStyle: Set<String> = emptySet(),
+    val layoutDirection: String = "ltr",
+    val displayMode: String = "text",   // "text" | "image"
     val enabled: Boolean = true,
 )
 
 @Serializable
 data class WidgetConfig(
     val widgetId: Int,
-    val sortOrder: String = "newest",        // "newest" | "oldest" | "by_feed" | "unread_first"
-    val filter: String = "all",             // "all" | "unread" | "read"
+    val sortOrder: String = "newest",
+    val filter: String = "all",
     val feedOrder: List<String> = emptyList(),
     val feeds: List<FeedConfig> = emptyList(),
-    val refreshIntervalMinutes: Int = 15,   // minimum 15 (Android WorkManager floor)
+    val refreshIntervalMinutes: Int = 15,
+    val fontSize: Float = 1.0f,                // 0.75 – 1.5
+    val externalApp: String = "browser",       // "readyou" | "browser" | "share"
 )
 
 @Serializable
@@ -31,6 +34,8 @@ data class ArticleItem(
     val feedName: String,
     val title: String,
     val articleUrl: String = "",
+    val description: String = "",              // plain text, max 400 chars
+    val imageUrl: String = "",                 // first image from RSS enclosure/media tags
     val publishedAt: Long,
     val isRead: Boolean,
 )

@@ -7,8 +7,10 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -39,9 +41,11 @@ class ReadYouWidget : GlanceAppWidget() {
 
     @Composable
     private fun WidgetContent() {
-        val prefs = currentState<androidx.datastore.preferences.core.Preferences>()
-        val configJson = prefs[WidgetStateKey.configJson]
-        val articlesJson = prefs[WidgetStateKey.articles]
+        val prefs             = currentState<androidx.datastore.preferences.core.Preferences>()
+        val configJson        = prefs[WidgetStateKey.configJson]
+        val articlesJson      = prefs[WidgetStateKey.articles]
+        val lastRefreshTime   = prefs[WidgetStateKey.lastRefreshTime] ?: 0L
+        val expandedArticleId = prefs[WidgetStateKey.expandedArticleId] ?: ""
 
         val config = configJson
             ?.let { runCatching { Json.decodeFromString<WidgetConfig>(it) }.getOrNull() }
@@ -51,7 +55,7 @@ class ReadYouWidget : GlanceAppWidget() {
             ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
             ?: emptyList()
 
-        val feedMap = config.feeds.associateBy { it.feedId }
+        val feedMap     = config.feeds.associateBy { it.feedId }
         val unreadCount = articles.count { !it.isRead }
 
         GlanceTheme {
@@ -63,24 +67,26 @@ class ReadYouWidget : GlanceAppWidget() {
                     .padding(0.dp),
             ) {
                 WidgetHeader(unreadCount)
-
                 Divider()
 
                 if (articles.isEmpty()) {
                     EmptyState()
                 } else {
                     articles.take(10).forEach { article ->
-                        val feedConfig = feedMap[article.feedId]
-                        if (feedConfig != null) {
-                            FeedItemRow(article = article, feedConfig = feedConfig)
-                            Divider(horizontal = true, thin = true)
-                        }
+                        val feedConfig = feedMap[article.feedId] ?: return@forEach
+                        FeedItemRow(
+                            article           = article,
+                            feedConfig        = feedConfig,
+                            expandedArticleId = expandedArticleId,
+                            widgetId          = config.widgetId,
+                            fontSize          = config.fontSize,
+                        )
+                        Divider(thin = true)
                     }
                 }
 
                 Spacer(GlanceModifier.defaultWeight())
-
-                WidgetFooter()
+                WidgetFooter(lastRefreshTime, config.refreshIntervalMinutes)
             }
         }
     }
@@ -95,10 +101,7 @@ class ReadYouWidget : GlanceAppWidget() {
         ) {
             Text(
                 text = "Read You",
-                style = TextStyle(
-                    fontSize = 13.sp,
-                    color = GlanceTheme.colors.onSurfaceVariant,
-                ),
+                style = TextStyle(fontSize = 13.sp, color = GlanceTheme.colors.onSurfaceVariant),
             )
             Spacer(GlanceModifier.defaultWeight())
             if (unreadCount > 0) {
@@ -118,14 +121,26 @@ class ReadYouWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun WidgetFooter() {
+    private fun WidgetFooter(lastRefreshTime: Long, intervalMinutes: Int) {
         Divider()
+        val now         = System.currentTimeMillis()
+        val nextMs      = lastRefreshTime + intervalMinutes * 60_000L
+        val minutesLeft = ((nextMs - now) / 60_000L).coerceIn(0L, intervalMinutes.toLong())
+
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            Text(
+                text = "↻ refresh in ${minutesLeft}min",
+                style = TextStyle(
+                    fontSize = 11.sp,
+                    color = ColorProvider(Color(0xFF9B72E3)),
+                ),
+                modifier = GlanceModifier.clickable(actionRunCallback<RefreshNowCallback>()),
+            )
             Spacer(GlanceModifier.defaultWeight())
             Text(
                 text = "All articles →",
@@ -145,16 +160,13 @@ class ReadYouWidget : GlanceAppWidget() {
         ) {
             Text(
                 text = "No articles",
-                style = TextStyle(
-                    fontSize = 13.sp,
-                    color = GlanceTheme.colors.onSurfaceVariant,
-                ),
+                style = TextStyle(fontSize = 13.sp, color = GlanceTheme.colors.onSurfaceVariant),
             )
         }
     }
 
     @Composable
-    private fun Divider(horizontal: Boolean = false, thin: Boolean = false) {
+    private fun Divider(thin: Boolean = false) {
         Box(
             modifier = GlanceModifier
                 .fillMaxWidth()

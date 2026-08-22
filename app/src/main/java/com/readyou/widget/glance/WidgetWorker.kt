@@ -25,23 +25,26 @@ class WidgetWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        val store = WidgetConfigStore(context)
-        val repo = ReadYouRepository(context)
+        val store   = WidgetConfigStore(context)
+        val repo    = ReadYouRepository(context)
         val readIds = ReadStatusStore(context).readIdsFlow().first()
         val manager = GlanceAppWidgetManager(context)
         val widgetIds = manager.getGlanceIds(ReadYouWidget::class.java)
 
         for (glanceId in widgetIds) {
             val appWidgetId = manager.getAppWidgetId(glanceId)
-            val config = store.configFlow(appWidgetId).first()
-            val articles = repo.getArticles(config).map { article ->
+            val config      = store.configFlow(appWidgetId).first()
+            val articles    = repo.getArticles(config).map { article ->
                 if (article.id in readIds) article.copy(isRead = true) else article
             }
-            val serialized = Json.encodeToString(articles)
 
+            repo.downloadThumbnails(articles, config.feeds)
+
+            val now = System.currentTimeMillis()
             updateAppWidgetState(context, glanceId) { prefs ->
-                prefs[WidgetStateKey.articles] = serialized
-                prefs[WidgetStateKey.configJson] = Json.encodeToString(config)
+                prefs[WidgetStateKey.articles]        = Json.encodeToString(articles)
+                prefs[WidgetStateKey.configJson]      = Json.encodeToString(config)
+                prefs[WidgetStateKey.lastRefreshTime] = now
             }
         }
 
@@ -54,18 +57,16 @@ class WidgetWorker(
 
         fun schedule(context: Context, intervalMinutes: Long = 15) {
             val request = PeriodicWorkRequestBuilder<WidgetWorker>(
-                intervalMinutes.coerceAtLeast(15), TimeUnit.MINUTES
+                intervalMinutes.coerceAtLeast(15), TimeUnit.MINUTES,
             ).build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                WORK_NAME,
-                ExistingPeriodicWorkPolicy.REPLACE, // replace so interval changes take effect immediately
-                request,
+                WORK_NAME, ExistingPeriodicWorkPolicy.REPLACE, request,
             )
         }
 
-        /** Triggers an immediate one-shot refresh — call after the user saves config. */
         fun refreshNow(context: Context) {
-            WorkManager.getInstance(context).enqueue(OneTimeWorkRequestBuilder<WidgetWorker>().build())
+            WorkManager.getInstance(context)
+                .enqueue(OneTimeWorkRequestBuilder<WidgetWorker>().build())
         }
 
         fun cancel(context: Context) {

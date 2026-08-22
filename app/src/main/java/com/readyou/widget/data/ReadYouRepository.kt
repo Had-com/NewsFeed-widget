@@ -1,6 +1,9 @@
 package com.readyou.widget.data
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.text.Html
 import android.util.Xml
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,7 +17,7 @@ import java.util.concurrent.TimeUnit
 
 class ReadYouRepository(private val context: Context) {
 
-    private val client = OkHttpClient.Builder()
+    val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .followRedirects(true)
@@ -29,7 +32,6 @@ class ReadYouRepository(private val context: Context) {
         applyFiltersAndSort(all, config)
     }
 
-    /** Fetches just the channel/feed title — used in the config screen when the user adds a URL. */
     suspend fun fetchFeedTitle(url: String): String? = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder().url(url).header("User-Agent", "ReadYouWidget/1.0").build()
@@ -44,7 +46,32 @@ class ReadYouRepository(private val context: Context) {
         } catch (_: Exception) { null }
     }
 
-    // ── private ────────────────────────────────────────────────────────────────
+    suspend fun downloadThumbnails(articles: List<ArticleItem>, feeds: List<FeedConfig>) =
+        withContext(Dispatchers.IO) {
+            val imageFeedIds = feeds.filter { it.displayMode == "image" }.map { it.feedId }.toSet()
+            for (article in articles) {
+                if (article.feedId !in imageFeedIds) continue
+                if (article.imageUrl.isBlank()) continue
+                val file = ThumbnailHelper.file(context, article.id)
+                if (file.exists() && System.currentTimeMillis() - file.lastModified() < 24 * 3600_000L) continue
+                runCatching {
+                    val req = Request.Builder().url(article.imageUrl)
+                        .header("User-Agent", "ReadYouWidget/1.0").build()
+                    client.newCall(req).execute().use { resp ->
+                        if (!resp.isSuccessful) return@runCatching
+                        val bmp = resp.body?.byteStream()?.let { BitmapFactory.decodeStream(it) }
+                            ?: return@runCatching
+                        val scaled = scaleBitmap(bmp, 120)
+                        file.parentFile?.mkdirs()
+                        file.outputStream().use { out ->
+                            scaled.compress(Bitmap.CompressFormat.JPEG, 75, out)
+                        }
+                    }
+                }
+            }
+        }
+
+    // ── private ───────────────────────────────────────────────────────────────
 
     private fun fetchFeedArticles(feed: FeedConfig): List<ArticleItem> {
         val req = Request.Builder().url(feed.feedUrl).header("User-Agent", "ReadYouWidget/1.0").build()
@@ -66,7 +93,7 @@ class ReadYouRepository(private val context: Context) {
                 when (parser.name.lowercase()) {
                     "channel", "feed" -> channelFound = true
                     "title" -> if (channelFound) return runCatching { parser.nextText() }.getOrNull()?.trim()
-                    "item", "entry" -> return null // past articles with no title found
+                    "item", "entry" -> return null
                 }
             }
             event = try { parser.next() } catch (_: Exception) { break }
@@ -91,8 +118,10 @@ class ReadYouRepository(private val context: Context) {
     private fun parseItem(parser: XmlPullParser, feed: FeedConfig): ArticleItem? {
         val entryTag = parser.name
         var title = ""
-        var guid = ""       // deduplication id — may be a URN
-        var articleUrl = "" // the actual web URL to open
+        var guid = ""
+        var articleUrl = ""
+        var rawDescription = ""
+        var imageUrl = ""
         var pubDate = 0L
 
         try { parser.next() } catch (_: Exception) { return null }
@@ -100,31 +129,57 @@ class ReadYouRepository(private val context: Context) {
         while (!(parser.eventType == XmlPullParser.END_TAG &&
                 parser.name.equals(entryTag, true))) {
             if (parser.eventType == XmlPullParser.START_TAG) {
-                when (parser.name.lowercase()) {
-                    "title" -> if (title.isEmpty()) {
+                val tag = parser.name.lowercase()
+                when {
+                    tag == "title" && title.isEmpty() ->
                         title = runCatching { parser.nextText() }.getOrDefault("").trim()
-                    }
-                    "guid", "id" -> if (guid.isEmpty()) {
+
+                    tag == "guid" || tag == "id" -> if (guid.isEmpty())
                         guid = runCatching { parser.nextText() }.getOrDefault("").trim()
-                    }
-                    "link" -> {
+
+                    tag == "link" -> {
                         val href = parser.getAttributeValue(null, "href")
-                        val rel = parser.getAttributeValue(null, "rel") ?: "alternate"
+                        val rel  = parser.getAttributeValue(null, "rel") ?: "alternate"
                         if (href != null) {
-                            // Atom self-closing: <link href="..." rel="alternate" />
                             if (rel == "alternate" && articleUrl.isEmpty()) articleUrl = href
                         } else {
-                            // RSS text: <link>url</link>
                             val text = runCatching { parser.nextText() }.getOrDefault("").trim()
                             if (text.isNotBlank() && articleUrl.isEmpty()) articleUrl = text
                         }
                     }
-                    "pubdate" -> if (pubDate == 0L) {
-                        pubDate = parseDate(runCatching { parser.nextText() }.getOrDefault(""))
+
+                    // Description: prefer content:encoded over description
+                    tag == "content:encoded" -> {
+                        val text = runCatching { parser.nextText() }.getOrDefault("")
+                        if (text.isNotBlank()) rawDescription = text
                     }
-                    "published", "updated" -> if (pubDate == 0L) {
-                        pubDate = parseDate(runCatching { parser.nextText() }.getOrDefault(""))
+                    tag == "description" && rawDescription.isEmpty() ->
+                        rawDescription = runCatching { parser.nextText() }.getOrDefault("")
+
+                    // Image: media:thumbnail (highest priority)
+                    tag == "media:thumbnail" && imageUrl.isEmpty() ->
+                        imageUrl = parser.getAttributeValue(null, "url") ?: ""
+
+                    // Image: media:content with image medium
+                    tag == "media:content" && imageUrl.isEmpty() -> {
+                        val medium = parser.getAttributeValue(null, "medium") ?: ""
+                        val type   = parser.getAttributeValue(null, "type") ?: ""
+                        if (medium == "image" || type.startsWith("image/"))
+                            imageUrl = parser.getAttributeValue(null, "url") ?: ""
                     }
+
+                    // Image: enclosure with image type
+                    tag == "enclosure" && imageUrl.isEmpty() -> {
+                        val type = parser.getAttributeValue(null, "type") ?: ""
+                        if (type.startsWith("image/"))
+                            imageUrl = parser.getAttributeValue(null, "url") ?: ""
+                    }
+
+                    tag == "pubdate" && pubDate == 0L ->
+                        pubDate = parseDate(runCatching { parser.nextText() }.getOrDefault(""))
+
+                    (tag == "published" || tag == "updated") && pubDate == 0L ->
+                        pubDate = parseDate(runCatching { parser.nextText() }.getOrDefault(""))
                 }
             }
             if (parser.eventType == XmlPullParser.END_DOCUMENT) break
@@ -132,30 +187,36 @@ class ReadYouRepository(private val context: Context) {
         }
 
         if (title.isBlank()) return null
+
+        @Suppress("DEPRECATION")
+        val description = if (rawDescription.isNotBlank()) {
+            Html.fromHtml(rawDescription, Html.FROM_HTML_MODE_COMPACT)
+                .toString().trim().take(400)
+        } else ""
+
         return ArticleItem(
-            id = guid.ifBlank { articleUrl.ifBlank { "${feed.feedId}_${System.nanoTime()}" } },
-            feedId = feed.feedId,
-            feedName = feed.displayName,
-            title = title,
-            articleUrl = articleUrl,
+            id          = guid.ifBlank { articleUrl.ifBlank { "${feed.feedId}_${System.nanoTime()}" } },
+            feedId      = feed.feedId,
+            feedName    = feed.displayName,
+            title       = title,
+            articleUrl  = articleUrl,
+            description = description,
+            imageUrl    = imageUrl,
             publishedAt = if (pubDate > 0) pubDate else System.currentTimeMillis(),
-            isRead = false,
+            isRead      = false,
         )
     }
 
     private fun parseDate(text: String): Long {
         if (text.isBlank()) return 0L
-        // RFC 2822 (RSS 2.0): "Sat, 01 Jan 2022 00:00:00 +0000"
         runCatching {
             SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH).parse(text.trim())?.time
         }.getOrNull()?.let { return it }
-        // ISO 8601 with Z (Atom): "2022-01-01T00:00:00Z"
         runCatching {
             SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ENGLISH)
                 .also { it.timeZone = TimeZone.getTimeZone("UTC") }
                 .parse(text.trim())?.time
         }.getOrNull()?.let { return it }
-        // ISO 8601 with zone offset: "2022-01-01T00:00:00+03:00"
         runCatching {
             SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.ENGLISH).parse(text.trim())?.time
         }.getOrNull()?.let { return it }
@@ -163,28 +224,29 @@ class ReadYouRepository(private val context: Context) {
     }
 
     private fun applyFiltersAndSort(items: List<ArticleItem>, config: WidgetConfig): List<ArticleItem> {
-        val enabledFeedIds = config.feeds.filter { it.enabled }.map { it.feedId }.toSet()
-        val feedPositions = config.feedOrder.withIndex().associate { (i, id) -> id to i }
-
+        val enabledFeedIds  = config.feeds.filter { it.enabled }.map { it.feedId }.toSet()
+        val feedPositions   = config.feedOrder.withIndex().associate { (i, id) -> id to i }
         val filtered = items
             .filter { it.feedId in enabledFeedIds }
             .filter { article ->
                 when (config.filter) {
                     FilterMode.UNREAD.key -> !article.isRead
-                    FilterMode.READ.key -> article.isRead
-                    else -> true
+                    FilterMode.READ.key   -> article.isRead
+                    else                  -> true
                 }
             }
-
         return when (config.sortOrder) {
-            SortOrder.OLDEST.key ->
-                filtered.sortedBy { it.publishedAt }
-            SortOrder.BY_FEED.key ->
-                filtered.sortedWith(compareBy({ feedPositions[it.feedId] ?: Int.MAX_VALUE }, { -it.publishedAt }))
-            SortOrder.UNREAD_FIRST.key ->
-                filtered.sortedWith(compareBy({ it.isRead }, { -it.publishedAt }))
-            else -> // newest first (default) — pure date order so all feeds are interleaved
-                filtered.sortedByDescending { it.publishedAt }
+            SortOrder.OLDEST.key     -> filtered.sortedBy { it.publishedAt }
+            SortOrder.BY_FEED.key    -> filtered.sortedWith(compareBy({ feedPositions[it.feedId] ?: Int.MAX_VALUE }, { -it.publishedAt }))
+            SortOrder.UNREAD_FIRST.key -> filtered.sortedWith(compareBy({ it.isRead }, { -it.publishedAt }))
+            else                     -> filtered.sortedByDescending { it.publishedAt }
         }
+    }
+
+    private fun scaleBitmap(bitmap: Bitmap, maxPx: Int): Bitmap {
+        val w = bitmap.width; val h = bitmap.height
+        if (w <= maxPx && h <= maxPx) return bitmap
+        val scale = maxPx.toFloat() / maxOf(w, h)
+        return Bitmap.createScaledBitmap(bitmap, (w * scale).toInt(), (h * scale).toInt(), true)
     }
 }
