@@ -40,10 +40,12 @@ import java.util.concurrent.TimeUnit
 fun FeedItemRow(
     article: ArticleItem,
     feedConfig: FeedConfig,
+    expandedArticleId: String,
     widgetId: Int,
     fontSize: Float,
 ) {
     val context        = LocalContext.current
+    val isExpanded     = article.id == expandedArticleId
     val accentColor    = runCatching { android.graphics.Color.parseColor(feedConfig.accentColor) }
         .getOrDefault(android.graphics.Color.parseColor("#9B72E3"))
     val accentProvider = ColorProvider(Color(accentColor))
@@ -51,27 +53,28 @@ fun FeedItemRow(
     val metaFontSize   = (9f * fontSize).sp
     val headlineSize   = (13f * fontSize).sp
 
-    val rowModifier = GlanceModifier.fillMaxWidth().padding(vertical = 5.dp).let {
-        if (article.articleUrl.isNotBlank()) {
-            it.clickable(
-                actionRunCallback<OpenExternalCallback>(
-                    actionParametersOf(
-                        OpenExternalCallback.ARTICLE_URL_KEY to article.articleUrl,
-                        OpenExternalCallback.ARTICLE_ID_KEY  to article.id,
-                        OpenExternalCallback.WIDGET_ID_KEY   to widgetId,
-                    )
-                )
-            )
-        } else it
-    }
+    val toggleAction = actionRunCallback<ToggleExpandCallback>(
+        actionParametersOf(ToggleExpandCallback.ARTICLE_ID_KEY to article.id)
+    )
 
-    Row(modifier = rowModifier, verticalAlignment = Alignment.Top) {
+    Row(
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp)
+            .clickable(toggleAction),
+        verticalAlignment = Alignment.Top,
+    ) {
         if (!isRtl) {
-            Box(modifier = GlanceModifier.width(3.dp).height(44.dp).background(accentProvider)) {}
+            Box(modifier = GlanceModifier
+                .width(3.dp)
+                .height(if (isExpanded) 80.dp else 44.dp)
+                .background(accentProvider)) {}
         }
 
         Column(
-            modifier = GlanceModifier.defaultWeight().padding(horizontal = 8.dp, vertical = 2.dp),
+            modifier = GlanceModifier
+                .defaultWeight()
+                .padding(horizontal = 8.dp, vertical = 2.dp),
             horizontalAlignment = if (isRtl) Alignment.End else Alignment.Start,
         ) {
             // Meta row: feed name + timestamp
@@ -125,25 +128,49 @@ fun FeedItemRow(
                 modifier = GlanceModifier.fillMaxWidth(),
             )
 
-            // Description snippet (always shown — tap the row to read the full article)
-            if (article.description.isNotBlank()) {
-                Spacer(GlanceModifier.height(2.dp))
-                Text(
-                    text = article.description,
-                    style = TextStyle(
-                        fontSize = (10f * fontSize).sp,
-                        color = GlanceTheme.colors.onSurfaceVariant,
-                        textAlign = if (isRtl) androidx.glance.text.TextAlign.End
-                                    else      androidx.glance.text.TextAlign.Start,
-                    ),
-                    maxLines = 2,
-                    modifier = GlanceModifier.fillMaxWidth(),
-                )
+            // Expanded: show full description + Open button
+            if (isExpanded) {
+                if (article.description.isNotBlank()) {
+                    Spacer(GlanceModifier.height(4.dp))
+                    Text(
+                        text = article.description,
+                        style = TextStyle(
+                            fontSize = (10f * fontSize).sp,
+                            color = GlanceTheme.colors.onSurfaceVariant,
+                            textAlign = if (isRtl) androidx.glance.text.TextAlign.End
+                                        else      androidx.glance.text.TextAlign.Start,
+                        ),
+                        maxLines = 6,
+                        modifier = GlanceModifier.fillMaxWidth(),
+                    )
+                }
+                if (article.articleUrl.isNotBlank()) {
+                    Spacer(GlanceModifier.height(6.dp))
+                    Text(
+                        text = "Open article →",
+                        style = TextStyle(
+                            fontSize = (9f * fontSize).sp,
+                            color = accentProvider,
+                        ),
+                        modifier = GlanceModifier
+                            .background(ColorProvider(Color(0x229B72E3)))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                            .clickable(
+                                actionRunCallback<OpenExternalCallback>(
+                                    actionParametersOf(
+                                        OpenExternalCallback.ARTICLE_URL_KEY to article.articleUrl,
+                                        OpenExternalCallback.ARTICLE_ID_KEY  to article.id,
+                                        OpenExternalCallback.WIDGET_ID_KEY   to widgetId,
+                                    )
+                                )
+                            ),
+                    )
+                }
             }
         }
 
-        // Thumbnail (shown in image mode, max 30 thumbnails are pre-downloaded)
-        if (feedConfig.displayMode == "image") {
+        // Thumbnail (compact / non-expanded only)
+        if (feedConfig.displayMode == "image" && !isExpanded) {
             val thumbFile = ThumbnailHelper.file(context, article.id)
             if (thumbFile.exists()) {
                 val bmp = BitmapFactory.decodeFile(thumbFile.absolutePath)
@@ -160,7 +187,10 @@ fun FeedItemRow(
 
         if (isRtl) {
             Spacer(GlanceModifier.width(6.dp))
-            Box(modifier = GlanceModifier.width(3.dp).height(44.dp).background(accentProvider)) {}
+            Box(modifier = GlanceModifier
+                .width(3.dp)
+                .height(if (isExpanded) 80.dp else 44.dp)
+                .background(accentProvider)) {}
         }
     }
 }

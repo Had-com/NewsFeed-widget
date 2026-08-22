@@ -20,11 +20,18 @@ import java.util.concurrent.TimeUnit
 class ReadYouRepository(private val context: Context) {
 
     val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(25, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
         .build()
+
+    // Browser-like headers improve compatibility with news sites that block bot UAs
+    private fun browserHeaders(url: String) = mapOf(
+        "User-Agent" to "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        "Accept" to "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.7",
+        "Accept-Language" to "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7",
+    )
 
     suspend fun getArticles(config: WidgetConfig): List<ArticleItem> = withContext(Dispatchers.IO) {
         val all = config.feeds
@@ -37,14 +44,15 @@ class ReadYouRepository(private val context: Context) {
 
     suspend fun fetchFeedTitle(url: String): String? = withContext(Dispatchers.IO) {
         try {
-            val req = Request.Builder().url(url).header("User-Agent", "ReadYouWidget/1.0").build()
-            client.newCall(req).execute().use { response ->
+            var req = Request.Builder().url(url)
+            browserHeaders(url).forEach { (k, v) -> req = req.header(k, v) }
+            client.newCall(req.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext null
-                response.body?.byteStream()?.let { stream ->
-                    val parser = Xml.newPullParser()
-                    parser.setInput(stream, null)
-                    parseFeedTitle(parser)
-                }
+                // Use string() so OkHttp applies the correct charset from Content-Type
+                val text = response.body?.string() ?: return@withContext null
+                val parser = Xml.newPullParser()
+                parser.setInput(text.reader())
+                parseFeedTitle(parser)
             }
         } catch (_: Exception) { null }
     }
@@ -59,7 +67,8 @@ class ReadYouRepository(private val context: Context) {
                 if (file.exists() && System.currentTimeMillis() - file.lastModified() < 24 * 3600_000L) continue
                 runCatching {
                     val req = Request.Builder().url(article.imageUrl)
-                        .header("User-Agent", "ReadYouWidget/1.0").build()
+                        .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36")
+                        .build()
                     client.newCall(req).execute().use { resp ->
                         if (!resp.isSuccessful) return@runCatching
                         val bmp = resp.body?.byteStream()?.let { BitmapFactory.decodeStream(it) }
@@ -77,14 +86,15 @@ class ReadYouRepository(private val context: Context) {
     // ── private ───────────────────────────────────────────────────────────────
 
     private fun fetchFeedArticles(feed: FeedConfig): List<ArticleItem> {
-        val req = Request.Builder().url(feed.feedUrl).header("User-Agent", "ReadYouWidget/1.0").build()
-        return client.newCall(req).execute().use { response ->
+        var req = Request.Builder().url(feed.feedUrl)
+        browserHeaders(feed.feedUrl).forEach { (k, v) -> req = req.header(k, v) }
+        return client.newCall(req.build()).execute().use { response ->
             if (!response.isSuccessful) return emptyList()
-            response.body?.byteStream()?.let { stream ->
-                val parser = Xml.newPullParser()
-                parser.setInput(stream, null)
-                parseFeed(parser, feed)
-            } ?: emptyList()
+            // Use string() so OkHttp honours the charset in Content-Type (fixes Windows-1255 Hebrew feeds)
+            val text = response.body?.string() ?: return emptyList()
+            val parser = Xml.newPullParser()
+            parser.setInput(text.reader())
+            parseFeed(parser, feed)
         }
     }
 
@@ -151,12 +161,12 @@ class ReadYouRepository(private val context: Context) {
                         }
                     }
 
-                    // Description: prefer content:encoded over description
-                    tag == "content:encoded" -> {
+                    // Atom <content> and <summary> (in addition to RSS content:encoded / description)
+                    tag == "content:encoded" || (tag == "content" && rawDescription.isEmpty()) -> {
                         val text = runCatching { parser.nextText() }.getOrDefault("")
                         if (text.isNotBlank()) rawDescription = text
                     }
-                    tag == "description" && rawDescription.isEmpty() ->
+                    (tag == "description" || tag == "summary") && rawDescription.isEmpty() ->
                         rawDescription = runCatching { parser.nextText() }.getOrDefault("")
 
                     // Image: media:thumbnail (highest priority)
@@ -190,6 +200,13 @@ class ReadYouRepository(private val context: Context) {
         }
 
         if (title.isBlank()) return null
+
+        // If no image found in feed metadata, extract the first <img src> from description HTML.
+        // Many Hebrew news sites embed images inside <description> rather than using media tags.
+        if (imageUrl.isEmpty() && rawDescription.contains("<img", ignoreCase = true)) {
+            imageUrl = Regex("""<img[^>]+src=["']([^"'>]+)["']""", RegexOption.IGNORE_CASE)
+                .find(rawDescription)?.groupValues?.getOrNull(1) ?: ""
+        }
 
         @Suppress("DEPRECATION")
         val description = if (rawDescription.isNotBlank()) {
@@ -227,8 +244,7 @@ class ReadYouRepository(private val context: Context) {
     }
 
     private fun applyFiltersAndSort(items: List<ArticleItem>, config: WidgetConfig): List<ArticleItem> {
-        val enabledFeedIds  = config.feeds.filter { it.enabled }.map { it.feedId }.toSet()
-        val feedPositions   = config.feedOrder.withIndex().associate { (i, id) -> id to i }
+        val enabledFeedIds = config.feeds.filter { it.enabled }.map { it.feedId }.toSet()
         val filtered = items
             .filter { it.feedId in enabledFeedIds }
             .filter { article ->
@@ -254,9 +270,8 @@ class ReadYouRepository(private val context: Context) {
                 result
             }
             else -> {
-                // For all other sort modes, cap each feed at its 10 most-relevant articles
-                // before the global sort so a single high-frequency feed can't dominate
-                // all visible slots in the widget.
+                // Cap each feed at its 10 most-relevant articles before the global sort
+                // so a single high-frequency feed can't fill all visible widget slots.
                 val perFeed = filtered
                     .groupBy { it.feedId }
                     .values
