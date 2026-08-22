@@ -18,7 +18,7 @@ data class FeedConfig(
 @Serializable
 data class WidgetConfig(
     val widgetId: Int,
-    val sortOrder: String = "newest",
+    val sortOrder: String = "by_feed",
     val filter: String = "all",
     val feedOrder: List<String> = emptyList(),
     val feeds: List<FeedConfig> = emptyList(),

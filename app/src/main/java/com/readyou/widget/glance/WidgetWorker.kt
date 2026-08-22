@@ -15,8 +15,8 @@ import com.readyou.widget.data.ReadStatusStore
 import com.readyou.widget.data.ReadYouRepository
 import com.readyou.widget.data.WidgetConfigStore
 import com.readyou.widget.data.WidgetStateKey
-import kotlinx.serialization.decodeFromString
 import kotlinx.coroutines.flow.first
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.concurrent.TimeUnit
@@ -27,36 +27,35 @@ class WidgetWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        val store   = WidgetConfigStore(context)
-        val repo    = ReadYouRepository(context)
-        val readIds = ReadStatusStore(context).readIdsFlow().first()
-        val manager = GlanceAppWidgetManager(context)
+        val store     = WidgetConfigStore(context)
+        val repo      = ReadYouRepository(context)
+        val readIds   = ReadStatusStore(context).readIdsFlow().first()
+        val manager   = GlanceAppWidgetManager(context)
         val widgetIds = manager.getGlanceIds(ReadYouWidget::class.java)
 
         for (glanceId in widgetIds) {
             val appWidgetId = manager.getAppWidgetId(glanceId)
             val config      = store.configFlow(appWidgetId).first()
-            val articles    = repo.getArticles(config).map { article ->
-                if (article.id in readIds) article.copy(isRead = true) else article
+            val fresh       = repo.getArticles(config).map { a ->
+                if (a.id in readIds) a.copy(isRead = true) else a
             }
 
-            repo.downloadThumbnails(articles, config.feeds)
-
             val now = System.currentTimeMillis()
+            var merged: List<ArticleItem> = emptyList()
             updateAppWidgetState(context, glanceId) { prefs ->
-                // Merge fresh articles with previously stored ones so older articles
-                // that aged out of the RSS feed are not immediately lost.
                 val existing = prefs[WidgetStateKey.articles]
                     ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
                     ?: emptyList()
-                val freshIds = articles.map { it.id }.toSet()
-                val merged   = (articles + existing.filter { it.id !in freshIds })
+                val freshIds = fresh.map { it.id }.toSet()
+                merged = (fresh + existing.filter { it.id !in freshIds })
                     .sortedByDescending { it.publishedAt }
                     .take(300)
                 prefs[WidgetStateKey.articles]        = Json.encodeToString(merged)
                 prefs[WidgetStateKey.configJson]      = Json.encodeToString(config)
                 prefs[WidgetStateKey.lastRefreshTime] = now
             }
+            // Download thumbnails for the merged set so accumulated articles are covered too
+            repo.downloadThumbnails(merged.take(30), config.feeds)
         }
 
         ReadYouWidget().updateAll(context)

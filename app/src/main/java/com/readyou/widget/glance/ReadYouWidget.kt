@@ -32,6 +32,7 @@ import com.readyou.widget.data.ArticleItem
 import com.readyou.widget.data.WidgetConfig
 import com.readyou.widget.data.WidgetStateKey
 import kotlinx.serialization.json.Json
+import java.util.concurrent.TimeUnit
 
 class ReadYouWidget : GlanceAppWidget() {
 
@@ -41,11 +42,10 @@ class ReadYouWidget : GlanceAppWidget() {
 
     @Composable
     private fun WidgetContent() {
-        val prefs             = currentState<androidx.datastore.preferences.core.Preferences>()
-        val configJson        = prefs[WidgetStateKey.configJson]
-        val articlesJson      = prefs[WidgetStateKey.articles]
-        val lastRefreshTime   = prefs[WidgetStateKey.lastRefreshTime] ?: 0L
-        val expandedArticleId = prefs[WidgetStateKey.expandedArticleId] ?: ""
+        val prefs           = currentState<androidx.datastore.preferences.core.Preferences>()
+        val configJson      = prefs[WidgetStateKey.configJson]
+        val articlesJson    = prefs[WidgetStateKey.articles]
+        val lastRefreshTime = prefs[WidgetStateKey.lastRefreshTime] ?: 0L
 
         val config = configJson
             ?.let { runCatching { Json.decodeFromString<WidgetConfig>(it) }.getOrNull() }
@@ -55,8 +55,11 @@ class ReadYouWidget : GlanceAppWidget() {
             ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
             ?: emptyList()
 
-        val feedMap     = config.feeds.associateBy { it.feedId }
-        val unreadCount = articles.count { !it.isRead }
+        val feedMap = config.feeds.associateBy { it.feedId }
+
+        // Only count unread among articles that will actually render (have a known feed)
+        val displayArticles = articles.filter { feedMap.containsKey(it.feedId) }.take(50)
+        val unreadCount     = displayArticles.count { !it.isRead }
 
         GlanceTheme {
             Column(
@@ -70,17 +73,16 @@ class ReadYouWidget : GlanceAppWidget() {
                 Divider()
 
                 Column(modifier = GlanceModifier.defaultWeight().fillMaxWidth()) {
-                    if (articles.isEmpty()) {
+                    if (displayArticles.isEmpty()) {
                         EmptyState()
                     } else {
-                        articles.take(50).forEach { article ->
+                        displayArticles.forEach { article ->
                             val feedConfig = feedMap[article.feedId] ?: return@forEach
                             FeedItemRow(
-                                article           = article,
-                                feedConfig        = feedConfig,
-                                expandedArticleId = expandedArticleId,
-                                widgetId          = config.widgetId,
-                                fontSize          = config.fontSize,
+                                article    = article,
+                                feedConfig = feedConfig,
+                                widgetId   = config.widgetId,
+                                fontSize   = config.fontSize,
                             )
                             Divider(thin = true)
                         }
@@ -123,9 +125,13 @@ class ReadYouWidget : GlanceAppWidget() {
     @Composable
     private fun WidgetFooter(lastRefreshTime: Long, intervalMinutes: Int) {
         Divider()
-        val now         = System.currentTimeMillis()
-        val nextMs      = lastRefreshTime + intervalMinutes * 60_000L
-        val minutesLeft = ((nextMs - now) / 60_000L).coerceIn(0L, intervalMinutes.toLong())
+        val ageMs   = (System.currentTimeMillis() - lastRefreshTime).coerceAtLeast(0L)
+        val ageText = when {
+            lastRefreshTime == 0L                        -> "never"
+            ageMs < TimeUnit.MINUTES.toMillis(1)         -> "just now"
+            ageMs < TimeUnit.HOURS.toMillis(1)           -> "${TimeUnit.MILLISECONDS.toMinutes(ageMs)}m ago"
+            else                                         -> "${TimeUnit.MILLISECONDS.toHours(ageMs)}h ago"
+        }
 
         Row(
             modifier = GlanceModifier
@@ -134,20 +140,14 @@ class ReadYouWidget : GlanceAppWidget() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "↻ refresh in ${minutesLeft}min",
-                style = TextStyle(
-                    fontSize = 11.sp,
-                    color = ColorProvider(Color(0xFF9B72E3)),
-                ),
+                text = "↻ last: $ageText",
+                style = TextStyle(fontSize = 11.sp, color = ColorProvider(Color(0xFF9B72E3))),
                 modifier = GlanceModifier.clickable(actionRunCallback<RefreshNowCallback>()),
             )
             Spacer(GlanceModifier.defaultWeight())
             Text(
-                text = "All articles →",
-                style = TextStyle(
-                    fontSize = 11.sp,
-                    color = ColorProvider(Color(0xFF9B72E3)),
-                ),
+                text = "every ${intervalMinutes}min",
+                style = TextStyle(fontSize = 11.sp, color = ColorProvider(Color(0xFF9B72E3))),
             )
         }
     }

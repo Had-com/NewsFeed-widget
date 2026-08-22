@@ -6,6 +6,8 @@ import android.graphics.BitmapFactory
 import android.text.Html
 import android.util.Xml
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -25,10 +27,11 @@ class ReadYouRepository(private val context: Context) {
         .build()
 
     suspend fun getArticles(config: WidgetConfig): List<ArticleItem> = withContext(Dispatchers.IO) {
-        val all = mutableListOf<ArticleItem>()
-        for (feed in config.feeds.filter { it.enabled && it.feedUrl.isNotBlank() }) {
-            try { all += fetchFeedArticles(feed) } catch (_: Exception) {}
-        }
+        val all = config.feeds
+            .filter { it.enabled && it.feedUrl.isNotBlank() }
+            .map { feed -> async { runCatching { fetchFeedArticles(feed) }.getOrDefault(emptyList()) } }
+            .awaitAll()
+            .flatten()
         applyFiltersAndSort(all, config)
     }
 
@@ -61,7 +64,7 @@ class ReadYouRepository(private val context: Context) {
                         if (!resp.isSuccessful) return@runCatching
                         val bmp = resp.body?.byteStream()?.let { BitmapFactory.decodeStream(it) }
                             ?: return@runCatching
-                        val scaled = scaleBitmap(bmp, 120)
+                        val scaled = scaleBitmap(bmp, 56)
                         file.parentFile?.mkdirs()
                         file.outputStream().use { out ->
                             scaled.compress(Bitmap.CompressFormat.JPEG, 75, out)
@@ -236,10 +239,23 @@ class ReadYouRepository(private val context: Context) {
                 }
             }
         return when (config.sortOrder) {
-            SortOrder.OLDEST.key     -> filtered.sortedBy { it.publishedAt }
-            SortOrder.BY_FEED.key    -> filtered.sortedWith(compareBy({ feedPositions[it.feedId] ?: Int.MAX_VALUE }, { -it.publishedAt }))
+            SortOrder.OLDEST.key       -> filtered.sortedBy { it.publishedAt }
             SortOrder.UNREAD_FIRST.key -> filtered.sortedWith(compareBy({ it.isRead }, { -it.publishedAt }))
-            else                     -> filtered.sortedByDescending { it.publishedAt }
+            SortOrder.BY_FEED.key      -> {
+                // Round-robin interleave: take one article from each feed at a time so all feeds
+                // are represented in the visible slice of the widget.
+                val orderedIds = config.feedOrder.filter { id -> filtered.any { it.feedId == id } }
+                val byFeed = orderedIds.associateWith { id ->
+                    filtered.filter { it.feedId == id }.sortedByDescending { it.publishedAt }
+                }
+                val result = mutableListOf<ArticleItem>()
+                val maxSize = byFeed.values.maxOfOrNull { it.size } ?: 0
+                for (i in 0 until maxSize) {
+                    for (id in orderedIds) { byFeed[id]?.getOrNull(i)?.let { result += it } }
+                }
+                result
+            }
+            else -> filtered.sortedByDescending { it.publishedAt }
         }
     }
 
