@@ -250,9 +250,11 @@ class WidgetConfigActivity : ComponentActivity() {
                 }
 
                 val fontSizeLabel = when {
-                    config.fontSize < 0.9f -> "Small"
-                    config.fontSize > 1.2f -> "Large"
-                    else                   -> "Medium"
+                    config.fontSize < 0.75f -> "Tiny"
+                    config.fontSize < 1.0f  -> "Small"
+                    config.fontSize < 1.5f  -> "Medium"
+                    config.fontSize < 2.0f  -> "Large"
+                    else                    -> "Huge"
                 }
 
                 Scaffold(
@@ -359,7 +361,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                 Slider(
                                     value = config.fontSize,
                                     onValueChange = { config = config.copy(fontSize = it) },
-                                    valueRange = 0.75f..1.5f,
+                                    valueRange = 0.5f..3.0f,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             }

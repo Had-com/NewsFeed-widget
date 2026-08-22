@@ -10,8 +10,8 @@ data class FeedConfig(
     val accentColor: String = "#9B72E3",
     val fontFamily: String = "sans",
     val textStyle: Set<String> = emptySet(),
-    val layoutDirection: String = "ltr",
-    val displayMode: String = "text",   // "text" | "image"
+    val layoutDirection: String = "rtl",
+    val displayMode: String = "image",  // "text" | "image"
     val enabled: Boolean = true,
 )
 
@@ -23,7 +23,7 @@ data class WidgetConfig(
     val feedOrder: List<String> = emptyList(),
     val feeds: List<FeedConfig> = emptyList(),
     val refreshIntervalMinutes: Int = 15,
-    val fontSize: Float = 1.0f,                // 0.75 – 1.5
+    val fontSize: Float = 1.0f,                // 0.5 – 3.0
     val externalApp: String = "browser",       // "readyou" | "browser" | "share"
 )
 

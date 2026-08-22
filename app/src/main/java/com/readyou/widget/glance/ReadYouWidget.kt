@@ -69,23 +69,23 @@ class ReadYouWidget : GlanceAppWidget() {
                 WidgetHeader(unreadCount)
                 Divider()
 
-                if (articles.isEmpty()) {
-                    EmptyState()
-                } else {
-                    articles.take(10).forEach { article ->
-                        val feedConfig = feedMap[article.feedId] ?: return@forEach
-                        FeedItemRow(
-                            article           = article,
-                            feedConfig        = feedConfig,
-                            expandedArticleId = expandedArticleId,
-                            widgetId          = config.widgetId,
-                            fontSize          = config.fontSize,
-                        )
-                        Divider(thin = true)
+                Column(modifier = GlanceModifier.defaultWeight().fillMaxWidth()) {
+                    if (articles.isEmpty()) {
+                        EmptyState()
+                    } else {
+                        articles.take(10).forEach { article ->
+                            val feedConfig = feedMap[article.feedId] ?: return@forEach
+                            FeedItemRow(
+                                article           = article,
+                                feedConfig        = feedConfig,
+                                expandedArticleId = expandedArticleId,
+                                widgetId          = config.widgetId,
+                                fontSize          = config.fontSize,
+                            )
+                            Divider(thin = true)
+                        }
                     }
                 }
-
-                Spacer(GlanceModifier.defaultWeight())
                 WidgetFooter(lastRefreshTime, config.refreshIntervalMinutes)
             }
         }
