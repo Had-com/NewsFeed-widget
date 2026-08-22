@@ -10,10 +10,12 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.readyou.widget.data.ArticleItem
 import com.readyou.widget.data.ReadStatusStore
 import com.readyou.widget.data.ReadYouRepository
 import com.readyou.widget.data.WidgetConfigStore
 import com.readyou.widget.data.WidgetStateKey
+import kotlinx.serialization.decodeFromString
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -42,7 +44,16 @@ class WidgetWorker(
 
             val now = System.currentTimeMillis()
             updateAppWidgetState(context, glanceId) { prefs ->
-                prefs[WidgetStateKey.articles]        = Json.encodeToString(articles)
+                // Merge fresh articles with previously stored ones so older articles
+                // that aged out of the RSS feed are not immediately lost.
+                val existing = prefs[WidgetStateKey.articles]
+                    ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
+                    ?: emptyList()
+                val freshIds = articles.map { it.id }.toSet()
+                val merged   = (articles + existing.filter { it.id !in freshIds })
+                    .sortedByDescending { it.publishedAt }
+                    .take(300)
+                prefs[WidgetStateKey.articles]        = Json.encodeToString(merged)
                 prefs[WidgetStateKey.configJson]      = Json.encodeToString(config)
                 prefs[WidgetStateKey.lastRefreshTime] = now
             }

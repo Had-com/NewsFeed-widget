@@ -73,7 +73,7 @@ class ReadYouWidget : GlanceAppWidget() {
                     if (articles.isEmpty()) {
                         EmptyState()
                     } else {
-                        articles.take(10).forEach { article ->
+                        articles.take(50).forEach { article ->
                             val feedConfig = feedMap[article.feedId] ?: return@forEach
                             FeedItemRow(
                                 article           = article,
@@ -106,7 +106,7 @@ class ReadYouWidget : GlanceAppWidget() {
             Spacer(GlanceModifier.defaultWeight())
             if (unreadCount > 0) {
                 Text(
-                    text = "$unreadCount",
+                    text = if (unreadCount > 99) "99+" else "$unreadCount",
                     style = TextStyle(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,

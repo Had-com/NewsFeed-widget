@@ -108,7 +108,7 @@ class ReadYouRepository(private val context: Context) {
             if (event == XmlPullParser.START_TAG &&
                 (parser.name.equals("item", true) || parser.name.equals("entry", true))) {
                 parseItem(parser, feed)?.let { items += it }
-                if (items.size >= 25) break
+                if (items.size >= 50) break
             }
             event = try { parser.next() } catch (_: Exception) { break }
         }

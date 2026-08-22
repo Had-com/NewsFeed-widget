@@ -109,7 +109,14 @@ class WidgetConfigActivity : ComponentActivity() {
                 }
                 val lazyListState = rememberLazyListState()
                 val reorderState  = rememberReorderableLazyListState(lazyListState) { from, to ->
-                    feedOrder.apply { add(to.index, removeAt(from.index)) }
+                    // The LazyColumn has 3 non-reorderable header items before the feed rows,
+                    // so subtract that offset to get feed-relative indices.
+                    val offset = 3
+                    val fromIdx = from.index - offset
+                    val toIdx   = to.index - offset
+                    if (fromIdx >= 0 && toIdx >= 0 && fromIdx < feedOrder.size && toIdx < feedOrder.size) {
+                        feedOrder.add(toIdx, feedOrder.removeAt(fromIdx))
+                    }
                 }
 
                 var showSortMenu     by remember { mutableStateOf(false) }
