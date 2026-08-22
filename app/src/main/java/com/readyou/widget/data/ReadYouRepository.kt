@@ -239,11 +239,9 @@ class ReadYouRepository(private val context: Context) {
                 }
             }
         return when (config.sortOrder) {
-            SortOrder.OLDEST.key       -> filtered.sortedBy { it.publishedAt }
-            SortOrder.UNREAD_FIRST.key -> filtered.sortedWith(compareBy({ it.isRead }, { -it.publishedAt }))
-            SortOrder.BY_FEED.key      -> {
-                // Round-robin interleave: take one article from each feed at a time so all feeds
-                // are represented in the visible slice of the widget.
+            SortOrder.BY_FEED.key -> {
+                // Round-robin interleave: one article per feed per round so every feed
+                // appears in the visible slice regardless of posting frequency.
                 val orderedIds = config.feedOrder.filter { id -> filtered.any { it.feedId == id } }
                 val byFeed = orderedIds.associateWith { id ->
                     filtered.filter { it.feedId == id }.sortedByDescending { it.publishedAt }
@@ -255,7 +253,26 @@ class ReadYouRepository(private val context: Context) {
                 }
                 result
             }
-            else -> filtered.sortedByDescending { it.publishedAt }
+            else -> {
+                // For all other sort modes, cap each feed at its 10 most-relevant articles
+                // before the global sort so a single high-frequency feed can't dominate
+                // all visible slots in the widget.
+                val perFeed = filtered
+                    .groupBy { it.feedId }
+                    .values
+                    .flatMap { group ->
+                        when (config.sortOrder) {
+                            SortOrder.OLDEST.key       -> group.sortedBy { it.publishedAt }
+                            SortOrder.UNREAD_FIRST.key -> group.sortedWith(compareBy({ it.isRead }, { -it.publishedAt }))
+                            else                       -> group.sortedByDescending { it.publishedAt }
+                        }.take(10)
+                    }
+                when (config.sortOrder) {
+                    SortOrder.OLDEST.key       -> perFeed.sortedBy { it.publishedAt }
+                    SortOrder.UNREAD_FIRST.key -> perFeed.sortedWith(compareBy({ it.isRead }, { -it.publishedAt }))
+                    else                       -> perFeed.sortedByDescending { it.publishedAt }
+                }
+            }
         }
     }
 
