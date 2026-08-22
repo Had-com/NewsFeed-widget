@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<opml version="2.0">
+  <head>
+    <title>Read You</title>
+  </head>
+  <body>
+    <outline text="Default" title="Default">
+      <outline xmlUrl="https://github.com/ReadYouApp/ReadYou/releases.atom" text="ReadYou Releases" title="ReadYou Releases" />
+    </outline>
+    <outline text="News" title="News">
+      <outline xmlUrl="https://www.ynet.co.il/integration/StoryRss1854.xml" text="ynet - מבזקים" title="ynet - מבזקים" />
+      <outline xmlUrl="https://rotter.net/rss/rotternews.xml" text="rotter.net רוטר.נט" title="rotter.net רוטר.נט" />
+      <outline xmlUrl="https://news.google.com/rss/search?q=site%3An12.co.il%2F%3F+OR+site%3An12.co.il+N12&amp;hl=he&amp;gl=IL&amp;ceid=IL%3Ahe" text="N12 - חדשות" title="N12 - חדשות" />
+      <outline xmlUrl="https://news.google.com/rss/search?q=site%3Akan.org.il+%22%D7%9B%D7%90%D7%9F+%D7%97%D7%93%D7%A9%D7%95%D7%AA%22&amp;hl=he&amp;gl=IL&amp;ceid=IL%3Ahe" text="כאן חדשות - חדשות" title="כאן חדשות - חדשות" />
+      <outline xmlUrl="https://www.ynet.co.il/Integration/StoryRss2.xml" text="ynet - חדשות" title="ynet - חדשות" />
+      <outline xmlUrl="https://rss.walla.co.il/feed/22?type=main" text="וואלה - מבזקים" title="וואלה - מבזקים" />
+      <outline xmlUrl="https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=2" text="גלובס - כל הכתבות" title="גלובס - כל הכתבות" />
+      <outline xmlUrl="https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=9917" text="גלובס - בארץ" title="גלובס - בארץ" />
+    </outline>
+  </body>
+</opml>

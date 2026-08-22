@@ -91,7 +91,17 @@ class WidgetConfigActivity : ComponentActivity() {
 
                 androidx.compose.runtime.LaunchedEffect(appWidgetId) {
                     val saved = store.configFlow(appWidgetId).first()
-                    config = saved.copy(feedOrder = saved.feedOrder.ifEmpty { saved.feeds.map { it.feedId } })
+                    if (saved.feeds.isEmpty()) {
+                        val opml = runCatching {
+                            assets.open("default_feeds.opml").bufferedReader().readText()
+                        }.getOrNull()
+                        val defaults = opml?.let { OpmlManager.parse(it) }
+                            ?.map { (title, url) -> FeedConfig(feedId = url, displayName = title, feedUrl = url) }
+                            ?: emptyList()
+                        config = saved.copy(feeds = defaults, feedOrder = defaults.map { it.feedId })
+                    } else {
+                        config = saved.copy(feedOrder = saved.feedOrder.ifEmpty { saved.feeds.map { it.feedId } })
+                    }
                 }
 
                 val feedOrder = remember(config.feedOrder) {
