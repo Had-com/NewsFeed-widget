@@ -178,13 +178,13 @@ class ReadYouRepository(private val context: Context) {
 
         return when (config.sortOrder) {
             SortOrder.OLDEST.key ->
-                filtered.sortedWith(compareBy({ feedPositions[it.feedId] ?: Int.MAX_VALUE }, { it.publishedAt }))
+                filtered.sortedBy { it.publishedAt }
             SortOrder.BY_FEED.key ->
                 filtered.sortedWith(compareBy({ feedPositions[it.feedId] ?: Int.MAX_VALUE }, { -it.publishedAt }))
             SortOrder.UNREAD_FIRST.key ->
-                filtered.sortedWith(compareBy({ it.isRead }, { feedPositions[it.feedId] ?: Int.MAX_VALUE }, { -it.publishedAt }))
-            else -> // newest first (default)
-                filtered.sortedWith(compareBy({ feedPositions[it.feedId] ?: Int.MAX_VALUE }, { -it.publishedAt }))
+                filtered.sortedWith(compareBy({ it.isRead }, { -it.publishedAt }))
+            else -> // newest first (default) — pure date order so all feeds are interleaved
+                filtered.sortedByDescending { it.publishedAt }
         }
     }
 }

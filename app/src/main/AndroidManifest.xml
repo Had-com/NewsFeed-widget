@@ -3,6 +3,7 @@
 
     <!-- Required on Android 11+ to resolve Read You's package at runtime -->
     <queries>
+        <package android:name="me.ash.reader" />
         <package android:name="io.github.ashinch.readyou" />
     </queries>
 

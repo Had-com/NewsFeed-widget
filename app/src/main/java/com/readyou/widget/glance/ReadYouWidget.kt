@@ -69,7 +69,7 @@ class ReadYouWidget : GlanceAppWidget() {
                 if (articles.isEmpty()) {
                     EmptyState()
                 } else {
-                    articles.take(6).forEach { article ->
+                    articles.take(10).forEach { article ->
                         val feedConfig = feedMap[article.feedId]
                         if (feedConfig != null) {
                             FeedItemRow(article = article, feedConfig = feedConfig)
