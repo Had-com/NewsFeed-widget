@@ -32,6 +32,19 @@ The widget is **fully standalone** — it fetches RSS/Atom feeds directly over t
 
 ---
 
+## In development
+
+The following features are designed and being implemented:
+
+- **Inline article reader** — tap any article to expand it inside the widget; description appears below the title, other articles fade. Tap again to collapse. No external app opened on tap.
+- **Configurable external open** — a per-widget setting ("Open article in") lets you choose Read You, your default browser, or the system share sheet. The button appears inside the expanded article view.
+- **Article thumbnails** — per-feed toggle between text-only and text+image (right-side 40×40 thumbnail pre-fetched from the RSS feed's image tags).
+- **Global font size slider** — continuous slider in settings scales article text from 75% to 150%.
+- **Refresh now + countdown** — the widget footer shows "↻ refresh in Xmin"; tapping it triggers an immediate fetch.
+- **Edit feed name + URL** — tap a feed's name in the config screen to rename it or change its URL.
+
+---
+
 ## Features
 
 ### Feed display
