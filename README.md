@@ -32,19 +32,6 @@ The widget is **fully standalone** — it fetches RSS/Atom feeds directly over t
 
 ---
 
-## In development
-
-The following features are designed and being implemented:
-
-- **Inline article reader** — tap any article to expand it inside the widget; description appears below the title, other articles fade. Tap again to collapse. No external app opened on tap.
-- **Configurable external open** — a per-widget setting ("Open article in") lets you choose Read You, your default browser, or the system share sheet. The button appears inside the expanded article view.
-- **Article thumbnails** — per-feed toggle between text-only and text+image (right-side 40×40 thumbnail pre-fetched from the RSS feed's image tags).
-- **Global font size slider** — continuous slider in settings scales article text from 75% to 150%.
-- **Refresh now + countdown** — the widget footer shows "↻ refresh in Xmin"; tapping it triggers an immediate fetch.
-- **Edit feed name + URL** — tap a feed's name in the config screen to rename it or change its URL.
-
----
-
 ## Features
 
 ### Feed display
@@ -53,13 +40,22 @@ The following features are designed and being implemented:
 - Unread dot indicator per article
 - Per-feed colored left/right accent stripe
 - Relative timestamps (5m, 2h, 3d)
-- Tap any article to open it in Read You or your browser
+- Refresh countdown in the footer ("↻ refresh in Xmin") — tap to refresh immediately
 
-### Tap to open + mark as read
-Tapping an article:
-1. Opens the article URL in the **Read You app** (if installed). Falls back to your default browser if Read You is not installed or the URL cannot be handled.
-2. **Marks the article as read** — the unread dot disappears and read status is remembered across widget refreshes (stored locally via DataStore, keeping up to 500 recent entries).
-3. Triggers an immediate widget refresh so the unread count updates right away.
+### Tap to read inline
+Tapping an article expands it inside the widget:
+- Article description appears below the title (up to 5 lines)
+- Non-expanded articles fade to muted colors
+- **Open article** button appears to open the full article externally
+- Tap the expanded article again to collapse it
+
+### Open article externally
+The "Open article in" setting (per widget, in Settings → Sort & Filter) controls where the Open button sends you:
+- **Browser** — opens in your default web browser (default)
+- **Read You** — opens in the Read You app if installed, falls back to browser
+- **Share sheet** — share the article URL to any app
+
+Tapping Open also **marks the article as read** and triggers a widget refresh.
 
 ### Sort options
 | Option | Description |
@@ -102,6 +98,15 @@ Each feed has its own direction toggle:
 
 You can mix RTL and LTR feeds in the same widget simultaneously.
 
+#### Display mode (TXT / IMG)
+Toggle each feed between text-only and text+image mode. In image mode, a 40×40 dp thumbnail is pre-fetched from the RSS feed's image tags (`<media:thumbnail>`, `<media:content>`, `<enclosure>`) and cached locally for 24 hours.
+
+### Global font size
+A continuous slider in Settings scales all article text from 75% to 150%. The label shows Small / Medium / Large at a glance.
+
+### Feed editing
+Tap any feed's display name in the config screen to open an edit dialog — rename the feed or change its RSS URL. If the URL changes, the widget validates it immediately before saving.
+
 ### Feed management
 - **Add by URL** — paste any RSS or Atom feed URL; the widget fetches and validates the feed title automatically
 - **Import OPML** — import feeds from any OPML file (supports grouped and flat OPML, as exported by Read You, Feedly, Reeder, etc.)
@@ -128,16 +133,17 @@ The widget is fully resizable — drag its edges on the home screen to adjust.
 Long-press the widget on your home screen → tap **Edit widget** to open the settings screen.
 
 ### Settings screen layout
-1. **Sort & Filter** — global sort order and read/unread filter
-2. **Refresh every** — choose how often the widget polls for new articles (15 min / 30 min / 1 h / 2 h / 4 h / 6 h / 12 h)
-3. **Add Feed** — enter a feed URL and tap **Add**, or use **Import OPML** / **Export OPML**
-4. **Feed order & style** — one draggable row per feed with:
+1. **Sort & Filter** — global sort order, read/unread filter, refresh interval, "Open article in" dropdown, font size slider
+2. **Add Feed** — enter a feed URL and tap **Add**, or use **Import OPML** / **Export OPML**
+3. **Feed order & style** — one draggable row per feed with:
    - Grip handle (drag ⠿ to reorder)
    - × button to remove
    - Color swatch (tap to open color picker)
+   - Display name (tap to open edit dialog — rename or change URL)
    - Font dropdown
    - **B** / *I* / <u>U</u> style toggles
    - RTL / LTR direction toggle
+   - TXT / IMG display mode toggle
 
 Changes take effect immediately after tapping **Save**.
 
@@ -209,8 +215,11 @@ app/src/main/
 ├── java/com/readyou/widget/
 │   ├── glance/
 │   │   ├── ReadYouWidget.kt          # Glance widget + receiver
-│   │   ├── FeedItemRow.kt            # Per-article Glance composable
-│   │   └── WidgetWorker.kt           # WorkManager refresh job
+│   │   ├── FeedItemRow.kt            # Per-article Glance composable (expand/collapse, thumbnail)
+│   │   ├── WidgetWorker.kt           # WorkManager refresh job + thumbnail download
+│   │   ├── RefreshNowCallback.kt     # ActionCallback — immediate refresh
+│   │   ├── ToggleExpandCallback.kt   # ActionCallback — expand/collapse article
+│   │   └── OpenExternalCallback.kt   # ActionCallback — open article, mark read
 │   ├── config/
 │   │   ├── WidgetConfigActivity.kt   # Settings screen
 │   │   ├── FeedConfigRow.kt          # Per-feed controls row
@@ -219,10 +228,10 @@ app/src/main/
 │   │   ├── FeedConfig.kt             # Data models (FeedConfig, WidgetConfig, ArticleItem)
 │   │   ├── WidgetConfigStore.kt      # DataStore — widget config persistence
 │   │   ├── ReadStatusStore.kt        # DataStore — read article ID persistence
-│   │   ├── ReadYouRepository.kt      # RSS/Atom fetching (OkHttp + XmlPullParser)
+│   │   ├── ReadYouRepository.kt      # RSS/Atom fetching, description/image parsing, thumbnails
+│   │   ├── ThumbnailHelper.kt        # Shared cache file path for thumbnails
 │   │   ├── OpmlManager.kt            # OPML 2.0 import/export
 │   │   └── WidgetStateKey.kt         # Glance state keys
-│   └── DeepLinkActivity.kt           # Tap handler: open URL, mark read, refresh
 └── res/
     ├── values/strings.xml            # English strings
     ├── values-iw/strings.xml         # Hebrew strings (עברית)
