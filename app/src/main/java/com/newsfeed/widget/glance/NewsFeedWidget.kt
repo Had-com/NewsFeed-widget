@@ -104,20 +104,17 @@ class NewsFeedWidget : GlanceAppWidget() {
                     LazyColumn(modifier = GlanceModifier.defaultWeight().fillMaxWidth()) {
                         items(displayArticles) { article ->
                             val feedConfig = feedMap[article.feedId] ?: return@items
-                            Column(modifier = GlanceModifier.fillMaxWidth().padding(top = 6.dp)) {
-                                FeedItemRow(
-                                    article           = article,
-                                    feedConfig        = feedConfig,
-                                    expandedArticleId = expandedArticleId,
-                                    widgetId          = config.widgetId,
-                                    fontSize          = config.fontSize,
-                                    articleLength     = config.articleLength,
-                                    fullArticleId     = fullArticleId,
-                                    fullArticleText   = fullArticleText,
-                                    useThemeColors    = config.useThemeColors,
-                                )
-                                Divider(thin = true)
-                            }
+                            FeedItemRow(
+                                article           = article,
+                                feedConfig        = feedConfig,
+                                expandedArticleId = expandedArticleId,
+                                widgetId          = config.widgetId,
+                                fontSize          = config.fontSize,
+                                articleLength     = config.articleLength,
+                                fullArticleId     = fullArticleId,
+                                fullArticleText   = fullArticleText,
+                                useThemeColors    = config.useThemeColors,
+                            )
                         }
                     }
                 }

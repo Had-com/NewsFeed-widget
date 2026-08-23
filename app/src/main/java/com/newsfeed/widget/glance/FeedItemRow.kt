@@ -90,7 +90,7 @@ fun FeedItemRow(
         Column(
             modifier = GlanceModifier
                 .defaultWeight()
-                .padding(horizontal = 8.dp, vertical = 6.dp)
+                .padding(horizontal = 8.dp, vertical = 8.dp)
                 .clickable(toggleAction),
             horizontalAlignment = if (isRtl) Alignment.End else Alignment.Start,
         ) {
