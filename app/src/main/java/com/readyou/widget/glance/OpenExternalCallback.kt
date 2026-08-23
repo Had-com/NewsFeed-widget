@@ -32,11 +32,6 @@ class OpenExternalCallback : ActionCallback {
 
         val uri    = Uri.parse(articleUrl)
         val intent = when (config.externalApp) {
-            "readyou" -> {
-                val ry = Intent(Intent.ACTION_VIEW, uri).setPackage("me.ash.reader")
-                if (ry.resolveActivity(context.packageManager) != null) ry
-                else Intent(Intent.ACTION_VIEW, uri)
-            }
             "share" -> Intent.createChooser(
                 Intent(Intent.ACTION_SEND).setType("text/plain")
                     .putExtra(Intent.EXTRA_TEXT, articleUrl),

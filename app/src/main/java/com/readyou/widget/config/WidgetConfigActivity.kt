@@ -146,7 +146,6 @@ class WidgetConfigActivity : ComponentActivity() {
                 )
                 val externalOptions = listOf(
                     "browser"  to "Browser",
-                    "readyou"  to "Read You",
                     "share"    to "Share sheet",
                 )
 
@@ -462,8 +461,8 @@ class WidgetConfigActivity : ComponentActivity() {
                                 // Widget theme
                                 val themeOptions = listOf(
                                     "auto"   to "Auto (system)",
-                                    "light"  to "Light",
-                                    "dark"   to "Dark",
+                                    "lavender"  to "Lavender",
+                                    "amethyst"  to "Amethyst",
                                     "glassy" to "Glassy",
                                     "simple" to "Simple",
                                     "tech"   to "Tech",

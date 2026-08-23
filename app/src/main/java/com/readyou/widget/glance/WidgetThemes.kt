@@ -9,17 +9,17 @@ import androidx.glance.material3.ColorProviders as buildColorProviders
 object WidgetThemes {
 
     fun colorProvidersFor(theme: String): ColorProviders = when (theme) {
-        "light"  -> buildColorProviders(light = LIGHT,  dark = LIGHT)
-        "dark"   -> buildColorProviders(light = DARK,   dark = DARK)
-        "glassy" -> buildColorProviders(light = GLASSY, dark = GLASSY)
-        "simple" -> buildColorProviders(light = SIMPLE, dark = SIMPLE)
-        "tech"   -> buildColorProviders(light = TECH,   dark = TECH)
-        "glamer" -> buildColorProviders(light = GLAMER, dark = GLAMER)
-        else     -> buildColorProviders(light = lightColorScheme(), dark = darkColorScheme())  // "auto"
+        "lavender", "light"  -> buildColorProviders(light = LAVENDER, dark = LAVENDER)
+        "amethyst", "dark"   -> buildColorProviders(light = AMETHYST, dark = AMETHYST)
+        "glassy"             -> buildColorProviders(light = GLASSY,   dark = GLASSY)
+        "simple"             -> buildColorProviders(light = SIMPLE,   dark = SIMPLE)
+        "tech"               -> buildColorProviders(light = TECH,     dark = TECH)
+        "glamer"             -> buildColorProviders(light = GLAMER,   dark = GLAMER)
+        else                 -> buildColorProviders(light = lightColorScheme(), dark = darkColorScheme())  // "auto"
     }
 
-    // ── Light ─────────────────────────────────────────────────────────────────
-    private val LIGHT = lightColorScheme(
+    // ── Lavender ──────────────────────────────────────────────────────────────
+    private val LAVENDER = lightColorScheme(
         primary           = Color(0xFF9B72E3),
         onPrimary         = Color(0xFFFFFFFF),
         surface           = Color(0xFFFFFFFF),
@@ -30,8 +30,8 @@ object WidgetThemes {
         onBackground      = Color(0xFF1C1B1F),
     )
 
-    // ── Dark ──────────────────────────────────────────────────────────────────
-    private val DARK = darkColorScheme(
+    // ── Amethyst ──────────────────────────────────────────────────────────────
+    private val AMETHYST = darkColorScheme(
         primary           = Color(0xFFB39DDB),
         onPrimary         = Color(0xFF1C1B1F),
         surface           = Color(0xFF1C1B1F),

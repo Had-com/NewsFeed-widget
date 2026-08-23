@@ -1,6 +1,6 @@
-﻿# NewsFeed Widget
+# NewsFeed Widget
 
-A standalone Android home screen widget that fetches and displays RSS/Atom feeds directly on your home screen — no app required. Built for full **RTL Hebrew support** and designed for the **Galaxy Z Fold** inner display.
+A standalone Android home screen widget that fetches and displays RSS/Atom feeds directly on your home screen — no companion app required. Built for full **RTL Hebrew support** and designed for the **Galaxy Z Fold** inner display.
 
 ---
 
@@ -8,18 +8,18 @@ A standalone Android home screen widget that fetches and displays RSS/Atom feeds
 
 <table>
   <tr>
-    <td align="center"><b>Dark mode</b></td>
-    <td align="center"><b>Light mode</b></td>
+    <td align="center"><b>Amethyst theme</b></td>
+    <td align="center"><b>Lavender theme</b></td>
     <td align="center"><b>Config panel</b></td>
   </tr>
   <tr>
-    <td><img src="screenshots/widget-dark.svg" width="220" alt="Widget dark mode"/></td>
-    <td><img src="screenshots/widget-light.svg" width="220" alt="Widget light mode"/></td>
+    <td><img src="screenshots/widget-dark.svg" width="220" alt="Widget Amethyst theme"/></td>
+    <td><img src="screenshots/widget-light.svg" width="220" alt="Widget Lavender theme"/></td>
     <td><img src="screenshots/config-panel.svg" width="260" alt="Config panel"/></td>
   </tr>
   <tr>
     <td align="center"><sub>Mixed Hebrew RTL + English LTR<br>feeds with per-feed accent colors</sub></td>
-    <td align="center"><sub>Same layout in system light theme</sub></td>
+    <td align="center"><sub>Same layout in Lavender theme</sub></td>
     <td align="center"><sub>Long-press widget → Edit widget<br>Drag ⠿ to reorder · × to remove</sub></td>
   </tr>
 </table>
@@ -28,7 +28,7 @@ A standalone Android home screen widget that fetches and displays RSS/Atom feeds
 
 ## How it works
 
-The widget is **fully standalone** — it fetches RSS/Atom feeds directly over the network using OkHttp. It does **not** require any companion app. You add feed URLs yourself, or import them from an OPML file exported by Read You, Feedly, Reeder, or any other RSS reader.
+The widget is **fully standalone** — it fetches RSS/Atom feeds directly over the network using OkHttp. You add feed URLs yourself, or import them from an OPML file exported by Feedly, Reeder, or any other RSS reader.
 
 ---
 
@@ -49,14 +49,22 @@ The widget uses a scrollable list — swipe up and down within the widget to bro
 
 ### Tap to read inline
 Tapping an article title expands it inside the widget:
-- Article description appears below the title (up to 6 lines)
+- Article description or full page content appears below the title
 - **Open article →** button appears to open the full article externally
 - Tap the expanded article again to collapse it
+
+### Article length modes
+| Mode | Description |
+|---|---|
+| Short | Up to 100 characters of the RSS excerpt |
+| Medium | Up to 400 characters of the RSS excerpt (default) |
+| Full | Fetches the full web page content on demand — tap **Load full article ↓** to fetch |
+
+In **Full** mode, the widget fetches the article's web page, extracts the main `<article>` / `<main>` content, strips navigation and scripts, and displays the plain-text result inline. The fetched content is cached for the current widget session.
 
 ### Open article externally
 The "Open article in" setting controls where the Open button sends you:
 - **Browser** — opens in your default web browser (default)
-- **Read You** — opens in the Read You app if installed, falls back to browser
 - **Share sheet** — share the article URL to any app
 
 Tapping Open also **marks the article as read** and triggers a widget refresh.
@@ -64,9 +72,9 @@ Tapping Open also **marks the article as read** and triggers a widget refresh.
 ### Sort options
 | Option | Description |
 |---|---|
-| By feed | Round-robin interleave — one article per feed per round, equal representation (default) |
-| Newest first | Latest articles at the top |
+| Newest first | Latest articles at the top (default) |
 | Oldest first | Oldest articles at the top |
+| By feed | Round-robin interleave — one article per feed per round, equal representation |
 | Unread first | Unread articles always shown above read ones |
 
 ### Filter options
@@ -101,6 +109,20 @@ In image mode, a thumbnail is pre-fetched from the RSS feed's image tags (`<medi
 ### Global font size
 A slider in Settings scales all article text from 75% to 150%.
 
+### Widget themes
+Seven built-in themes, each with a distinct light and dark variant selectable independently of the system theme:
+
+| Theme | Character |
+|---|---|
+| Auto | Follows the system light/dark setting (Material You) |
+| Lavender | Soft lavender editorial — light purple palette |
+| Amethyst | Rich amethyst — deep purple dark palette |
+| Glassy | Frosted glass with 3D depth, semi-transparent surface |
+| Simple | Pure black and white, no color |
+| Aerospace | Amber on near-black charcoal — mission-control feel |
+| Data Science | Teal-mint on deep navy — silicon-lab precision |
+| Glamour | Beige / warm cream with handwriting-style headlines |
+
 ### Feed management
 - **Add by URL** — paste any RSS or Atom feed URL; the widget fetches and validates the feed title automatically
 - **Import OPML** — import feeds from any OPML file (grouped and flat OPML supported)
@@ -134,7 +156,7 @@ Long-press the widget on your home screen → tap **Edit widget** to open the se
 You can also tap the **⚙** button in the widget footer.
 
 ### Settings screen layout
-1. **Sort & Filter** — global sort order, read/unread filter, refresh interval, "Open article in" dropdown, font size slider
+1. **Sort & Filter** — global sort order, read/unread filter, refresh interval, "Open article in" dropdown, article length, font size slider, theme picker
 2. **Add Feed** — enter a feed URL and tap **Add**, or use **Import OPML** / **Export OPML**
 3. **Feed order & style** — one draggable row per feed with:
    - Grip handle (drag ⠿ to reorder)
@@ -220,14 +242,6 @@ Android blocks apps not downloaded from the Play Store by default. You need to a
 
 ---
 
-## Importing feeds from Read You
-
-1. In Read You: **Settings → Data & backup → Export as OPML** → save the file
-2. In the widget config screen: tap **Import OPML** → select the file
-3. All your feeds are added automatically with distinct colors (duplicates are skipped)
-
----
-
 ## RTL Hebrew support
 
 - System locale `iw` (Hebrew) automatically loads Hebrew UI strings
@@ -242,26 +256,32 @@ Android blocks apps not downloaded from the Play Store by default. You need to a
 
 ```
 app/src/main/
+├── assets/
+│   └── default_feeds.opml            # Default Hebrew news feeds loaded on first launch
 ├── java/com/readyou/widget/
 │   ├── glance/
 │   │   ├── ReadYouWidget.kt          # Glance widget + receiver + AlarmManager clock tick
 │   │   ├── FeedItemRow.kt            # Per-article row (circle icon, expand/collapse, thumbnail, date)
 │   │   ├── WidgetWorker.kt           # WorkManager refresh job + article merge + thumbnail download
+│   │   ├── WidgetThemes.kt           # 7 colour schemes (Lavender, Amethyst, Glassy, Simple, Aerospace, Data Science, Glamour)
+│   │   ├── BootReceiver.kt           # Reschedules WorkManager and clock tick after device reboot
 │   │   ├── RefreshNowCallback.kt     # ActionCallback — immediate refresh on footer tap
 │   │   ├── ToggleExpandCallback.kt   # ActionCallback — expand/collapse article in widget
+│   │   ├── FetchFullArticleCallback.kt # ActionCallback — fetches full web page content for "Full" mode
 │   │   └── OpenExternalCallback.kt   # ActionCallback — open article URL, mark read
 │   ├── config/
-│   │   ├── WidgetConfigActivity.kt   # Settings screen (sort, filter, feeds, font size, OPML)
+│   │   ├── WidgetConfigActivity.kt   # Settings screen (sort, filter, feeds, font size, theme, OPML)
 │   │   ├── FeedConfigRow.kt          # Per-feed controls row (color, font, B/I/U, RTL/LTR, IMG/TXT)
 │   │   └── ColorPickerGrid.kt        # 12-color preset picker
 │   ├── data/
 │   │   ├── FeedConfig.kt             # Data models (FeedConfig, WidgetConfig, ArticleItem, enums)
 │   │   ├── WidgetConfigStore.kt      # DataStore — widget config persistence
+│   │   ├── WidgetStateKey.kt         # Glance DataStore preference keys
 │   │   ├── ReadStatusStore.kt        # DataStore — read article ID persistence
 │   │   ├── ReadYouRepository.kt      # RSS/Atom fetching, charset fix, image extraction, thumbnails
 │   │   ├── ThumbnailHelper.kt        # Shared cache file path helper for thumbnails
-│   │   ├── OpmlManager.kt            # OPML 2.0 import/export
-│   │   └── WidgetStateKey.kt         # Glance DataStore preference keys
+│   │   ├── FaviconHelper.kt          # Shared cache file path helper for feed favicons
+│   │   └── OpmlManager.kt            # OPML 2.0 import/export
 └── res/
     ├── drawable/
     │   ├── ic_launcher_foreground.xml   # RSS + N vector icon foreground
@@ -294,7 +314,6 @@ app/src/main/
 
 - Android 8.0 (API 26) or higher
 - Internet permission (for RSS fetching)
-- [Read You](https://github.com/Ashinch/ReadYou) app — **optional**: tap-to-open falls back to the system browser if Read You is not installed
 
 ---
 

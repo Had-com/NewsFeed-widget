@@ -18,15 +18,15 @@ data class FeedConfig(
 @Serializable
 data class WidgetConfig(
     val widgetId: Int,
-    val sortOrder: String = "by_feed",
+    val sortOrder: String = "newest",
     val filter: String = "all",
     val feedOrder: List<String> = emptyList(),
     val feeds: List<FeedConfig> = emptyList(),
     val refreshIntervalMinutes: Int = 15,
     val fontSize: Float = 1.0f,                // 0.5 – 3.0
-    val externalApp: String = "browser",       // "readyou" | "browser" | "share"
+    val externalApp: String = "browser",       // "browser" | "share"
     val articleLength: String = "medium",      // "short" | "medium" | "full"
-    val widgetTheme: String = "auto",          // "auto" | "light" | "dark" | "glassy" | "simple" | "tech" | "glamer"
+    val widgetTheme: String = "auto",          // "auto" | "lavender" | "amethyst" | "glassy" | "simple" | "tech" | "glamer"
 )
 
 @Serializable

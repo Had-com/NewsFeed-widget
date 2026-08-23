@@ -4,9 +4,6 @@
     <title>Read You</title>
   </head>
   <body>
-    <outline text="Default" title="Default">
-      <outline xmlUrl="https://github.com/ReadYouApp/ReadYou/releases.atom" text="ReadYou Releases" title="ReadYou Releases" />
-    </outline>
     <outline text="News" title="News">
       <outline xmlUrl="https://www.ynet.co.il/integration/StoryRss1854.xml" text="ynet - מבזקים" title="ynet - מבזקים" />
       <outline xmlUrl="https://rotter.net/rss/rotternews.xml" text="rotter.net רוטר.נט" title="rotter.net רוטר.נט" />
