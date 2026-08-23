@@ -194,7 +194,7 @@ The countdown to the next refresh is shown in the widget footer and updates ever
 
 ### Step 1 — Download the APK
 
-1. Go to the [Actions tab](https://github.com/Had-com/readyou-widget/actions) of this repo
+1. Go to the [Actions tab](https://github.com/Had-com/NewsFeed-widget/actions) of this repo
 2. Click the latest **Build APK** run
 3. Download the **ReadYouWidget-debug** artifact (a `.zip` file)
 4. Unzip it — inside you will find `app-debug.apk`
