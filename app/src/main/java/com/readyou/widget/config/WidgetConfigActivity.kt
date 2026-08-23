@@ -460,13 +460,14 @@ class WidgetConfigActivity : ComponentActivity() {
 
                                 // Widget theme
                                 val themeOptions = listOf(
-                                    "auto"   to "Auto (system)",
-                                    "lavender"  to "Lavender",
-                                    "amethyst"  to "Amethyst",
-                                    "glassy" to "Glassy",
-                                    "simple" to "Simple",
-                                    "tech"   to "Tech",
-                                    "glamer" to "Glamour",
+                                    "auto"       to "Auto (system)",
+                                    "lavender"   to "Lavender",
+                                    "amethyst"   to "Amethyst",
+                                    "glassy"     to "Glassy",
+                                    "simple"     to "Simple",
+                                    "aerospace"  to "Aerospace",
+                                    "silicon"    to "Data Science",
+                                    "glamer"     to "Glamour",
                                 )
                                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                                     Text("Widget theme", style = MaterialTheme.typography.bodyMedium)

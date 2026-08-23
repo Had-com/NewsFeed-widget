@@ -9,13 +9,14 @@ import androidx.glance.material3.ColorProviders as buildColorProviders
 object WidgetThemes {
 
     fun colorProvidersFor(theme: String): ColorProviders = when (theme) {
-        "lavender", "light"  -> buildColorProviders(light = LAVENDER, dark = LAVENDER)
-        "amethyst", "dark"   -> buildColorProviders(light = AMETHYST, dark = AMETHYST)
-        "glassy"             -> buildColorProviders(light = GLASSY,   dark = GLASSY)
-        "simple"             -> buildColorProviders(light = SIMPLE,   dark = SIMPLE)
-        "tech"               -> buildColorProviders(light = TECH,     dark = TECH)
-        "glamer"             -> buildColorProviders(light = GLAMER,   dark = GLAMER)
-        else                 -> buildColorProviders(light = lightColorScheme(), dark = darkColorScheme())  // "auto"
+        "lavender", "light"        -> buildColorProviders(light = LAVENDER,     dark = LAVENDER)
+        "amethyst", "dark"         -> buildColorProviders(light = AMETHYST,     dark = AMETHYST)
+        "glassy"                   -> buildColorProviders(light = GLASSY,       dark = GLASSY)
+        "simple"                   -> buildColorProviders(light = SIMPLE,       dark = SIMPLE)
+        "aerospace"                -> buildColorProviders(light = AEROSPACE,    dark = AEROSPACE)
+        "silicon", "data_science"  -> buildColorProviders(light = SILICON,      dark = SILICON)
+        "glamer"                   -> buildColorProviders(light = GLAMER,       dark = GLAMER)
+        else                       -> buildColorProviders(light = lightColorScheme(), dark = darkColorScheme())  // "auto"
     }
 
     // ── Lavender ──────────────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ object WidgetThemes {
         onBackground      = Color(0xFFE6E1E5),
     )
 
-    // ── Glassy (frosted-glass dark) ───────────────────────────────────────────
+    // ── Glassy (frosted-glass, semi-transparent) ──────────────────────────────
     // Alpha on surface/background lets the wallpaper bleed through.
     private val GLASSY = darkColorScheme(
         primary           = Color(0xFFB388FF),
@@ -67,27 +68,39 @@ object WidgetThemes {
         onBackground      = Color(0xFF000000),
     )
 
-    // ── Tech (terminal / hacker) ───────────────────────────────────────────────
-    private val TECH = darkColorScheme(
-        primary           = Color(0xFF39D353),
-        onPrimary         = Color(0xFF0D1117),
-        surface           = Color(0xFF0D1117),
-        onSurface         = Color(0xFF39D353),
-        onSurfaceVariant  = Color(0xFF8B949E),
-        surfaceVariant    = Color(0xFF21262D),
-        background        = Color(0xFF0D1117),
-        onBackground      = Color(0xFF39D353),
+    // ── Aerospace (mission control — amber on near-black charcoal) ─────────────
+    private val AEROSPACE = darkColorScheme(
+        primary           = Color(0xFFF5A623),
+        onPrimary         = Color(0xFF0A0804),
+        surface           = Color(0xFF111418),
+        onSurface         = Color(0xFFD0D8E0),
+        onSurfaceVariant  = Color(0xFF5A6070),
+        surfaceVariant    = Color(0xFF1C1E22),
+        background        = Color(0xFF0A0B0D),
+        onBackground      = Color(0xFFD0D8E0),
     )
 
-    // ── Glamour (velvet purple + gold) ─────────────────────────────────────────
+    // ── Silicon / Data Science (teal-mint on deep navy) ───────────────────────
+    private val SILICON = darkColorScheme(
+        primary           = Color(0xFF00C4B4),
+        onPrimary         = Color(0xFF001814),
+        surface           = Color(0xFF141A20),
+        onSurface         = Color(0xFFC0D0DC),
+        onSurfaceVariant  = Color(0xFF4A7080),
+        surfaceVariant    = Color(0xFF1C2830),
+        background        = Color(0xFF0C1014),
+        onBackground      = Color(0xFFC0D0DC),
+    )
+
+    // ── Glamour (beige / warm cream) ───────────────────────────────────────────
     private val GLAMER = darkColorScheme(
-        primary           = Color(0xFFFFD700),
-        onPrimary         = Color(0xFF1A0033),
-        surface           = Color(0xFF1A0033),
-        onSurface         = Color(0xFFFFD700),
-        onSurfaceVariant  = Color(0xFFE040FB),
-        surfaceVariant    = Color(0xFF4A0080),
-        background        = Color(0xFF1A0033),
-        onBackground      = Color(0xFFFFD700),
+        primary           = Color(0xFFD4A574),
+        onPrimary         = Color(0xFF1E1410),
+        surface           = Color(0xFF26190F),
+        onSurface         = Color(0xFFF2E8DC),
+        onSurfaceVariant  = Color(0xFFA08060),
+        surfaceVariant    = Color(0xFF3A2818),
+        background        = Color(0xFF1A0F08),
+        onBackground      = Color(0xFFF2E8DC),
     )
 }

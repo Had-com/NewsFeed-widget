@@ -26,7 +26,7 @@ data class WidgetConfig(
     val fontSize: Float = 1.0f,                // 0.5 – 3.0
     val externalApp: String = "browser",       // "browser" | "share"
     val articleLength: String = "medium",      // "short" | "medium" | "full"
-    val widgetTheme: String = "auto",          // "auto" | "lavender" | "amethyst" | "glassy" | "simple" | "tech" | "glamer"
+    val widgetTheme: String = "auto",          // "auto" | "lavender" | "amethyst" | "glassy" | "simple" | "aerospace" | "silicon" | "glamer"
 )
 
 @Serializable
