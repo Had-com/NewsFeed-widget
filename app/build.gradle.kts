@@ -15,16 +15,12 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
-        setProperty("archivesBaseName", "NewsFeed-v${versionName}-${versionCode}")
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-        }
-        debug {
-            // debug APK keeps same naming pattern
         }
     }
 
