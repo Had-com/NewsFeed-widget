@@ -57,6 +57,34 @@ class ReadYouRepository(private val context: Context) {
         } catch (_: Exception) { null }
     }
 
+    suspend fun searchFeeds(query: String): List<FeedSearchResult> = withContext(Dispatchers.IO) {
+        try {
+            val encoded = java.net.URLEncoder.encode(query.trim(), "UTF-8")
+            val req = Request.Builder()
+                .url("https://cloud.feedly.com/v3/search/feeds?query=$encoded&count=15")
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext emptyList()
+                val body = resp.body?.string() ?: return@withContext emptyList()
+                val json = org.json.JSONObject(body)
+                val arr  = json.optJSONArray("results") ?: return@withContext emptyList()
+                (0 until arr.length()).mapNotNull { i ->
+                    val obj    = arr.getJSONObject(i)
+                    val feedId = obj.optString("feedId", "")
+                    val url    = if (feedId.startsWith("feed/")) feedId.drop(5) else feedId
+                    if (url.isBlank()) null
+                    else FeedSearchResult(
+                        feedUrl     = url,
+                        title       = obj.optString("title", url),
+                        description = obj.optString("description", ""),
+                        subscribers = obj.optInt("subscribers", 0),
+                    )
+                }
+            }
+        } catch (_: Exception) { emptyList() }
+    }
+
     suspend fun downloadFavicons(feeds: List<FeedConfig>) = withContext(Dispatchers.IO) {
         for (feed in feeds) {
             if (feed.feedUrl.isBlank()) continue
@@ -236,7 +264,7 @@ class ReadYouRepository(private val context: Context) {
         @Suppress("DEPRECATION")
         val description = if (rawDescription.isNotBlank()) {
             Html.fromHtml(rawDescription, Html.FROM_HTML_MODE_COMPACT)
-                .toString().trim().take(400)
+                .toString().trim().take(2000)
         } else ""
 
         return ArticleItem(

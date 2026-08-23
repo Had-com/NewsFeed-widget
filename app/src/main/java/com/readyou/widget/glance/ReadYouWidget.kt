@@ -73,7 +73,10 @@ class ReadYouWidget : GlanceAppWidget() {
         val displayArticles = articles.filter { feedMap.containsKey(it.feedId) }.take(50)
         val unreadCount     = displayArticles.count { !it.isRead }
 
-        GlanceTheme {
+        val themeColors = WidgetThemes.colorProvidersFor(config.widgetTheme)
+
+        @Composable
+        fun Body() {
             Column(
                 modifier = GlanceModifier
                     .fillMaxSize()
@@ -115,6 +118,12 @@ class ReadYouWidget : GlanceAppWidget() {
 
                 WidgetFooter(lastRefreshTime, config.refreshIntervalMinutes, config.widgetId)
             }
+        }
+
+        if (themeColors != null) {
+            GlanceTheme(colors = themeColors) { Body() }
+        } else {
+            GlanceTheme { Body() }
         }
     }
 
@@ -217,7 +226,11 @@ class ReadYouWidgetReceiver : GlanceAppWidgetReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action == ACTION_CLOCK_TICK) {
-            MainScope().launch { ReadYouWidget().updateAll(context) }
+            val pending = goAsync()
+            MainScope().launch {
+                try { ReadYouWidget().updateAll(context) }
+                finally { pending.finish() }
+            }
             scheduleClockTick(context)
         }
     }

@@ -59,8 +59,8 @@ fun FeedItemRow(
     val isRtl          = feedConfig.layoutDirection == "rtl"
     val metaFontSize   = (9f * fontSize).sp
     val headlineSize   = (13f * fontSize).sp
-    // Row height used for the accent stripe and thumbnail — fills to the divider lines
-    val rowHeight      = if (isExpanded) 96.dp else (52f * fontSize).dp
+    // Thumbnail width: square based on font scale (independent of row height)
+    val thumbWidth     = (52f * fontSize).dp
 
     val toggleAction = actionRunCallback<ToggleExpandCallback>(
         actionParametersOf(ToggleExpandCallback.ARTICLE_ID_KEY to article.id)
@@ -69,7 +69,6 @@ fun FeedItemRow(
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .height(rowHeight)
             .clickable(toggleAction),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -83,8 +82,8 @@ fun FeedItemRow(
         Column(
             modifier = GlanceModifier
                 .defaultWeight()
-                .fillMaxHeight()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+                .clickable(toggleAction),
             horizontalAlignment = if (isRtl) Alignment.End else Alignment.Start,
         ) {
             // Meta row: favicon circle + feed name + timestamp
@@ -173,28 +172,31 @@ fun FeedItemRow(
                     textAlign = if (isRtl) androidx.glance.text.TextAlign.End
                                 else      androidx.glance.text.TextAlign.Start,
                 ),
-                maxLines = 2,
+                maxLines = 3,
                 modifier = GlanceModifier.fillMaxWidth(),
             )
 
             // Expanded: description + Open article button
             if (isExpanded) {
                 if (article.description.isNotBlank()) {
-                    val descLines = when (articleLength) {
-                        "short" -> 2
+                    // "short" = subtitle/teaser (~1 sentence), "medium" = first paragraph, "full" = everything
+                    val limit = when (articleLength) {
+                        "short" -> 100
                         "full"  -> Int.MAX_VALUE
-                        else    -> 5
+                        else    -> 400
                     }
+                    val raw        = article.description
+                    val clipped    = if (raw.length > limit) raw.take(limit).trimEnd() + "…" else raw
                     Spacer(GlanceModifier.height(4.dp))
                     Text(
-                        text = article.description,
+                        text = clipped,
                         style = TextStyle(
                             fontSize = (10f * fontSize).sp,
                             color = GlanceTheme.colors.onSurfaceVariant,
                             textAlign = if (isRtl) androidx.glance.text.TextAlign.End
                                         else      androidx.glance.text.TextAlign.Start,
                         ),
-                        maxLines = descLines,
+                        maxLines = 50,
                         modifier = GlanceModifier.fillMaxWidth(),
                     )
                 }
@@ -233,7 +235,7 @@ fun FeedItemRow(
                         provider = ImageProvider(bmp),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = GlanceModifier.width(rowHeight).fillMaxHeight(),
+                        modifier = GlanceModifier.width(thumbWidth).fillMaxHeight(),
                     )
                 }
             }

@@ -138,6 +138,7 @@ class WidgetConfigActivity : ComponentActivity() {
                 var showRefreshMenu  by remember { mutableStateOf(false) }
                 var showExternalMenu by remember { mutableStateOf(false) }
                 var showLengthMenu   by remember { mutableStateOf(false) }
+                var showThemeMenu    by remember { mutableStateOf(false) }
 
                 val refreshOptions = listOf(
                     15 to "15 minutes", 30 to "30 minutes", 60 to "1 hour",
@@ -153,6 +154,12 @@ class WidgetConfigActivity : ComponentActivity() {
                 var isAddingFeed  by remember { mutableStateOf(false) }
                 var addFeedError  by remember { mutableStateOf<String?>(null) }
                 var statusMessage by remember { mutableStateOf("") }
+
+                var searchQuery    by remember { mutableStateOf("") }
+                var isSearching    by remember { mutableStateOf(false) }
+                var searchResults  by remember { mutableStateOf<List<com.readyou.widget.data.FeedSearchResult>>(emptyList()) }
+                var searchError    by remember { mutableStateOf<String?>(null) }
+                var searchDone     by remember { mutableStateOf(false) }
 
                 // Edit-feed dialog state
                 var editingFeed   by remember { mutableStateOf<FeedConfig?>(null) }
@@ -397,6 +404,12 @@ class WidgetConfigActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                                 // Live preview
+                                val sampleDesc = "פרטי הכתבה לדוגמה מופיעים כאן לאחר הפתיחה — When you tap a headline, this is the description text that appears below it. The length setting controls how much of this text is shown."
+                                val previewDesc = when (config.articleLength) {
+                                    "short" -> sampleDesc.take(100).trimEnd() + "…"
+                                    "full"  -> sampleDesc
+                                    else    -> sampleDesc.take(400).trimEnd()
+                                }
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -416,24 +429,55 @@ class WidgetConfigActivity : ComponentActivity() {
                                         fontWeight = FontWeight.Medium,
                                         lineHeight = (17f * config.fontSize).sp,
                                     )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        previewDesc,
+                                        fontSize = (10f * config.fontSize).sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        lineHeight = (14f * config.fontSize).sp,
+                                    )
                                 }
                                 Spacer(Modifier.height(8.dp))
 
-                                // Article length (controls description lines in expanded view)
+                                // Article length (controls how much description is shown when expanded)
                                 val lengthOptions = listOf(
-                                    "short"  to "Short (2 lines)",
-                                    "medium" to "Medium (5 lines)",
-                                    "full"   to "Full (no limit)",
+                                    "short"  to "Subtitle only",
+                                    "medium" to "First paragraph",
+                                    "full"   to "Full article",
                                 )
                                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                                     Text("Expanded article", style = MaterialTheme.typography.bodyMedium)
                                     androidx.compose.foundation.layout.Box {
-                                        val lengthLabel = lengthOptions.firstOrNull { it.first == config.articleLength }?.second ?: "Medium (5 lines)"
+                                        val lengthLabel = lengthOptions.firstOrNull { it.first == config.articleLength }?.second ?: "First paragraph"
                                         TextButton(onClick = { showLengthMenu = true }) { Text("$lengthLabel ▾", fontSize = 13.sp) }
                                         DropdownMenu(showLengthMenu, { showLengthMenu = false }) {
                                             lengthOptions.forEach { (key, lbl) ->
                                                 DropdownMenuItem(text = { Text(lbl) },
                                                     onClick = { config = config.copy(articleLength = key); showLengthMenu = false })
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Widget theme
+                                val themeOptions = listOf(
+                                    "auto"   to "Auto (system)",
+                                    "light"  to "Light",
+                                    "dark"   to "Dark",
+                                    "glassy" to "Glassy",
+                                    "simple" to "Simple",
+                                    "tech"   to "Tech",
+                                    "glamer" to "Glamour",
+                                )
+                                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                                    Text("Widget theme", style = MaterialTheme.typography.bodyMedium)
+                                    androidx.compose.foundation.layout.Box {
+                                        val themeLabel = themeOptions.firstOrNull { it.first == config.widgetTheme }?.second ?: "Auto (system)"
+                                        TextButton(onClick = { showThemeMenu = true }) { Text("$themeLabel ▾", fontSize = 13.sp) }
+                                        DropdownMenu(showThemeMenu, { showThemeMenu = false }) {
+                                            themeOptions.forEach { (key, lbl) ->
+                                                DropdownMenuItem(text = { Text(lbl) },
+                                                    onClick = { config = config.copy(widgetTheme = key); showThemeMenu = false })
                                             }
                                         }
                                     }
@@ -471,6 +515,99 @@ class WidgetConfigActivity : ComponentActivity() {
                                 }
                                 if (statusMessage.isNotEmpty()) {
                                     Text(statusMessage, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                            HorizontalDivider()
+                        }
+
+                        // ── Find feeds by search ──
+                        item {
+                            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                Text("FIND FEEDS", fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.05.sp)
+                                Spacer(Modifier.height(8.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    OutlinedTextField(
+                                        value = searchQuery,
+                                        onValueChange = { searchQuery = it; searchDone = false; searchError = null },
+                                        label = { Text("Topic, site name, keyword…") },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                        keyboardActions = KeyboardActions(onSearch = {
+                                            if (searchQuery.isNotBlank() && !isSearching) {
+                                                scope.launch {
+                                                    isSearching = true; searchError = null; searchDone = false
+                                                    val results = repo.searchFeeds(searchQuery)
+                                                    searchResults = results
+                                                    searchError   = if (results.isEmpty()) "No feeds found" else null
+                                                    isSearching   = false; searchDone = true
+                                                }
+                                            }
+                                        }),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    if (isSearching) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                                    else TextButton(
+                                        onClick = {
+                                            if (searchQuery.isNotBlank()) scope.launch {
+                                                isSearching = true; searchError = null; searchDone = false
+                                                val results = repo.searchFeeds(searchQuery)
+                                                searchResults = results
+                                                searchError   = if (results.isEmpty()) "No feeds found" else null
+                                                isSearching   = false; searchDone = true
+                                            }
+                                        },
+                                        enabled = searchQuery.isNotBlank(),
+                                    ) { Text("Search") }
+                                }
+                                if (searchError != null) {
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(searchError!!, fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if (searchDone && searchResults.isNotEmpty()) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                                        searchResults.forEach { result ->
+                                            val alreadyAdded = config.feeds.any { it.feedId == result.feedUrl }
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text(result.title,
+                                                        style = MaterialTheme.typography.bodyMedium)
+                                                    if (result.description.isNotBlank()) {
+                                                        Text(result.description.take(80),
+                                                            fontSize = 11.sp,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    }
+                                                    if (result.subscribers > 0) {
+                                                        Text("${result.subscribers} subscribers",
+                                                            fontSize = 10.sp,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                                    }
+                                                }
+                                                TextButton(
+                                                    onClick = {
+                                                        if (!alreadyAdded) {
+                                                            val newFeed = FeedConfig(
+                                                                feedId      = result.feedUrl,
+                                                                displayName = result.title,
+                                                                feedUrl     = result.feedUrl,
+                                                                accentColor = FEED_ACCENT_COLORS[config.feeds.size % FEED_ACCENT_COLORS.size],
+                                                            )
+                                                            config = config.copy(feeds = config.feeds + newFeed)
+                                                            feedOrder.add(result.feedUrl)
+                                                        }
+                                                    },
+                                                    enabled = !alreadyAdded,
+                                                ) { Text(if (alreadyAdded) "Added" else "+ Add") }
+                                            }
+                                            HorizontalDivider(thickness = 0.5.dp)
+                                        }
+                                    }
                                 }
                             }
                             HorizontalDivider()

@@ -26,6 +26,7 @@ data class WidgetConfig(
     val fontSize: Float = 1.0f,                // 0.5 – 3.0
     val externalApp: String = "browser",       // "readyou" | "browser" | "share"
     val articleLength: String = "medium",      // "short" | "medium" | "full"
+    val widgetTheme: String = "auto",          // "auto" | "light" | "dark" | "glassy" | "simple" | "tech" | "glamer"
 )
 
 @Serializable
@@ -39,6 +40,13 @@ data class ArticleItem(
     val imageUrl: String = "",                 // first image from RSS enclosure/media tags
     val publishedAt: Long,
     val isRead: Boolean,
+)
+
+data class FeedSearchResult(
+    val feedUrl: String,
+    val title: String,
+    val description: String,
+    val subscribers: Int,
 )
 
 enum class SortOrder(val key: String, val labelRes: String) {
