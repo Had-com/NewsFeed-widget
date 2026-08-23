@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import androidx.glance.appwidget.GlanceAppWidgetManager
-import com.readyou.widget.worker.WidgetWorker
+import com.readyou.widget.glance.WidgetWorker
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 

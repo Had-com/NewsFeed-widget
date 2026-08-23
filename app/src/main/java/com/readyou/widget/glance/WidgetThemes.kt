@@ -3,18 +3,19 @@ package com.readyou.widget.glance
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
-import androidx.glance.material3.ColorProviders
+import androidx.glance.color.ColorProviders
+import androidx.glance.material3.ColorProviders as buildColorProviders
 
 object WidgetThemes {
 
     fun colorProvidersFor(theme: String): ColorProviders? = when (theme) {
-        "light"  -> ColorProviders(light = LIGHT,  dark = LIGHT)
-        "dark"   -> ColorProviders(light = DARK,   dark = DARK)
-        "glassy" -> ColorProviders(light = GLASSY, dark = GLASSY)
-        "simple" -> ColorProviders(light = SIMPLE, dark = SIMPLE)
-        "tech"   -> ColorProviders(light = TECH,   dark = TECH)
-        "glamer" -> ColorProviders(light = GLAMER, dark = GLAMER)
-        else     -> null   // "auto" — caller falls back to default GlanceTheme
+        "light"  -> buildColorProviders(light = LIGHT,  dark = LIGHT)
+        "dark"   -> buildColorProviders(light = DARK,   dark = DARK)
+        "glassy" -> buildColorProviders(light = GLASSY, dark = GLASSY)
+        "simple" -> buildColorProviders(light = SIMPLE, dark = SIMPLE)
+        "tech"   -> buildColorProviders(light = TECH,   dark = TECH)
+        "glamer" -> buildColorProviders(light = GLAMER, dark = GLAMER)
+        else     -> null   // "auto" — caller uses DynamicThemeColorProviders
     }
 
     // ── Light ─────────────────────────────────────────────────────────────────
