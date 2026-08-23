@@ -75,7 +75,7 @@ class ReadYouWidget : GlanceAppWidget() {
         val displayArticles = articles.filter { feedMap.containsKey(it.feedId) }.take(50)
         val unreadCount     = displayArticles.count { !it.isRead }
 
-        val themeColors = WidgetThemes.colorProvidersFor(config.widgetTheme)
+        val themeColors = WidgetThemes.colorProvidersFor(config.widgetTheme, config.themeVariant)
 
         GlanceTheme(colors = themeColors) {
             Column(

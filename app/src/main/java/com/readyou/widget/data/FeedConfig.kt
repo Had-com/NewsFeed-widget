@@ -27,6 +27,7 @@ data class WidgetConfig(
     val externalApp: String = "browser",       // "browser" | "share"
     val articleLength: String = "medium",      // "short" | "medium" | "full"
     val widgetTheme: String = "auto",          // "auto" | "lavender" | "amethyst" | "glassy" | "simple" | "aerospace" | "silicon" | "glamer"
+    val themeVariant: String = "dark",         // "light" | "dark"
 )
 
 @Serializable

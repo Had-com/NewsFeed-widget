@@ -482,6 +482,27 @@ class WidgetConfigActivity : ComponentActivity() {
                                         }
                                     }
                                 }
+                                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                                    Text("Theme variant", style = MaterialTheme.typography.bodyMedium)
+                                    Row {
+                                        listOf("light" to "Light", "dark" to "Dark").forEach { (key, lbl) ->
+                                            val selected = config.themeVariant == key
+                                            TextButton(
+                                                onClick = { config = config.copy(themeVariant = key) },
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(
+                                                        if (selected) MaterialTheme.colorScheme.primaryContainer
+                                                        else androidx.compose.ui.graphics.Color.Transparent
+                                                    ),
+                                            ) {
+                                                Text(lbl, fontSize = 13.sp,
+                                                    color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                                                            else MaterialTheme.colorScheme.onSurface)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             HorizontalDivider()
                         }
