@@ -60,6 +60,8 @@ class ReadYouWidget : GlanceAppWidget() {
         val articlesJson      = prefs[WidgetStateKey.articles]
         val lastRefreshTime   = prefs[WidgetStateKey.lastRefreshTime] ?: 0L
         val expandedArticleId = prefs[WidgetStateKey.expandedArticleId] ?: ""
+        val fullArticleId     = prefs[WidgetStateKey.fullArticleId]     ?: ""
+        val fullArticleText   = prefs[WidgetStateKey.fullArticleText]   ?: ""
 
         val config = configJson
             ?.let { runCatching { Json.decodeFromString<WidgetConfig>(it) }.getOrNull() }
@@ -100,7 +102,7 @@ class ReadYouWidget : GlanceAppWidget() {
                     LazyColumn(modifier = GlanceModifier.defaultWeight().fillMaxWidth()) {
                         items(displayArticles) { article ->
                             val feedConfig = feedMap[article.feedId] ?: return@items
-                            Column(modifier = GlanceModifier.fillMaxWidth()) {
+                            Column(modifier = GlanceModifier.fillMaxWidth().padding(top = 6.dp)) {
                                 FeedItemRow(
                                     article           = article,
                                     feedConfig        = feedConfig,
@@ -108,6 +110,8 @@ class ReadYouWidget : GlanceAppWidget() {
                                     widgetId          = config.widgetId,
                                     fontSize          = config.fontSize,
                                     articleLength     = config.articleLength,
+                                    fullArticleId     = fullArticleId,
+                                    fullArticleText   = fullArticleText,
                                 )
                                 Divider(thin = true)
                             }

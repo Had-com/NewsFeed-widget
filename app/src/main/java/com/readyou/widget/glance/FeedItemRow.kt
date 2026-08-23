@@ -50,6 +50,8 @@ fun FeedItemRow(
     widgetId: Int,
     fontSize: Float,
     articleLength: String = "medium",
+    fullArticleId: String = "",
+    fullArticleText: String = "",
 ) {
     val context        = LocalContext.current
     val isExpanded     = article.id == expandedArticleId
@@ -178,28 +180,69 @@ fun FeedItemRow(
 
             // Expanded: description + Open article button
             if (isExpanded) {
-                if (article.description.isNotBlank()) {
-                    // "short" = subtitle/teaser (~1 sentence), "medium" = first paragraph, "full" = everything
-                    val limit = when (articleLength) {
-                        "short" -> 100
-                        "full"  -> Int.MAX_VALUE
-                        else    -> 400
+                val descStyle = TextStyle(
+                    fontSize = (10f * fontSize).sp,
+                    color = GlanceTheme.colors.onSurfaceVariant,
+                    textAlign = if (isRtl) androidx.glance.text.TextAlign.End
+                                else      androidx.glance.text.TextAlign.Start,
+                )
+
+                if (articleLength == "full") {
+                    if (fullArticleId == article.id && fullArticleText.isNotBlank()) {
+                        Spacer(GlanceModifier.height(4.dp))
+                        Text(
+                            text = fullArticleText,
+                            style = descStyle,
+                            maxLines = 200,
+                            modifier = GlanceModifier.fillMaxWidth(),
+                        )
+                    } else {
+                        if (article.description.isNotBlank()) {
+                            Spacer(GlanceModifier.height(4.dp))
+                            Text(
+                                text = article.description,
+                                style = descStyle,
+                                maxLines = 50,
+                                modifier = GlanceModifier.fillMaxWidth(),
+                            )
+                        }
+                        if (article.articleUrl.isNotBlank()) {
+                            Spacer(GlanceModifier.height(6.dp))
+                            Text(
+                                text = "Load full article ↓",
+                                style = TextStyle(
+                                    fontSize = (9f * fontSize).sp,
+                                    color = accentProvider,
+                                ),
+                                modifier = GlanceModifier
+                                    .background(ColorProvider(Color(0x229B72E3)))
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    .clickable(
+                                        actionRunCallback<FetchFullArticleCallback>(
+                                            actionParametersOf(
+                                                FetchFullArticleCallback.ARTICLE_ID_KEY  to article.id,
+                                                FetchFullArticleCallback.ARTICLE_URL_KEY to article.articleUrl,
+                                            )
+                                        )
+                                    ),
+                            )
+                        }
                     }
-                    val raw        = article.description
-                    val clipped    = if (raw.length > limit) raw.take(limit).trimEnd() + "…" else raw
-                    Spacer(GlanceModifier.height(4.dp))
-                    Text(
-                        text = clipped,
-                        style = TextStyle(
-                            fontSize = (10f * fontSize).sp,
-                            color = GlanceTheme.colors.onSurfaceVariant,
-                            textAlign = if (isRtl) androidx.glance.text.TextAlign.End
-                                        else      androidx.glance.text.TextAlign.Start,
-                        ),
-                        maxLines = 50,
-                        modifier = GlanceModifier.fillMaxWidth(),
-                    )
+                } else {
+                    if (article.description.isNotBlank()) {
+                        val limit   = if (articleLength == "short") 100 else 400
+                        val raw     = article.description
+                        val clipped = if (raw.length > limit) raw.take(limit).trimEnd() + "…" else raw
+                        Spacer(GlanceModifier.height(4.dp))
+                        Text(
+                            text = clipped,
+                            style = descStyle,
+                            maxLines = 50,
+                            modifier = GlanceModifier.fillMaxWidth(),
+                        )
+                    }
                 }
+
                 if (article.articleUrl.isNotBlank()) {
                     Spacer(GlanceModifier.height(6.dp))
                     Text(
@@ -235,7 +278,7 @@ fun FeedItemRow(
                         provider = ImageProvider(bmp),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = GlanceModifier.width(thumbWidth).fillMaxHeight(),
+                        modifier = GlanceModifier.width(thumbWidth).fillMaxHeight().padding(vertical = 4.dp),
                     )
                 }
             }
