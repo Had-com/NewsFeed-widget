@@ -1,5 +1,10 @@
 package com.readyou.widget.glance
 
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.content.Context
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -7,14 +12,17 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.LocalContext
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.actionRunCallback
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.currentState
 import androidx.glance.layout.Alignment
@@ -30,25 +38,28 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import com.readyou.widget.config.WidgetConfigActivity
 import com.readyou.widget.data.ArticleItem
 import com.readyou.widget.data.WidgetConfig
 import com.readyou.widget.data.WidgetStateKey
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.util.concurrent.TimeUnit
 
 class ReadYouWidget : GlanceAppWidget() {
 
-    override suspend fun provideGlance(context: android.content.Context, id: GlanceId) {
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent { WidgetContent() }
     }
 
     @Composable
     private fun WidgetContent() {
-        val prefs              = currentState<androidx.datastore.preferences.core.Preferences>()
-        val configJson         = prefs[WidgetStateKey.configJson]
-        val articlesJson       = prefs[WidgetStateKey.articles]
-        val lastRefreshTime    = prefs[WidgetStateKey.lastRefreshTime] ?: 0L
-        val expandedArticleId  = prefs[WidgetStateKey.expandedArticleId] ?: ""
+        val prefs             = currentState<androidx.datastore.preferences.core.Preferences>()
+        val configJson        = prefs[WidgetStateKey.configJson]
+        val articlesJson      = prefs[WidgetStateKey.articles]
+        val lastRefreshTime   = prefs[WidgetStateKey.lastRefreshTime] ?: 0L
+        val expandedArticleId = prefs[WidgetStateKey.expandedArticleId] ?: ""
 
         val config = configJson
             ?.let { runCatching { Json.decodeFromString<WidgetConfig>(it) }.getOrNull() }
@@ -58,8 +69,7 @@ class ReadYouWidget : GlanceAppWidget() {
             ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
             ?: emptyList()
 
-        val feedMap = config.feeds.associateBy { it.feedId }
-
+        val feedMap         = config.feeds.associateBy { it.feedId }
         val displayArticles = articles.filter { feedMap.containsKey(it.feedId) }.take(50)
         val unreadCount     = displayArticles.count { !it.isRead }
 
@@ -102,7 +112,7 @@ class ReadYouWidget : GlanceAppWidget() {
                     }
                 }
 
-                WidgetFooter(lastRefreshTime, config.refreshIntervalMinutes)
+                WidgetFooter(lastRefreshTime, config.refreshIntervalMinutes, config.widgetId)
             }
         }
     }
@@ -116,7 +126,7 @@ class ReadYouWidget : GlanceAppWidget() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Read You",
+                text = "NewsFeed",
                 style = TextStyle(fontSize = 13.sp, color = GlanceTheme.colors.onSurfaceVariant),
             )
             Spacer(GlanceModifier.defaultWeight())
@@ -137,16 +147,22 @@ class ReadYouWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun WidgetFooter(lastRefreshTime: Long, intervalMinutes: Int) {
+    private fun WidgetFooter(lastRefreshTime: Long, intervalMinutes: Int, widgetId: Int) {
         Divider()
-        val now      = System.currentTimeMillis()
-        val nextMs   = lastRefreshTime + TimeUnit.MINUTES.toMillis(intervalMinutes.toLong())
-        val leftMs   = (nextMs - now).coerceAtLeast(0L)
-        val leftMin  = TimeUnit.MILLISECONDS.toMinutes(leftMs)
+        val now           = System.currentTimeMillis()
+        val nextMs        = lastRefreshTime + TimeUnit.MINUTES.toMillis(intervalMinutes.toLong())
+        val leftMs        = (nextMs - now).coerceAtLeast(0L)
+        val leftMin       = TimeUnit.MILLISECONDS.toMinutes(leftMs)
         val countdownText = when {
-            lastRefreshTime == 0L -> "↻ refresh now"
-            leftMs < 60_000L      -> "↻ in <1min"
+            lastRefreshTime == 0L -> "↻ now"
+            leftMs < 60_000L      -> "↻ <1min"
             else                  -> "↻ in ${leftMin}min"
+        }
+
+        val context = LocalContext.current
+        val settingsIntent = Intent(context, WidgetConfigActivity::class.java).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
         Row(
@@ -162,8 +178,11 @@ class ReadYouWidget : GlanceAppWidget() {
             )
             Spacer(GlanceModifier.defaultWeight())
             Text(
-                text = "every ${intervalMinutes}min",
-                style = TextStyle(fontSize = 11.sp, color = ColorProvider(Color(0xFF9B72E3))),
+                text = "⚙",
+                style = TextStyle(fontSize = 14.sp, color = ColorProvider(Color(0xFF9B72E3))),
+                modifier = GlanceModifier
+                    .padding(4.dp)
+                    .clickable(actionStartActivity(settingsIntent)),
             )
         }
     }
@@ -182,13 +201,47 @@ class ReadYouWidget : GlanceAppWidget() {
 class ReadYouWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget = ReadYouWidget()
 
-    override fun onEnabled(context: android.content.Context) {
+    override fun onEnabled(context: Context) {
         super.onEnabled(context)
         WidgetWorker.schedule(context)
+        scheduleClockTick(context)
     }
 
-    override fun onDisabled(context: android.content.Context) {
+    override fun onDisabled(context: Context) {
         super.onDisabled(context)
         WidgetWorker.cancel(context)
+        cancelClockTick(context)
+    }
+
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        if (intent.action == ACTION_CLOCK_TICK) {
+            MainScope().launch { ReadYouWidget().updateAll(context) }
+            scheduleClockTick(context)
+        }
+    }
+
+    companion object {
+        const val ACTION_CLOCK_TICK = "com.readyou.widget.CLOCK_TICK"
+        private const val RC_CLOCK  = 1001
+
+        fun scheduleClockTick(context: Context) {
+            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            am.setAndAllowWhileIdle(
+                AlarmManager.RTC,
+                System.currentTimeMillis() + 60_000L,
+                clockPi(context),
+            )
+        }
+
+        private fun cancelClockTick(context: Context) {
+            (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(clockPi(context))
+        }
+
+        private fun clockPi(context: Context) = PendingIntent.getBroadcast(
+            context, RC_CLOCK,
+            Intent(ACTION_CLOCK_TICK, null, context, ReadYouWidgetReceiver::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 }

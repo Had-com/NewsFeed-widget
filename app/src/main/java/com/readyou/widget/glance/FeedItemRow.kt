@@ -13,6 +13,7 @@ import androidx.glance.LocalContext
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.action.actionRunCallback
+import androidx.glance.appwidget.cornerRadius
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -34,7 +35,10 @@ import androidx.glance.unit.ColorProvider
 import com.readyou.widget.data.ArticleItem
 import com.readyou.widget.data.FeedConfig
 import com.readyou.widget.data.ThumbnailHelper
-import java.util.concurrent.TimeUnit
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun FeedItemRow(
@@ -77,7 +81,7 @@ fun FeedItemRow(
                 .padding(horizontal = 8.dp, vertical = 2.dp),
             horizontalAlignment = if (isRtl) Alignment.End else Alignment.Start,
         ) {
-            // Meta row: feed name + timestamp
+            // Meta row: circle icon + feed name + timestamp
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
                 horizontalAlignment = if (isRtl) Alignment.End else Alignment.Start,
@@ -87,18 +91,52 @@ fun FeedItemRow(
                     Box(modifier = GlanceModifier.width(5.dp).height(5.dp).background(accentProvider)) {}
                     Spacer(GlanceModifier.width(3.dp))
                 }
+
+                val initial = (feedConfig.displayName.firstOrNull()?.uppercaseChar() ?: '?').toString()
+                val circleSize = (14f * fontSize).dp
+
                 if (isRtl) {
                     Spacer(GlanceModifier.defaultWeight())
-                    Text(relativeTime(article.publishedAt),
+                    Text(formatDateTime(article.publishedAt),
                         style = TextStyle(fontSize = metaFontSize, color = GlanceTheme.colors.onSurfaceVariant))
-                    Spacer(GlanceModifier.width(5.dp))
-                    Text(article.feedName,
+                    Spacer(GlanceModifier.width(4.dp))
+                    Text(feedConfig.displayName,
                         style = TextStyle(fontSize = metaFontSize, color = accentProvider))
+                    Spacer(GlanceModifier.width(4.dp))
+                    // Circle icon
+                    Box(
+                        modifier = GlanceModifier
+                            .width(circleSize).height(circleSize)
+                            .background(accentProvider)
+                            .cornerRadius(circleSize / 2),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(initial, style = TextStyle(
+                            fontSize = (8f * fontSize).sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ColorProvider(Color.White),
+                        ))
+                    }
                 } else {
-                    Text(article.feedName,
+                    // Circle icon
+                    Box(
+                        modifier = GlanceModifier
+                            .width(circleSize).height(circleSize)
+                            .background(accentProvider)
+                            .cornerRadius(circleSize / 2),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(initial, style = TextStyle(
+                            fontSize = (8f * fontSize).sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ColorProvider(Color.White),
+                        ))
+                    }
+                    Spacer(GlanceModifier.width(4.dp))
+                    Text(feedConfig.displayName,
                         style = TextStyle(fontSize = metaFontSize, color = accentProvider))
-                    Spacer(GlanceModifier.width(5.dp))
-                    Text(relativeTime(article.publishedAt),
+                    Spacer(GlanceModifier.width(4.dp))
+                    Text(formatDateTime(article.publishedAt),
                         style = TextStyle(fontSize = metaFontSize, color = GlanceTheme.colors.onSurfaceVariant))
                     Spacer(GlanceModifier.defaultWeight())
                 }
@@ -128,7 +166,7 @@ fun FeedItemRow(
                 modifier = GlanceModifier.fillMaxWidth(),
             )
 
-            // Expanded: show full description + Open button
+            // Expanded: description + Open article button
             if (isExpanded) {
                 if (article.description.isNotBlank()) {
                     Spacer(GlanceModifier.height(4.dp))
@@ -169,7 +207,7 @@ fun FeedItemRow(
             }
         }
 
-        // Thumbnail: scales with fontSize so it matches the article title area height
+        // Thumbnail: scales with fontSize to match article row height
         if (feedConfig.displayMode == "image" && !isExpanded) {
             val thumbFile = ThumbnailHelper.file(context, article.id)
             if (thumbFile.exists()) {
@@ -196,11 +234,15 @@ fun FeedItemRow(
     }
 }
 
-private fun relativeTime(epochMs: Long): String {
-    val diff = System.currentTimeMillis() - epochMs
-    return when {
-        diff < TimeUnit.MINUTES.toMillis(60) -> "${TimeUnit.MILLISECONDS.toMinutes(diff)}m"
-        diff < TimeUnit.HOURS.toMillis(24)   -> "${TimeUnit.MILLISECONDS.toHours(diff)}h"
-        else                                 -> "${TimeUnit.MILLISECONDS.toDays(diff)}d"
+private fun formatDateTime(epochMs: Long): String {
+    if (epochMs <= 0L) return ""
+    val articleCal = Calendar.getInstance().also { it.timeInMillis = epochMs }
+    val nowCal     = Calendar.getInstance()
+    val timeStr    = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(epochMs))
+    return if (articleCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
+               articleCal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR)) {
+        timeStr
+    } else {
+        SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date(epochMs))
     }
 }

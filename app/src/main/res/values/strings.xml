@@ -1,8 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Read You Widget</string>
-    <string name="widget_description">Displays your Read You RSS feeds with per-feed customization</string>
-    <string name="widget_label">Read You Feeds</string>
+    <string name="app_name">NewsFeed</string>
+    <string name="widget_description">Displays your RSS feeds with per-feed customization</string>
+    <string name="widget_label">NewsFeed</string>
 
     <string name="sort_newest">Newest first</string>
     <string name="sort_oldest">Oldest first</string>
@@ -28,5 +28,5 @@
     <string name="font_mono">Mono</string>
 
     <string name="no_articles">No articles</string>
-    <string name="all_articles">All articles →</string>
+    <string name="all_articles">All articles</string>
 </resources>

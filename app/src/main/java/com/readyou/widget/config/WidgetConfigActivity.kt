@@ -67,6 +67,13 @@ import java.io.File
 
 class WidgetConfigActivity : ComponentActivity() {
 
+    companion object {
+        private val FEED_ACCENT_COLORS = listOf(
+            "#9B72E3", "#E35272", "#2E9EE3", "#E3A042", "#2DB888",
+            "#E372C4", "#3DD4C8", "#8BC34A", "#E37272", "#5472E3",
+        )
+    }
+
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
 
     @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -96,7 +103,10 @@ class WidgetConfigActivity : ComponentActivity() {
                             assets.open("default_feeds.opml").bufferedReader().readText()
                         }.getOrNull()
                         val defaults = opml?.let { OpmlManager.parse(it) }
-                            ?.map { (title, url) -> FeedConfig(feedId = url, displayName = title, feedUrl = url) }
+                            ?.mapIndexed { i, (title, url) ->
+                                FeedConfig(feedId = url, displayName = title, feedUrl = url,
+                                    accentColor = FEED_ACCENT_COLORS[i % FEED_ACCENT_COLORS.size])
+                            }
                             ?: emptyList()
                         config = saved.copy(feeds = defaults, feedOrder = defaults.map { it.feedId })
                     } else {
