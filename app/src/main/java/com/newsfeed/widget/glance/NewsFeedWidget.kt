@@ -104,17 +104,30 @@ class NewsFeedWidget : GlanceAppWidget() {
                     LazyColumn(modifier = GlanceModifier.defaultWeight().fillMaxWidth()) {
                         items(displayArticles) { article ->
                             val feedConfig = feedMap[article.feedId] ?: return@items
-                            FeedItemRow(
-                                article           = article,
-                                feedConfig        = feedConfig,
-                                expandedArticleId = expandedArticleId,
-                                widgetId          = config.widgetId,
-                                fontSize          = config.fontSize,
-                                articleLength     = config.articleLength,
-                                fullArticleId     = fullArticleId,
-                                fullArticleText   = fullArticleText,
-                                useThemeColors    = config.useThemeColors,
-                            )
+                            val isLast = article == displayArticles.last()
+                            Column(modifier = GlanceModifier.fillMaxWidth()) {
+                                FeedItemRow(
+                                    article           = article,
+                                    feedConfig        = feedConfig,
+                                    expandedArticleId = expandedArticleId,
+                                    widgetId          = config.widgetId,
+                                    fontSize          = config.fontSize,
+                                    articleLength     = config.articleLength,
+                                    fullArticleId     = fullArticleId,
+                                    fullArticleText   = fullArticleText,
+                                    useThemeColors    = config.useThemeColors,
+                                )
+                                if (!isLast) {
+                                    Box(modifier = GlanceModifier
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .background(GlanceTheme.colors.surfaceVariant)) {}
+                                    Box(modifier = GlanceModifier
+                                        .fillMaxWidth()
+                                        .height(2.dp)
+                                        .background(ColorProvider(Color(0x33000000)))) {}
+                                }
+                            }
                         }
                     }
                 }
