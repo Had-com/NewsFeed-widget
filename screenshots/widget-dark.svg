@@ -1,86 +1,54 @@
-<svg viewBox="0 0 320 580" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, -apple-system, sans-serif">
-  <!-- Phone frame -->
-  <rect x="2" y="2" width="316" height="576" rx="36" ry="36" fill="#1a1a1a" stroke="#444" stroke-width="2"/>
-  <!-- Screen -->
-  <rect x="14" y="14" width="292" height="552" rx="24" ry="24" fill="#111"/>
-  <!-- Status bar -->
-  <text x="28" y="38" fill="#ccc" font-size="11">9:41</text>
-  <text x="262" y="38" fill="#ccc" font-size="11">▲ ⬛</text>
+<svg viewBox="0 0 220 310" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,-apple-system,sans-serif">
+  <!-- Widget card: Amethyst dark -->
+  <rect width="220" height="310" rx="20" fill="#1C1B1F"/>
 
-  <!-- Widget background -->
-  <rect x="22" y="52" width="276" height="468" rx="18" ry="18" fill="#1e1e2e" stroke="#333" stroke-width="0.5"/>
+  <!-- Header -->
+  <text x="14" y="26" font-size="9" font-weight="600" fill="#CAC4D0" letter-spacing="0.06">NEWSFEED</text>
+  <rect x="170" y="14" width="36" height="16" rx="4" fill="#2D2B33"/>
+  <text x="188" y="25.5" font-size="9" font-weight="700" fill="#B39DDB" text-anchor="middle">12</text>
+  <rect x="0" y="36" width="220" height="1" fill="#2D2B33"/>
 
-  <!-- Widget header -->
-  <rect x="30" y="62" width="16" height="16" rx="4" ry="4" fill="#6750A4"/>
-  <text x="50" y="74" fill="#aaa" font-size="11">Read You</text>
-  <rect x="198" y="62" width="92" height="16" rx="8" ry="8" fill="#29194a"/>
-  <text x="244" y="74" fill="#C4A9FF" font-size="10" text-anchor="middle">14 לא נקראו</text>
+  <!-- Article 1 – unread -->
+  <rect x="0" y="37" width="3" height="58" fill="#9B72E3"/>
+  <circle cx="20" cy="52" r="7" fill="#9B72E3"/>
+  <text x="20" y="55.5" font-size="7" font-weight="700" fill="#fff" text-anchor="middle">י</text>
+  <text x="32" y="53" font-size="7.5" font-weight="600" fill="#B39DDB">ynet</text>
+  <text x="200" y="53" font-size="7" fill="#CAC4D0" text-anchor="end">09:41</text>
+  <text x="11" y="67" font-size="8.5" font-weight="500" fill="#E6E1E5">שר האוצר הכריז על</text>
+  <text x="11" y="79" font-size="8.5" font-weight="500" fill="#E6E1E5">תוכנית כלכלית חדשה</text>
+  <rect x="0" y="95" width="220" height="0.5" fill="#2D2B33" opacity="0.6"/>
 
-  <!-- Divider -->
-  <line x1="34" y1="86" x2="286" y2="86" stroke="#282840" stroke-width="0.5"/>
+  <!-- Article 2 – read -->
+  <rect x="0" y="96" width="3" height="58" fill="#7B52C3"/>
+  <circle cx="20" cy="111" r="7" fill="#2D2B33"/>
+  <text x="20" y="114.5" font-size="7" font-weight="700" fill="#B39DDB" text-anchor="middle">R</text>
+  <text x="32" y="112" font-size="7.5" font-weight="600" fill="#B39DDB">Reuters</text>
+  <text x="200" y="112" font-size="7" fill="#CAC4D0" text-anchor="end">08:22</text>
+  <text x="11" y="126" font-size="8.5" font-weight="500" fill="#CAC4D0">Global markets rise on</text>
+  <text x="11" y="138" font-size="8.5" font-weight="500" fill="#CAC4D0">Fed rate signals</text>
+  <rect x="0" y="154" width="220" height="0.5" fill="#2D2B33" opacity="0.6"/>
 
-  <!-- Feed 1 — red, bold, RTL -->
-  <rect x="280" y="92" width="3" height="48" fill="#c0392b"/>
-  <circle cx="270" cy="100" r="4" fill="#c0392b"/>
-  <rect x="250" y="95" width="12" height="12" rx="3" fill="#c0392b"/>
-  <text x="247" y="105" fill="#fff" font-size="7" text-anchor="middle">י</text>
-  <text x="240" y="105" fill="#888" font-size="10" text-anchor="end">ידיעות אחרונות</text>
-  <text x="36" y="105" fill="#555" font-size="9">לפני 12 דק׳</text>
-  <text x="276" y="122" fill="#e0e0e0" font-size="12" font-weight="bold" text-anchor="end">ממשלת ישראל מאשרת את תוכנית הרפורמה</text>
-  <line x1="34" y1="148" x2="286" y2="148" stroke="#222230" stroke-width="0.5"/>
+  <!-- Article 3 – unread -->
+  <rect x="0" y="155" width="3" height="58" fill="#9B72E3"/>
+  <circle cx="20" cy="170" r="7" fill="#9B72E3"/>
+  <text x="20" y="173.5" font-size="7" font-weight="700" fill="#fff" text-anchor="middle">כ</text>
+  <text x="32" y="171" font-size="7.5" font-weight="600" fill="#B39DDB">כאן חדשות</text>
+  <text x="200" y="171" font-size="7" fill="#CAC4D0" text-anchor="end">07:50</text>
+  <text x="11" y="185" font-size="8.5" font-weight="500" fill="#E6E1E5">הממשלה אישרה את</text>
+  <text x="11" y="197" font-size="8.5" font-weight="500" fill="#E6E1E5">תקציב 2025</text>
+  <rect x="0" y="213" width="220" height="0.5" fill="#2D2B33" opacity="0.6"/>
 
-  <!-- Feed 2 — blue, italic, RTL -->
-  <rect x="280" y="152" width="3" height="48" fill="#2980b9"/>
-  <circle cx="270" cy="160" r="4" fill="#2980b9"/>
-  <rect x="250" y="155" width="12" height="12" rx="3" fill="#2980b9"/>
-  <text x="247" y="165" fill="#fff" font-size="7" text-anchor="middle">ה</text>
-  <text x="240" y="165" fill="#888" font-size="10" text-anchor="end">הארץ</text>
-  <text x="36" y="165" fill="#555" font-size="9">לפני 38 דק׳</text>
-  <text x="276" y="182" fill="#e0e0e0" font-size="12" font-style="italic" text-anchor="end">מחקר חדש: כך משפיע AI על שוק העבודה</text>
-  <line x1="34" y1="208" x2="286" y2="208" stroke="#222230" stroke-width="0.5"/>
+  <!-- Article 4 – unread -->
+  <rect x="0" y="214" width="3" height="58" fill="#7B52C3"/>
+  <circle cx="20" cy="229" r="7" fill="#7B52C3"/>
+  <text x="20" y="232.5" font-size="7" font-weight="700" fill="#fff" text-anchor="middle">W</text>
+  <text x="32" y="230" font-size="7.5" font-weight="600" fill="#B39DDB">Wired</text>
+  <text x="200" y="230" font-size="7" fill="#CAC4D0" text-anchor="end">Yesterday</text>
+  <text x="11" y="244" font-size="8.5" font-weight="500" fill="#E6E1E5">AI tools are reshaping</text>
+  <text x="11" y="256" font-size="8.5" font-weight="500" fill="#E6E1E5">how engineers work</text>
+  <rect x="0" y="272" width="220" height="1" fill="#2D2B33"/>
 
-  <!-- Feed 3 — green, serif, LTR English -->
-  <rect x="37" y="212" width="3" height="44" fill="#27ae60"/>
-  <rect x="44" y="215" width="12" height="12" rx="3" fill="#27ae60"/>
-  <text x="47" y="225" fill="#fff" font-size="7" text-anchor="middle">T</text>
-  <text x="60" y="225" fill="#888" font-size="10">TechCrunch</text>
-  <text x="258" y="225" fill="#555" font-size="9">1h ago</text>
-  <text x="44" y="244" fill="#666" font-size="11" font-family="Georgia, serif">Apple announces iPhone 17 Pro with new chip</text>
-  <line x1="34" y1="264" x2="286" y2="264" stroke="#222230" stroke-width="0.5"/>
-
-  <!-- Feed 4 — purple, underline, RTL -->
-  <rect x="280" y="268" width="3" height="44" fill="#8e44ad"/>
-  <circle cx="270" cy="276" r="4" fill="#8e44ad"/>
-  <rect x="250" y="271" width="12" height="12" rx="3" fill="#8e44ad"/>
-  <text x="247" y="281" fill="#fff" font-size="7" text-anchor="middle">ג</text>
-  <text x="240" y="281" fill="#888" font-size="10" text-anchor="end">גיקטיים</text>
-  <text x="36" y="281" fill="#555" font-size="9">לפני 2 שע׳</text>
-  <text x="276" y="298" fill="#e0e0e0" font-size="12" text-decoration="underline" text-anchor="end">כל מה שצריך לדעת על גלקסי Z Fold 8 Ultra</text>
-  <line x1="34" y1="320" x2="286" y2="320" stroke="#222230" stroke-width="0.5"/>
-
-  <!-- Feed 5 — orange, read -->
-  <rect x="280" y="324" width="3" height="40" fill="#e67e22"/>
-  <rect x="250" y="327" width="12" height="12" rx="3" fill="#e67e22"/>
-  <text x="247" y="337" fill="#fff" font-size="7" text-anchor="middle">מ</text>
-  <text x="240" y="337" fill="#888" font-size="10" text-anchor="end">מאקו</text>
-  <text x="36" y="337" fill="#555" font-size="9">לפני 3 שע׳</text>
-  <text x="276" y="354" fill="#555" font-size="12" text-anchor="end">ליגת העל: מכבי תל אביב ניצחה 2-0</text>
-  <line x1="34" y1="372" x2="286" y2="372" stroke="#222230" stroke-width="0.5"/>
-
-  <!-- Feed 6 — teal, LTR -->
-  <rect x="37" y="376" width="3" height="40" fill="#1abc9c"/>
-  <circle cx="50" cy="384" r="4" fill="#1abc9c"/>
-  <rect x="58" y="379" width="12" height="12" rx="3" fill="#1abc9c"/>
-  <text x="61" y="389" fill="#fff" font-size="7" text-anchor="middle">B</text>
-  <text x="74" y="389" fill="#888" font-size="10">BBC News</text>
-  <text x="265" y="389" fill="#555" font-size="9">4h ago</text>
-  <text x="44" y="406" fill="#e0e0e0" font-size="12">Global markets react to policy changes</text>
-  <line x1="34" y1="424" x2="286" y2="424" stroke="#222230" stroke-width="0.5"/>
-
-  <!-- Widget footer -->
-  <text x="36" y="444" fill="#444" font-size="9">עודכן 09:29</text>
-  <text x="276" y="444" fill="#9B72E3" font-size="10" text-anchor="end">כל הכתבות ←</text>
-
-  <!-- Home indicator -->
-  <rect x="120" y="530" width="80" height="4" rx="2" fill="#333"/>
+  <!-- Footer -->
+  <text x="14" y="290" font-size="8" fill="#B39DDB">↻ in 8min</text>
+  <text x="206" y="290" font-size="12" fill="#B39DDB" text-anchor="end">⚙</text>
 </svg>

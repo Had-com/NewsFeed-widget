@@ -1,158 +1,107 @@
-<svg viewBox="0 0 360 620" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, -apple-system, sans-serif">
+<svg viewBox="0 0 280 480" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,-apple-system,sans-serif">
   <!-- Panel background -->
-  <rect x="0" y="0" width="360" height="620" rx="16" ry="16" fill="#ffffff" stroke="#e0e0e0" stroke-width="1"/>
+  <rect width="280" height="480" rx="16" fill="#FFFFFF"/>
 
-  <!-- Header -->
-  <rect x="0" y="0" width="360" height="56" rx="16" ry="16" fill="#ffffff"/>
-  <rect x="0" y="40" width="360" height="16" fill="#ffffff"/>
-  <text x="20" y="34" fill="#1a1a1a" font-size="16" font-weight="500">Widget settings</text>
-  <rect x="298" y="18" width="44" height="22" rx="8" ry="8" fill="#EDE9FE"/>
-  <text x="320" y="33" fill="#6750A4" font-size="12" text-anchor="middle">Save</text>
-  <line x1="0" y1="56" x2="360" y2="56" stroke="#ececec" stroke-width="0.5"/>
+  <!-- Top bar -->
+  <rect width="280" height="52" rx="0" fill="#F6F0FB"/>
+  <rect width="280" height="52" rx="16" fill="#F6F0FB"/>
+  <rect x="0" y="36" width="280" height="16" fill="#F6F0FB"/>
+  <text x="16" y="32" font-size="16" font-weight="700" fill="#1C1B1F">Widget Settings</text>
+  <rect x="0" y="52" width="280" height="1" fill="#E0D8F0"/>
 
-  <!-- Sort & Filter section -->
-  <text x="20" y="76" fill="#aaa" font-size="10" letter-spacing="0.5">SORT &amp; FILTER</text>
+  <!-- Section: Sort -->
+  <text x="16" y="74" font-size="10" font-weight="600" fill="#49454F" letter-spacing="0.08">SORT &amp; FILTER</text>
+  <text x="16" y="96" font-size="12" fill="#1C1B1F">Sort order</text>
+  <rect x="172" y="82" width="92" height="24" rx="6" fill="#F6F0FB"/>
+  <text x="218" y="98" font-size="11" fill="#9B72E3" text-anchor="middle">Newest first ▾</text>
 
-  <!-- Sort row -->
-  <text x="20" y="100" fill="#444" font-size="13">Sort by</text>
-  <rect x="230" y="86" width="110" height="22" rx="6" ry="6" fill="#f5f5f5" stroke="#e0e0e0" stroke-width="0.5"/>
-  <text x="285" y="101" fill="#1a1a1a" font-size="12" text-anchor="middle">Newest first ▾</text>
+  <text x="16" y="122" font-size="12" fill="#1C1B1F">Filter</text>
+  <rect x="172" y="108" width="92" height="24" rx="6" fill="#F6F0FB"/>
+  <text x="218" y="124" font-size="11" fill="#9B72E3" text-anchor="middle">All ▾</text>
 
-  <!-- Filter row -->
-  <text x="20" y="128" fill="#444" font-size="13">Show</text>
-  <rect x="230" y="114" width="110" height="22" rx="6" ry="6" fill="#f5f5f5" stroke="#e0e0e0" stroke-width="0.5"/>
-  <text x="285" y="129" fill="#1a1a1a" font-size="12" text-anchor="middle">Unread only ▾</text>
+  <text x="16" y="148" font-size="12" fill="#1C1B1F">Widget theme</text>
+  <rect x="172" y="134" width="92" height="24" rx="6" fill="#F6F0FB"/>
+  <text x="218" y="150" font-size="11" fill="#9B72E3" text-anchor="middle">Amethyst ▾</text>
 
-  <line x1="20" y1="146" x2="340" y2="146" stroke="#ececec" stroke-width="0.5"/>
+  <text x="16" y="174" font-size="12" fill="#1C1B1F">Theme variant</text>
+  <!-- Light button -->
+  <rect x="172" y="160" width="42" height="24" rx="6" fill="#F6F0FB"/>
+  <text x="193" y="176" font-size="11" fill="#49454F" text-anchor="middle">Light</text>
+  <!-- Dark button (selected) -->
+  <rect x="218" y="160" width="42" height="24" rx="6" fill="#E0D8F0"/>
+  <text x="239" y="176" font-size="11" fill="#9B72E3" text-anchor="middle">Dark</text>
 
-  <!-- Feed order section header -->
-  <text x="20" y="166" fill="#aaa" font-size="10" letter-spacing="0.5">FEED ORDER &amp; STYLE</text>
-  <text x="20" y="182" fill="#ccc" font-size="11">Drag rows to reorder</text>
+  <rect x="0" y="192" width="280" height="1" fill="#E0D8F0"/>
 
-  <!-- ── Feed Row 1: ידיעות אחרונות ── -->
-  <line x1="0" y1="192" x2="360" y2="192" stroke="#ececec" stroke-width="0.5"/>
-  <!-- drag handle -->
-  <text x="14" y="212" fill="#ccc" font-size="18">⠿</text>
-  <!-- color swatch -->
-  <rect x="38" y="200" width="14" height="14" rx="3" fill="#c0392b"/>
-  <!-- feed name -->
-  <text x="60" y="213" fill="#1a1a1a" font-size="13" font-weight="500">ידיעות אחרונות</text>
-  <!-- RTL badge -->
-  <rect x="284" y="200" width="56" height="18" rx="6" ry="6" fill="#ede9fe" stroke="#6750A4" stroke-width="0.5"/>
-  <text x="312" y="213" fill="#6750A4" font-size="10" text-anchor="middle">RTL ✓</text>
-  <!-- color dots -->
-  <circle cx="40" cy="238" r="7" fill="#c0392b" stroke="#1a1a1a" stroke-width="1.5"/>
-  <circle cx="58" cy="238" r="7" fill="#2980b9"/>
-  <circle cx="76" cy="238" r="7" fill="#27ae60"/>
-  <circle cx="94" cy="238" r="7" fill="#8e44ad"/>
-  <circle cx="112" cy="238" r="7" fill="#e67e22"/>
-  <circle cx="130" cy="238" r="7" fill="#9B72E3"/>
-  <!-- font -->
-  <rect x="148" y="228" width="64" height="20" rx="5" ry="5" fill="#f5f5f5" stroke="#e0e0e0" stroke-width="0.5"/>
-  <text x="180" y="242" fill="#666" font-size="11" text-anchor="middle">Default ▾</text>
-  <!-- B I U -->
-  <rect x="220" y="228" width="26" height="20" rx="4" fill="#ede9fe" stroke="#6750A4" stroke-width="0.5"/>
-  <text x="233" y="242" fill="#6750A4" font-size="12" text-anchor="middle" font-weight="bold">B</text>
-  <rect x="250" y="228" width="26" height="20" rx="4" fill="#f5f5f5" stroke="#ddd" stroke-width="0.5"/>
-  <text x="263" y="242" fill="#999" font-size="12" text-anchor="middle" font-style="italic">I</text>
-  <rect x="280" y="228" width="26" height="20" rx="4" fill="#f5f5f5" stroke="#ddd" stroke-width="0.5"/>
-  <text x="293" y="242" fill="#999" font-size="12" text-anchor="middle" text-decoration="underline">U</text>
+  <!-- Section: Feeds -->
+  <text x="16" y="212" font-size="10" font-weight="600" fill="#49454F" letter-spacing="0.08">FEEDS</text>
 
-  <!-- ── Feed Row 2: הארץ ── -->
-  <line x1="0" y1="260" x2="360" y2="260" stroke="#ececec" stroke-width="0.5"/>
-  <text x="14" y="280" fill="#ccc" font-size="18">⠿</text>
-  <rect x="38" y="268" width="14" height="14" rx="3" fill="#2980b9"/>
-  <text x="60" y="281" fill="#1a1a1a" font-size="13" font-weight="500">הארץ</text>
-  <rect x="284" y="268" width="56" height="18" rx="6" ry="6" fill="#ede9fe" stroke="#6750A4" stroke-width="0.5"/>
-  <text x="312" y="281" fill="#6750A4" font-size="10" text-anchor="middle">RTL ✓</text>
-  <circle cx="40" cy="306" r="7" fill="#c0392b"/>
-  <circle cx="58" cy="306" r="7" fill="#2980b9" stroke="#1a1a1a" stroke-width="1.5"/>
-  <circle cx="76" cy="306" r="7" fill="#27ae60"/>
-  <circle cx="94" cy="306" r="7" fill="#8e44ad"/>
-  <circle cx="112" cy="306" r="7" fill="#e67e22"/>
-  <circle cx="130" cy="306" r="7" fill="#9B72E3"/>
-  <rect x="148" y="296" width="64" height="20" rx="5" ry="5" fill="#f5f5f5" stroke="#e0e0e0" stroke-width="0.5"/>
-  <text x="180" y="310" fill="#666" font-size="11" text-anchor="middle">Serif ▾</text>
-  <rect x="220" y="296" width="26" height="20" rx="4" fill="#f5f5f5" stroke="#ddd" stroke-width="0.5"/>
-  <text x="233" y="310" fill="#999" font-size="12" text-anchor="middle" font-weight="bold">B</text>
-  <rect x="250" y="296" width="26" height="20" rx="4" fill="#ede9fe" stroke="#6750A4" stroke-width="0.5"/>
-  <text x="263" y="310" fill="#6750A4" font-size="12" text-anchor="middle" font-style="italic">I</text>
-  <rect x="280" y="296" width="26" height="20" rx="4" fill="#f5f5f5" stroke="#ddd" stroke-width="0.5"/>
-  <text x="293" y="310" fill="#999" font-size="12" text-anchor="middle" text-decoration="underline">U</text>
+  <!-- Feed row 1 -->
+  <text x="16" y="232" font-size="18" fill="#9B72E3">⠿</text>
+  <circle cx="46" cy="228" r="9" fill="#9B72E3"/>
+  <text x="46" y="231.5" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">י</text>
+  <text x="60" y="232" font-size="12" fill="#1C1B1F">ynet - מבזקים</text>
+  <text x="262" y="232" font-size="14" fill="#CAC4D0" text-anchor="end">×</text>
+  <!-- controls -->
+  <rect x="16" y="240" width="14" height="14" rx="3" fill="#9B72E3"/>
+  <text x="44" y="252" font-size="10" fill="#49454F">Serif</text>
+  <text x="82" y="252" font-size="10" font-weight="700" fill="#49454F">B</text>
+  <text x="96" y="252" font-size="10" font-style="italic" fill="#CAC4D0">I</text>
+  <text x="110" y="252" font-size="10" fill="#CAC4D0" text-decoration="underline">U</text>
+  <rect x="128" y="242" width="32" height="12" rx="6" fill="#E0D8F0"/>
+  <text x="144" y="251.5" font-size="8" fill="#9B72E3" text-anchor="middle">RTL</text>
+  <rect x="168" y="242" width="32" height="12" rx="6" fill="#F6F0FB"/>
+  <text x="184" y="251.5" font-size="8" fill="#49454F" text-anchor="middle">IMG</text>
+  <rect x="0" y="260" width="280" height="0.5" fill="#E0D8F0" opacity="0.6"/>
 
-  <!-- ── Feed Row 3: TechCrunch (dragging highlight) ── -->
-  <line x1="0" y1="328" x2="360" y2="328" stroke="#ececec" stroke-width="0.5"/>
-  <rect x="0" y="328" width="360" height="72" fill="#f9f6ff"/>
-  <text x="14" y="348" fill="#6750A4" font-size="18">⠿</text>
-  <rect x="38" y="336" width="14" height="14" rx="3" fill="#27ae60"/>
-  <text x="60" y="349" fill="#1a1a1a" font-size="13" font-weight="500">TechCrunch</text>
-  <rect x="284" y="336" width="56" height="18" rx="6" ry="6" fill="#f5f5f5" stroke="#ccc" stroke-width="0.5"/>
-  <text x="312" y="349" fill="#888" font-size="10" text-anchor="middle">LTR ✓</text>
-  <circle cx="40" cy="374" r="7" fill="#c0392b"/>
-  <circle cx="58" cy="374" r="7" fill="#2980b9"/>
-  <circle cx="76" cy="374" r="7" fill="#27ae60" stroke="#1a1a1a" stroke-width="1.5"/>
-  <circle cx="94" cy="374" r="7" fill="#8e44ad"/>
-  <circle cx="112" cy="374" r="7" fill="#e67e22"/>
-  <circle cx="130" cy="374" r="7" fill="#9B72E3"/>
-  <rect x="148" y="364" width="64" height="20" rx="5" ry="5" fill="#f5f5f5" stroke="#e0e0e0" stroke-width="0.5"/>
-  <text x="180" y="378" fill="#666" font-size="11" text-anchor="middle">Serif ▾</text>
-  <rect x="220" y="364" width="26" height="20" rx="4" fill="#f5f5f5" stroke="#ddd" stroke-width="0.5"/>
-  <text x="233" y="378" fill="#999" font-size="12" text-anchor="middle" font-weight="bold">B</text>
-  <rect x="250" y="364" width="26" height="20" rx="4" fill="#f5f5f5" stroke="#ddd" stroke-width="0.5"/>
-  <text x="263" y="378" fill="#999" font-size="12" text-anchor="middle" font-style="italic">I</text>
-  <rect x="280" y="364" width="26" height="20" rx="4" fill="#f5f5f5" stroke="#ddd" stroke-width="0.5"/>
-  <text x="293" y="378" fill="#999" font-size="12" text-anchor="middle" text-decoration="underline">U</text>
+  <!-- Feed row 2 -->
+  <text x="16" y="280" font-size="18" fill="#9B72E3">⠿</text>
+  <circle cx="46" cy="276" r="9" fill="#E35272"/>
+  <text x="46" y="279.5" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">R</text>
+  <text x="60" y="280" font-size="12" fill="#1C1B1F">Reuters</text>
+  <text x="262" y="280" font-size="14" fill="#CAC4D0" text-anchor="end">×</text>
+  <rect x="16" y="288" width="14" height="14" rx="3" fill="#E35272"/>
+  <text x="44" y="300" font-size="10" fill="#49454F">Sans</text>
+  <text x="82" y="300" font-size="10" font-weight="700" fill="#CAC4D0">B</text>
+  <text x="96" y="300" font-size="10" font-style="italic" fill="#CAC4D0">I</text>
+  <text x="110" y="300" font-size="10" fill="#CAC4D0">U</text>
+  <rect x="128" y="290" width="32" height="12" rx="6" fill="#F6F0FB"/>
+  <text x="144" y="299.5" font-size="8" fill="#49454F" text-anchor="middle">LTR</text>
+  <rect x="168" y="290" width="32" height="12" rx="6" fill="#E0D8F0"/>
+  <text x="184" y="299.5" font-size="8" fill="#9B72E3" text-anchor="middle">IMG</text>
+  <rect x="0" y="308" width="280" height="0.5" fill="#E0D8F0" opacity="0.6"/>
 
-  <!-- ── Feed Row 4: גיקטיים ── -->
-  <line x1="0" y1="400" x2="360" y2="400" stroke="#ececec" stroke-width="0.5"/>
-  <text x="14" y="420" fill="#ccc" font-size="18">⠿</text>
-  <rect x="38" y="408" width="14" height="14" rx="3" fill="#8e44ad"/>
-  <text x="60" y="421" fill="#1a1a1a" font-size="13" font-weight="500">גיקטיים</text>
-  <rect x="284" y="408" width="56" height="18" rx="6" ry="6" fill="#ede9fe" stroke="#6750A4" stroke-width="0.5"/>
-  <text x="312" y="421" fill="#6750A4" font-size="10" text-anchor="middle">RTL ✓</text>
-  <circle cx="40" cy="446" r="7" fill="#c0392b"/>
-  <circle cx="58" cy="446" r="7" fill="#2980b9"/>
-  <circle cx="76" cy="446" r="7" fill="#27ae60"/>
-  <circle cx="94" cy="446" r="7" fill="#8e44ad" stroke="#1a1a1a" stroke-width="1.5"/>
-  <circle cx="112" cy="446" r="7" fill="#e67e22"/>
-  <circle cx="130" cy="446" r="7" fill="#9B72E3"/>
-  <rect x="148" y="436" width="64" height="20" rx="5" ry="5" fill="#f5f5f5" stroke="#e0e0e0" stroke-width="0.5"/>
-  <text x="180" y="450" fill="#666" font-size="11" text-anchor="middle">Default ▾</text>
-  <rect x="220" y="436" width="26" height="20" rx="4" fill="#f5f5f5" stroke="#ddd" stroke-width="0.5"/>
-  <text x="233" y="450" fill="#999" font-size="12" text-anchor="middle" font-weight="bold">B</text>
-  <rect x="250" y="436" width="26" height="20" rx="4" fill="#f5f5f5" stroke="#ddd" stroke-width="0.5"/>
-  <text x="263" y="450" fill="#999" font-size="12" text-anchor="middle" font-style="italic">I</text>
-  <rect x="280" y="436" width="26" height="20" rx="4" fill="#ede9fe" stroke="#6750A4" stroke-width="0.5"/>
-  <text x="293" y="450" fill="#6750A4" font-size="12" text-anchor="middle" text-decoration="underline">U</text>
+  <!-- Feed row 3 -->
+  <text x="16" y="328" font-size="18" fill="#9B72E3">⠿</text>
+  <circle cx="46" cy="324" r="9" fill="#2E9EE3"/>
+  <text x="46" y="327.5" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">כ</text>
+  <text x="60" y="328" font-size="12" fill="#1C1B1F">כאן חדשות</text>
+  <text x="262" y="328" font-size="14" fill="#CAC4D0" text-anchor="end">×</text>
+  <rect x="16" y="336" width="14" height="14" rx="3" fill="#2E9EE3"/>
+  <text x="44" y="348" font-size="10" fill="#49454F">Sans</text>
+  <text x="82" y="348" font-size="10" font-weight="700" fill="#49454F">B</text>
+  <text x="96" y="348" font-size="10" font-style="italic" fill="#CAC4D0">I</text>
+  <text x="110" y="348" font-size="10" fill="#CAC4D0">U</text>
+  <rect x="128" y="338" width="32" height="12" rx="6" fill="#E0D8F0"/>
+  <text x="144" y="347.5" font-size="8" fill="#9B72E3" text-anchor="middle">RTL</text>
+  <rect x="168" y="338" width="32" height="12" rx="6" fill="#F6F0FB"/>
+  <text x="184" y="347.5" font-size="8" fill="#49454F" text-anchor="middle">TXT</text>
+  <rect x="0" y="356" width="280" height="1" fill="#E0D8F0"/>
 
-  <!-- ── Feed Row 5: BBC News ── -->
-  <line x1="0" y1="468" x2="360" y2="468" stroke="#ececec" stroke-width="0.5"/>
-  <text x="14" y="488" fill="#ccc" font-size="18">⠿</text>
-  <rect x="38" y="476" width="14" height="14" rx="3" fill="#1abc9c"/>
-  <text x="60" y="489" fill="#1a1a1a" font-size="13" font-weight="500">BBC News</text>
-  <rect x="284" y="476" width="56" height="18" rx="6" ry="6" fill="#f5f5f5" stroke="#ccc" stroke-width="0.5"/>
-  <text x="312" y="489" fill="#888" font-size="10" text-anchor="middle">LTR ✓</text>
-  <circle cx="40" cy="514" r="7" fill="#c0392b"/>
-  <circle cx="58" cy="514" r="7" fill="#2980b9"/>
-  <circle cx="76" cy="514" r="7" fill="#27ae60"/>
-  <circle cx="94" cy="514" r="7" fill="#8e44ad"/>
-  <circle cx="112" cy="514" r="7" fill="#e67e22"/>
-  <circle cx="130" cy="514" r="7" fill="#1abc9c" stroke="#1a1a1a" stroke-width="1.5"/>
-  <rect x="148" y="504" width="64" height="20" rx="5" ry="5" fill="#f5f5f5" stroke="#e0e0e0" stroke-width="0.5"/>
-  <text x="180" y="518" fill="#666" font-size="11" text-anchor="middle">Default ▾</text>
-  <rect x="220" y="504" width="26" height="20" rx="4" fill="#f5f5f5" stroke="#ddd" stroke-width="0.5"/>
-  <text x="233" y="518" fill="#999" font-size="12" text-anchor="middle" font-weight="bold">B</text>
-  <rect x="250" y="504" width="26" height="20" rx="4" fill="#f5f5f5" stroke="#ddd" stroke-width="0.5"/>
-  <text x="263" y="518" fill="#999" font-size="12" text-anchor="middle" font-style="italic">I</text>
-  <rect x="280" y="504" width="26" height="20" rx="4" fill="#f5f5f5" stroke="#ddd" stroke-width="0.5"/>
-  <text x="293" y="518" fill="#999" font-size="12" text-anchor="middle" text-decoration="underline">U</text>
+  <!-- Add feed row -->
+  <text x="16" y="376" font-size="10" font-weight="600" fill="#49454F" letter-spacing="0.08">ADD FEED</text>
+  <rect x="16" y="384" width="192" height="28" rx="6" fill="#F6F0FB" stroke="#E0D8F0" stroke-width="1"/>
+  <text x="26" y="401" font-size="11" fill="#CAC4D0">https://example.com/feed.xml</text>
+  <rect x="216" y="384" width="48" height="28" rx="6" fill="#9B72E3"/>
+  <text x="240" y="401" font-size="11" font-weight="600" fill="#fff" text-anchor="middle">Add</text>
 
-  <line x1="0" y1="536" x2="360" y2="536" stroke="#ececec" stroke-width="0.5"/>
+  <!-- Import / Export -->
+  <rect x="16" y="424" width="114" height="28" rx="6" fill="#F6F0FB" stroke="#E0D8F0" stroke-width="1"/>
+  <text x="73" y="441" font-size="11" fill="#9B72E3" text-anchor="middle">Import OPML</text>
+  <rect x="150" y="424" width="114" height="28" rx="6" fill="#F6F0FB" stroke="#E0D8F0" stroke-width="1"/>
+  <text x="207" y="441" font-size="11" fill="#9B72E3" text-anchor="middle">Export OPML</text>
 
-  <!-- Legend -->
-  <text x="20" y="558" fill="#aaa" font-size="10" letter-spacing="0.5">LEGEND</text>
-  <text x="20" y="578" fill="#6750A4" font-size="10">⠿ Drag</text>
-  <text x="80" y="578" fill="#888" font-size="10">● Accent color</text>
-  <text x="190" y="578" fill="#888" font-size="10">B/I/U Text style</text>
-  <text x="290" y="578" fill="#888" font-size="10">RTL/LTR Dir</text>
+  <!-- Save button -->
+  <rect x="16" y="462" width="248" height="28" rx="8" fill="#9B72E3"/>
+  <text x="140" y="479.5" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">Save</text>
 </svg>
