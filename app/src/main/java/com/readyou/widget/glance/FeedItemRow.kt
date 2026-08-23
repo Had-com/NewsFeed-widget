@@ -58,7 +58,8 @@ fun FeedItemRow(
     val accentColor    = runCatching { android.graphics.Color.parseColor(feedConfig.accentColor) }
         .getOrDefault(android.graphics.Color.parseColor("#9B72E3"))
     val accentProvider = ColorProvider(Color(accentColor))
-    val isRtl          = feedConfig.layoutDirection == "rtl"
+    val systemIsRtl    = context.resources.configuration.layoutDirection == android.util.LayoutDirection.RTL
+    val isRtl          = (feedConfig.layoutDirection == "rtl") xor systemIsRtl
     val metaFontSize   = (9f * fontSize).sp
     val headlineSize   = (13f * fontSize).sp
     // Thumbnail width: square based on font scale (independent of row height)
@@ -178,6 +179,26 @@ fun FeedItemRow(
                 modifier = GlanceModifier.fillMaxWidth(),
             )
 
+            // Expanded: show thumbnail as a header image (if feed is in image mode)
+            if (isExpanded && feedConfig.displayMode == "image") {
+                val thumbFile = ThumbnailHelper.file(context, article.id)
+                if (thumbFile.exists()) {
+                    val bmp = BitmapFactory.decodeFile(thumbFile.absolutePath)
+                    if (bmp != null) {
+                        Spacer(GlanceModifier.height(6.dp))
+                        Image(
+                            provider = ImageProvider(bmp),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = GlanceModifier
+                                .fillMaxWidth()
+                                .height(120.dp)
+                                .cornerRadius(6.dp),
+                        )
+                    }
+                }
+            }
+
             // Expanded: description + Open article button
             if (isExpanded) {
                 val descStyle = TextStyle(
@@ -215,7 +236,7 @@ fun FeedItemRow(
                                     color = accentProvider,
                                 ),
                                 modifier = GlanceModifier
-                                    .background(ColorProvider(Color(0x229B72E3)))
+                                    .background(GlanceTheme.colors.primaryContainer)
                                     .padding(horizontal = 8.dp, vertical = 3.dp)
                                     .clickable(
                                         actionRunCallback<FetchFullArticleCallback>(
@@ -252,7 +273,7 @@ fun FeedItemRow(
                             color = accentProvider,
                         ),
                         modifier = GlanceModifier
-                            .background(ColorProvider(Color(0x229B72E3)))
+                            .background(GlanceTheme.colors.primaryContainer)
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                             .clickable(
                                 actionRunCallback<OpenExternalCallback>(

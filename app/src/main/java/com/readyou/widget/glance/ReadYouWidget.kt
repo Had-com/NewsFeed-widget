@@ -6,7 +6,6 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -37,7 +36,6 @@ import androidx.glance.layout.padding
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import androidx.glance.unit.ColorProvider
 import com.readyou.widget.config.WidgetConfigActivity
 import com.readyou.widget.data.ArticleItem
 import com.readyou.widget.data.WidgetConfig
@@ -143,10 +141,10 @@ class ReadYouWidget : GlanceAppWidget() {
                     style = TextStyle(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
-                        color = ColorProvider(Color(0xFFC4A9FF)),
+                        color = GlanceTheme.colors.onPrimaryContainer,
                     ),
                     modifier = GlanceModifier
-                        .background(ColorProvider(Color(0x296750A4)))
+                        .background(GlanceTheme.colors.primaryContainer)
                         .padding(horizontal = 8.dp, vertical = 2.dp),
                 )
             }
@@ -180,13 +178,13 @@ class ReadYouWidget : GlanceAppWidget() {
         ) {
             Text(
                 text = countdownText,
-                style = TextStyle(fontSize = 11.sp, color = ColorProvider(Color(0xFF9B72E3))),
+                style = TextStyle(fontSize = 11.sp, color = GlanceTheme.colors.primary),
                 modifier = GlanceModifier.clickable(actionRunCallback<RefreshNowCallback>()),
             )
             Spacer(GlanceModifier.defaultWeight())
             Text(
                 text = "⚙",
-                style = TextStyle(fontSize = 14.sp, color = ColorProvider(Color(0xFF9B72E3))),
+                style = TextStyle(fontSize = 14.sp, color = GlanceTheme.colors.primary),
                 modifier = GlanceModifier
                     .padding(4.dp)
                     .clickable(actionStartActivity(settingsIntent)),
