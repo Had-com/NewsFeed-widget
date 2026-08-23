@@ -100,11 +100,6 @@ fun FeedItemRow(
                 horizontalAlignment = if (isRtl) Alignment.End else Alignment.Start,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (!article.isRead) {
-                    Box(modifier = GlanceModifier.width(5.dp).height(5.dp).background(accentProvider)) {}
-                    Spacer(GlanceModifier.width(3.dp))
-                }
-
                 val circleSize    = (14f * fontSize).dp
                 val faviconFile   = FaviconHelper.file(context, feedConfig.feedId)
                 val faviconBmp    = if (faviconFile.exists()) BitmapFactory.decodeFile(faviconFile.absolutePath) else null
@@ -121,7 +116,6 @@ fun FeedItemRow(
                                 .cornerRadius(circleSize / 2),
                         )
                     } else {
-                        // Fallback: colored circle with first letter until favicon is downloaded
                         val initial = (feedConfig.displayName.firstOrNull()?.uppercaseChar() ?: '?').toString()
                         Box(
                             modifier = GlanceModifier
@@ -139,23 +133,38 @@ fun FeedItemRow(
                     }
                 }
 
+                val tsStyle = TextStyle(
+                    fontSize    = metaFontSize,
+                    fontFamily  = FontFamily.SansSerif,
+                    color       = GlanceTheme.colors.onSurfaceVariant,
+                )
+                val nameStyle = TextStyle(
+                    fontSize   = metaFontSize,
+                    fontFamily = FontFamily.SansSerif,
+                    color      = accentProvider,
+                )
+
                 if (isRtl) {
                     Spacer(GlanceModifier.defaultWeight())
-                    Text(formatDateTime(article.publishedAt),
-                        style = TextStyle(fontSize = metaFontSize, color = GlanceTheme.colors.onSurfaceVariant))
+                    Text(formatDateTime(article.publishedAt), style = tsStyle, maxLines = 1)
                     Spacer(GlanceModifier.width(4.dp))
-                    Text(feedConfig.displayName,
-                        style = TextStyle(fontSize = metaFontSize, color = accentProvider))
+                    if (!article.isRead) {
+                        Box(modifier = GlanceModifier.width(5.dp).height(5.dp).background(accentProvider)) {}
+                        Spacer(GlanceModifier.width(3.dp))
+                    }
+                    Text(feedConfig.displayName, style = nameStyle, maxLines = 1)
                     Spacer(GlanceModifier.width(4.dp))
                     FeedCircle()
                 } else {
                     FeedCircle()
                     Spacer(GlanceModifier.width(4.dp))
-                    Text(feedConfig.displayName,
-                        style = TextStyle(fontSize = metaFontSize, color = accentProvider))
+                    if (!article.isRead) {
+                        Box(modifier = GlanceModifier.width(5.dp).height(5.dp).background(accentProvider)) {}
+                        Spacer(GlanceModifier.width(3.dp))
+                    }
+                    Text(feedConfig.displayName, style = nameStyle, maxLines = 1)
                     Spacer(GlanceModifier.defaultWeight())
-                    Text(formatDateTime(article.publishedAt),
-                        style = TextStyle(fontSize = metaFontSize, color = GlanceTheme.colors.onSurfaceVariant))
+                    Text(formatDateTime(article.publishedAt), style = tsStyle, maxLines = 1)
                 }
             }
 
