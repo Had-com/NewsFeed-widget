@@ -52,12 +52,17 @@ fun FeedItemRow(
     articleLength: String = "medium",
     fullArticleId: String = "",
     fullArticleText: String = "",
+    useThemeColors: Boolean = false,
 ) {
     val context        = LocalContext.current
     val isExpanded     = article.id == expandedArticleId
-    val accentColor    = runCatching { android.graphics.Color.parseColor(feedConfig.accentColor) }
-        .getOrDefault(android.graphics.Color.parseColor("#9B72E3"))
-    val accentProvider = ColorProvider(Color(accentColor))
+    val accentProvider = if (useThemeColors) {
+        GlanceTheme.colors.primary
+    } else {
+        val parsed = runCatching { android.graphics.Color.parseColor(feedConfig.accentColor) }
+            .getOrDefault(android.graphics.Color.parseColor("#9B72E3"))
+        ColorProvider(Color(parsed))
+    }
     val systemIsRtl    = context.resources.configuration.layoutDirection == android.util.LayoutDirection.RTL
     val isRtl          = (feedConfig.layoutDirection == "rtl") xor systemIsRtl
     val metaFontSize   = (9f * fontSize).sp
@@ -148,10 +153,9 @@ fun FeedItemRow(
                     Spacer(GlanceModifier.width(4.dp))
                     Text(feedConfig.displayName,
                         style = TextStyle(fontSize = metaFontSize, color = accentProvider))
-                    Spacer(GlanceModifier.width(4.dp))
+                    Spacer(GlanceModifier.defaultWeight())
                     Text(formatDateTime(article.publishedAt),
                         style = TextStyle(fontSize = metaFontSize, color = GlanceTheme.colors.onSurfaceVariant))
-                    Spacer(GlanceModifier.defaultWeight())
                 }
             }
 

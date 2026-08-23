@@ -46,6 +46,8 @@ fun ReorderableCollectionItemScope.FeedConfigRow(
     onRemove: () -> Unit,
     onEditRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    useThemeColors: Boolean = false,
+    theme: String = "auto",
 ) {
     var showColorPicker by remember { mutableStateOf(false) }
     var showFontMenu    by remember { mutableStateOf(false) }
@@ -71,14 +73,16 @@ fun ReorderableCollectionItemScope.FeedConfigRow(
             )
             Spacer(Modifier.width(8.dp))
 
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(accentColor)
-                    .clickable { showColorPicker = !showColorPicker }
-            )
-            Spacer(Modifier.width(8.dp))
+            if (!useThemeColors) {
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(accentColor)
+                        .clickable { showColorPicker = !showColorPicker }
+                )
+                Spacer(Modifier.width(8.dp))
+            }
 
             // Tappable name → opens edit dialog
             Text(
@@ -131,7 +135,7 @@ fun ReorderableCollectionItemScope.FeedConfigRow(
             )
         }
 
-        if (showColorPicker) {
+        if (showColorPicker && !useThemeColors) {
             Spacer(Modifier.height(8.dp))
             ColorPickerGrid(
                 selectedColor = feedConfig.accentColor,
@@ -139,6 +143,7 @@ fun ReorderableCollectionItemScope.FeedConfigRow(
                     onUpdate(feedConfig.copy(accentColor = it))
                     showColorPicker = false
                 },
+                theme = theme,
             )
         }
 

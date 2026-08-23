@@ -34,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -72,10 +73,7 @@ import java.io.File
 class WidgetConfigActivity : ComponentActivity() {
 
     companion object {
-        private val FEED_ACCENT_COLORS = listOf(
-            "#9B72E3", "#E35272", "#2E9EE3", "#E3A042", "#2DB888",
-            "#E372C4", "#3DD4C8", "#8BC34A", "#E37272", "#5472E3",
-        )
+        fun feedAccentColors(theme: String) = paletteForTheme(theme)
     }
 
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
@@ -109,7 +107,7 @@ class WidgetConfigActivity : ComponentActivity() {
                         val defaults = opml?.let { OpmlManager.parse(it) }
                             ?.mapIndexed { i, (title, url) ->
                                 FeedConfig(feedId = url, displayName = title, feedUrl = url,
-                                    accentColor = FEED_ACCENT_COLORS[i % FEED_ACCENT_COLORS.size])
+                                    accentColor = feedAccentColors(saved.widgetTheme)[i % feedAccentColors(saved.widgetTheme).size])
                             }
                             ?: emptyList()
                         config = saved.copy(feeds = defaults, feedOrder = defaults.map { it.feedId })
@@ -503,6 +501,32 @@ class WidgetConfigActivity : ComponentActivity() {
                                         }
                                     }
                                 }
+                                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                                    Column {
+                                        Text("Use theme accent colors", style = MaterialTheme.typography.bodyMedium)
+                                        Text("Hides per-feed colors; uses the theme palette",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Switch(
+                                        checked = config.useThemeColors,
+                                        onCheckedChange = { config = config.copy(useThemeColors = it) },
+                                    )
+                                }
+                                Column(Modifier.fillMaxWidth()) {
+                                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                                        Text("Background opacity", style = MaterialTheme.typography.bodyMedium)
+                                        Text("${(config.backgroundAlpha * 100).toInt()}%",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.primary)
+                                    }
+                                    Slider(
+                                        value = config.backgroundAlpha,
+                                        onValueChange = { config = config.copy(backgroundAlpha = it) },
+                                        valueRange = 0f..1f,
+                                        steps = 19,
+                                    )
+                                }
                             }
                             HorizontalDivider()
                         }
@@ -617,7 +641,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                                                 feedId      = result.feedUrl,
                                                                 displayName = result.title,
                                                                 feedUrl     = result.feedUrl,
-                                                                accentColor = FEED_ACCENT_COLORS[config.feeds.size % FEED_ACCENT_COLORS.size],
+                                                                accentColor = feedAccentColors(config.widgetTheme)[config.feeds.size % feedAccentColors(config.widgetTheme).size],
                                                             )
                                                             config = config.copy(feeds = config.feeds + newFeed)
                                                             feedOrder.add(result.feedUrl)
@@ -652,11 +676,13 @@ class WidgetConfigActivity : ComponentActivity() {
                             ReorderableItem(reorderState, key = feedId) {
                                 Column {
                                     FeedConfigRow(
-                                        feedConfig = feedConfig,
-                                        onUpdate   = { updated ->
+                                        feedConfig    = feedConfig,
+                                        useThemeColors = config.useThemeColors,
+                                        theme         = config.widgetTheme,
+                                        onUpdate      = { updated ->
                                             config = config.copy(feeds = config.feeds.map { if (it.feedId == updated.feedId) updated else it })
                                         },
-                                        onRemove   = {
+                                        onRemove      = {
                                             feedOrder.remove(feedId)
                                             config = config.copy(feeds = config.feeds.filter { it.feedId != feedId })
                                         },

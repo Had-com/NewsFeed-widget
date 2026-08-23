@@ -8,6 +8,20 @@ import androidx.glance.material3.ColorProviders as buildColorProviders
 
 object WidgetThemes {
 
+    fun surfaceColorFor(theme: String, variant: String = "dark"): Color {
+        val dark = variant == "dark"
+        return when (theme) {
+            "lavender", "light"       -> if (dark) LAVENDER_DARK.surface   else LAVENDER_LIGHT.surface
+            "amethyst", "dark"        -> if (dark) AMETHYST_DARK.surface   else AMETHYST_LIGHT.surface
+            "glassy"                  -> if (dark) GLASSY_DARK.surface     else GLASSY_LIGHT.surface
+            "simple"                  -> if (dark) SIMPLE_DARK.surface     else SIMPLE_LIGHT.surface
+            "aerospace"               -> if (dark) AEROSPACE_DARK.surface  else AEROSPACE_LIGHT.surface
+            "silicon", "data_science" -> if (dark) SILICON_DARK.surface    else SILICON_LIGHT.surface
+            "glamer"                  -> if (dark) GLAMER_DARK.surface     else GLAMER_LIGHT.surface
+            else                      -> if (dark) Color(0xFF1C1B1F)       else Color(0xFFFFFFFF)
+        }
+    }
+
     fun colorProvidersFor(theme: String, variant: String = "dark"): ColorProviders {
         val dark = variant == "dark"
         return when (theme) {

@@ -6,7 +6,9 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.glance.unit.ColorProvider
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
@@ -74,12 +76,14 @@ class NewsFeedWidget : GlanceAppWidget() {
         val unreadCount     = displayArticles.count { !it.isRead }
 
         val themeColors = WidgetThemes.colorProvidersFor(config.widgetTheme, config.themeVariant)
+        val surfaceColor = WidgetThemes.surfaceColorFor(config.widgetTheme, config.themeVariant)
+        val bgColor = ColorProvider(surfaceColor.copy(alpha = config.backgroundAlpha))
 
         GlanceTheme(colors = themeColors) {
             Column(
                 modifier = GlanceModifier
                     .fillMaxSize()
-                    .background(GlanceTheme.colors.surface)
+                    .background(bgColor)
                     .cornerRadius(18.dp)
                     .padding(0.dp),
             ) {
@@ -110,6 +114,7 @@ class NewsFeedWidget : GlanceAppWidget() {
                                     articleLength     = config.articleLength,
                                     fullArticleId     = fullArticleId,
                                     fullArticleText   = fullArticleText,
+                                    useThemeColors    = config.useThemeColors,
                                 )
                                 Divider(thin = true)
                             }

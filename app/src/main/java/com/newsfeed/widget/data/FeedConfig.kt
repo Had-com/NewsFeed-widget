@@ -28,6 +28,8 @@ data class WidgetConfig(
     val articleLength: String = "medium",      // "short" | "medium" | "full"
     val widgetTheme: String = "auto",          // "auto" | "lavender" | "amethyst" | "glassy" | "simple" | "aerospace" | "silicon" | "glamer"
     val themeVariant: String = "dark",         // "light" | "dark"
+    val useThemeColors: Boolean = false,       // when true, all feeds use the theme accent instead of per-feed colors
+    val backgroundAlpha: Float = 1.0f,         // 0.0 (fully transparent) – 1.0 (fully opaque)
 )
 
 @Serializable
