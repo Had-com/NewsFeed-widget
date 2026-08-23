@@ -87,7 +87,9 @@ class ReadYouRepository(private val context: Context) {
                 if (article.feedId !in imageFeedIds) continue
                 if (article.imageUrl.isBlank()) continue
                 val file = ThumbnailHelper.file(context, article.id)
-                if (file.exists() && System.currentTimeMillis() - file.lastModified() < 24 * 3600_000L) continue
+                // Re-download if file is missing or was saved at the old low resolution (< 20 KB)
+                if (file.exists() && file.length() > 20_000 &&
+                    System.currentTimeMillis() - file.lastModified() < 24 * 3600_000L) continue
                 runCatching {
                     val req = Request.Builder().url(article.imageUrl)
                         .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36")
@@ -96,10 +98,10 @@ class ReadYouRepository(private val context: Context) {
                         if (!resp.isSuccessful) return@runCatching
                         val bmp = resp.body?.byteStream()?.let { BitmapFactory.decodeStream(it) }
                             ?: return@runCatching
-                        val scaled = scaleBitmap(bmp, 56)
+                        val scaled = scaleBitmap(bmp, 300)
                         file.parentFile?.mkdirs()
                         file.outputStream().use { out ->
-                            scaled.compress(Bitmap.CompressFormat.JPEG, 75, out)
+                            scaled.compress(Bitmap.CompressFormat.JPEG, 90, out)
                         }
                     }
                 }
