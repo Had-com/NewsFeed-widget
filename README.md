@@ -1,6 +1,6 @@
-# Read You Widget
+﻿# NewsFeed Widget
 
-A standalone Android home screen widget that fetches and displays RSS/Atom feeds directly, styled to match the [Read You](https://github.com/Ashinch/ReadYou) RSS reader's Material You card design. Built for the **Galaxy Z Fold 8 Ultra** inner display with full **RTL Hebrew support**.
+A standalone Android home screen widget that fetches and displays RSS/Atom feeds directly on your home screen — no app required. Built for full **RTL Hebrew support** and designed for the **Galaxy Z Fold** inner display.
 
 ---
 
@@ -13,9 +13,9 @@ A standalone Android home screen widget that fetches and displays RSS/Atom feeds
     <td align="center"><b>Config panel</b></td>
   </tr>
   <tr>
-    <td><img src="screenshots/widget-dark.svg" width="220" alt="Widget dark mode — Hebrew RTL feeds with accent colors"/></td>
-    <td><img src="screenshots/widget-light.svg" width="220" alt="Widget light mode — Hebrew RTL feeds with accent colors"/></td>
-    <td><img src="screenshots/config-panel.svg" width="260" alt="Config panel — drag to reorder, per-feed color, font, B/I/U, RTL/LTR"/></td>
+    <td><img src="screenshots/widget-dark.svg" width="220" alt="Widget dark mode"/></td>
+    <td><img src="screenshots/widget-light.svg" width="220" alt="Widget light mode"/></td>
+    <td><img src="screenshots/config-panel.svg" width="260" alt="Config panel"/></td>
   </tr>
   <tr>
     <td align="center"><sub>Mixed Hebrew RTL + English LTR<br>feeds with per-feed accent colors</sub></td>
@@ -28,29 +28,33 @@ A standalone Android home screen widget that fetches and displays RSS/Atom feeds
 
 ## How it works
 
-The widget is **fully standalone** — it fetches RSS/Atom feeds directly over the network using OkHttp. It does **not** require access to the Read You app's internal database. You add feed URLs yourself (or import them from an OPML file exported by Read You or any other RSS reader).
+The widget is **fully standalone** — it fetches RSS/Atom feeds directly over the network using OkHttp. It does **not** require any companion app. You add feed URLs yourself, or import them from an OPML file exported by Read You, Feedly, Reeder, or any other RSS reader.
 
 ---
 
 ## Features
 
 ### Feed display
-- Shows your latest RSS/Atom articles directly on the home screen
+- Shows latest RSS/Atom articles directly on the home screen
+- **Colored circle icon** with the feed's initial letter at the start of each article row
 - Unread count badge in the widget header
 - Unread dot indicator per article
-- Per-feed colored left/right accent stripe
-- Relative timestamps (5m, 2h, 3d)
-- Refresh countdown in the footer ("↻ refresh in Xmin") — tap to refresh immediately
+- Per-feed colored left/right accent stripe matching the circle icon
+- Article **date and time** — shows `HH:mm` for today's articles, `dd/MM HH:mm` for older ones
+- Refresh countdown in the footer (`↻ in Xmin` / `↻ <1min`) — auto-updates every 60 seconds without any interaction; tap to refresh immediately
+- **Settings button** (⚙) in the footer row opens the widget config screen directly from the widget
+
+### Scrollable article list
+The widget uses a scrollable list — swipe up and down within the widget to browse all articles without leaving the home screen.
 
 ### Tap to read inline
-Tapping an article expands it inside the widget:
-- Article description appears below the title (up to 5 lines)
-- Non-expanded articles fade to muted colors
-- **Open article** button appears to open the full article externally
+Tapping an article title expands it inside the widget:
+- Article description appears below the title (up to 6 lines)
+- **Open article →** button appears to open the full article externally
 - Tap the expanded article again to collapse it
 
 ### Open article externally
-The "Open article in" setting (per widget, in Settings → Sort & Filter) controls where the Open button sends you:
+The "Open article in" setting controls where the Open button sends you:
 - **Browser** — opens in your default web browser (default)
 - **Read You** — opens in the Read You app if installed, falls back to browser
 - **Share sheet** — share the article URL to any app
@@ -60,9 +64,9 @@ Tapping Open also **marks the article as read** and triggers a widget refresh.
 ### Sort options
 | Option | Description |
 |---|---|
-| Newest first | Latest articles at the top (default) |
+| By feed | Round-robin interleave — one article per feed per round, equal representation (default) |
+| Newest first | Latest articles at the top |
 | Oldest first | Oldest articles at the top |
-| By feed | Articles grouped by their source feed |
 | Unread first | Unread articles always shown above read ones |
 
 ### Filter options
@@ -76,7 +80,7 @@ Tapping Open also **marks the article as read** and triggers a widget refresh.
 Every feed can be configured independently:
 
 #### Accent color
-Choose from 12 preset colors (violet, purple, blue, teal, green, amber, orange, red, pink, blue-grey, brown, dark grey). The color is used for the article stripe, source label, and unread dot.
+Each feed is automatically assigned a distinct color from a palette of 10 when first imported. You can change it manually in Settings. The color is used for the circle icon, article stripe, source label, and unread dot.
 
 #### Font
 | Option | Best for |
@@ -86,33 +90,29 @@ Choose from 12 preset colors (violet, purple, blue, teal, green, amber, orange, 
 | Mono | Tech, code, or developer feeds |
 
 #### Text style
-Apply any combination of:
-- **Bold** — heavier weight for important feeds
-- *Italic* — lighter editorial feel
-- <u>Underline</u> — visual emphasis
+Apply any combination of **Bold**, *Italic*, and <u>Underline</u>.
 
 #### Text direction (RTL / LTR)
-Each feed has its own direction toggle:
-- **RTL** — right-to-left layout for Hebrew, Arabic, and other RTL languages. The entire card flips: stripe moves to the right, source name aligns right, timestamp moves left.
-- **LTR** — standard left-to-right layout for English and other LTR languages.
-
-You can mix RTL and LTR feeds in the same widget simultaneously.
+Each feed has its own direction toggle. RTL flips the entire card: stripe moves to the right, source name aligns right, timestamp moves left. Mix RTL and LTR feeds in the same widget simultaneously.
 
 #### Display mode (TXT / IMG)
-Toggle each feed between text-only and text+image mode. In image mode, a 40×40 dp thumbnail is pre-fetched from the RSS feed's image tags (`<media:thumbnail>`, `<media:content>`, `<enclosure>`) and cached locally for 24 hours.
+In image mode, a thumbnail is pre-fetched from the RSS feed's image tags (`<media:thumbnail>`, `<media:content>`, `<enclosure>`, or the first `<img>` in the article description) and cached locally for 24 hours. The thumbnail scales with your font size setting.
 
 ### Global font size
-A continuous slider in Settings scales all article text from 75% to 150%. The label shows Small / Medium / Large at a glance.
-
-### Feed editing
-Tap any feed's display name in the config screen to open an edit dialog — rename the feed or change its RSS URL. If the URL changes, the widget validates it immediately before saving.
+A slider in Settings scales all article text from 75% to 150%.
 
 ### Feed management
 - **Add by URL** — paste any RSS or Atom feed URL; the widget fetches and validates the feed title automatically
-- **Import OPML** — import feeds from any OPML file (supports grouped and flat OPML, as exported by Read You, Feedly, Reeder, etc.)
+- **Import OPML** — import feeds from any OPML file (grouped and flat OPML supported)
 - **Export OPML** — share your current feed list as a standard OPML 2.0 file
-- **Drag to reorder** — drag feeds in the config screen to control their display order in the widget
-- **Remove** — tap × on any feed row to delete it from the widget
+- **Drag to reorder** — drag feeds in the config screen to control their display order
+- **Remove** — tap × on any feed row to delete it
+
+### Article accumulation
+The widget merges freshly fetched articles with previously stored ones (up to 300 total, deduplicated by ID, sorted by date). Articles stay available even between refreshes.
+
+### Hebrew / RTL news site compatibility
+Feeds are fetched with browser-like HTTP headers so Israeli news sites (ynet, rotter.net, N12, כאן, וואלה, גלובס) do not block the request. Charset encoding is auto-detected (Windows-1255 Hebrew feeds are handled correctly).
 
 ---
 
@@ -130,7 +130,8 @@ The widget is fully resizable — drag its edges on the home screen to adjust.
 
 ## Configuration
 
-Long-press the widget on your home screen → tap **Edit widget** to open the settings screen.
+Long-press the widget on your home screen → tap **Edit widget** to open the settings screen.  
+You can also tap the **⚙** button in the widget footer.
 
 ### Settings screen layout
 1. **Sort & Filter** — global sort order, read/unread filter, refresh interval, "Open article in" dropdown, font size slider
@@ -139,7 +140,7 @@ Long-press the widget on your home screen → tap **Edit widget** to open the se
    - Grip handle (drag ⠿ to reorder)
    - × button to remove
    - Color swatch (tap to open color picker)
-   - Display name (tap to open edit dialog — rename or change URL)
+   - Display name (tap to edit name or URL)
    - Font dropdown
    - **B** / *I* / <u>U</u> style toggles
    - RTL / LTR direction toggle
@@ -151,7 +152,7 @@ Changes take effect immediately after tapping **Save**.
 
 ## Background refresh
 
-The widget polls your feeds automatically using WorkManager. You can configure the interval in the settings screen:
+The widget polls feeds automatically using WorkManager. Configure the interval in Settings:
 
 | Interval | Notes |
 |---|---|
@@ -163,48 +164,77 @@ The widget polls your feeds automatically using WorkManager. You can configure t
 | 6 hours | |
 | 12 hours | Maximum battery-friendly |
 
-Changing the interval takes effect immediately on next Save. The last refresh time is shown at the bottom of the widget.
+The countdown to the next refresh is shown in the widget footer and updates every minute automatically.
 
 ---
 
 ## Installation
 
-### Option A — Download from GitHub Actions (no build tools needed)
+### Step 1 — Download the APK
+
 1. Go to the [Actions tab](../../actions) of this repo
 2. Click the latest **Build APK** run
-3. Download the **ReadYouWidget-debug** artifact
-4. Unzip and transfer the `.apk` to your phone
-5. On your Galaxy Z Fold: **Settings → Apps → Special app access → Install unknown apps** → allow your file manager
-6. Tap the `.apk` to install
-7. Long-press your home screen → **Widgets** → find **Read You Feeds** → drag to place it
-8. The config screen opens automatically — add your first feed URL or import an OPML file
+3. Download the **ReadYouWidget-debug** artifact (a `.zip` file)
+4. Unzip it — inside you will find `app-debug.apk`
+5. Transfer the `.apk` to your Android phone (via USB, Google Drive, WhatsApp to yourself, etc.)
 
-### Option B — Build from source
-```bash
-git clone https://github.com/Had-com/readyou-widget.git
-cd readyou-widget
-./gradlew assembleDebug
-# APK is at: app/build/outputs/apk/debug/app-debug.apk
-```
+### Step 2 — Allow installation from unknown sources
+
+Android blocks apps not downloaded from the Play Store by default. You need to allow your file manager (or browser) to install APKs:
+
+**On Samsung Galaxy (One UI):**
+1. Open **Settings → Apps**
+2. Tap the **⋮ menu** (top right) → **Special access**
+3. Tap **Install unknown apps**
+4. Find the app you will use to open the APK (e.g. **My Files** or **Chrome**) and toggle **Allow from this source** ON
+
+**On stock Android:**
+1. Open **Settings → Apps & notifications → Special app access → Install unknown apps**
+2. Select the app you will use to open the APK and enable it
+
+> **Samsung Auto Blocker:** On newer Samsung devices, a feature called **Auto Blocker** may prevent installation even after allowing unknown sources. To disable it:
+> **Settings → Security and privacy → Auto Blocker** → toggle it **OFF**
+
+### Step 3 — Install the APK
+
+1. Open the `.apk` file using your file manager (e.g. **My Files** on Samsung)
+2. A warning screen will appear:
+
+   > *"This type of file can harm your device. Do you want to keep [filename]?"*  
+   > or  
+   > *"Install blocked — Google Play Protect doesn't recognize this app"*
+
+3. **Look for a small, often grey or understated "Install anyway" or "More details" link** near the bottom of the warning screen — it is intentionally de-emphasized. Tap it.
+4. On the next screen tap **Install**
+5. Wait for the installation to complete, then tap **Done**
+
+> ⚠️ The widget is open-source and safe. The warning appears because it is not distributed through the Play Store. You can review all source code in this repository.
+
+### Step 4 — Add the widget
+
+1. Long-press an empty area of your home screen
+2. Tap **Widgets**
+3. Search for or scroll to find **NewsFeed**
+4. Drag the widget to your home screen
+5. The settings screen opens automatically — add your first feed URL or import an OPML file
 
 ---
 
 ## Importing feeds from Read You
 
-The easiest way to populate the widget with your existing Read You subscriptions:
-
 1. In Read You: **Settings → Data & backup → Export as OPML** → save the file
 2. In the widget config screen: tap **Import OPML** → select the file
-3. All your feeds are added automatically (duplicates are skipped)
+3. All your feeds are added automatically with distinct colors (duplicates are skipped)
 
 ---
 
 ## RTL Hebrew support
 
-- System locale `iw` (Hebrew) automatically loads Hebrew UI strings from `res/values-iw/strings.xml`
-- Each feed's layout direction is controlled independently via `LocalLayoutDirection`
-- No custom fonts required — Hebrew glyphs are handled by Android system fonts
+- System locale `iw` (Hebrew) automatically loads Hebrew UI strings
+- Each feed's layout direction is controlled independently
+- No custom fonts required — Hebrew glyphs use Android system fonts
 - The config screen itself also supports RTL when the device locale is Hebrew
+- Hebrew news sites (ynet, rotter.net, N12, כאן, וואלה, גלובס) are fetched with browser-like headers to bypass bot detection
 
 ---
 
@@ -214,29 +244,35 @@ The easiest way to populate the widget with your existing Read You subscriptions
 app/src/main/
 ├── java/com/readyou/widget/
 │   ├── glance/
-│   │   ├── ReadYouWidget.kt          # Glance widget + receiver
-│   │   ├── FeedItemRow.kt            # Per-article Glance composable (expand/collapse, thumbnail)
-│   │   ├── WidgetWorker.kt           # WorkManager refresh job + thumbnail download
-│   │   ├── RefreshNowCallback.kt     # ActionCallback — immediate refresh
-│   │   ├── ToggleExpandCallback.kt   # ActionCallback — expand/collapse article
-│   │   └── OpenExternalCallback.kt   # ActionCallback — open article, mark read
+│   │   ├── ReadYouWidget.kt          # Glance widget + receiver + AlarmManager clock tick
+│   │   ├── FeedItemRow.kt            # Per-article row (circle icon, expand/collapse, thumbnail, date)
+│   │   ├── WidgetWorker.kt           # WorkManager refresh job + article merge + thumbnail download
+│   │   ├── RefreshNowCallback.kt     # ActionCallback — immediate refresh on footer tap
+│   │   ├── ToggleExpandCallback.kt   # ActionCallback — expand/collapse article in widget
+│   │   └── OpenExternalCallback.kt   # ActionCallback — open article URL, mark read
 │   ├── config/
-│   │   ├── WidgetConfigActivity.kt   # Settings screen
-│   │   ├── FeedConfigRow.kt          # Per-feed controls row
+│   │   ├── WidgetConfigActivity.kt   # Settings screen (sort, filter, feeds, font size, OPML)
+│   │   ├── FeedConfigRow.kt          # Per-feed controls row (color, font, B/I/U, RTL/LTR, IMG/TXT)
 │   │   └── ColorPickerGrid.kt        # 12-color preset picker
 │   ├── data/
-│   │   ├── FeedConfig.kt             # Data models (FeedConfig, WidgetConfig, ArticleItem)
+│   │   ├── FeedConfig.kt             # Data models (FeedConfig, WidgetConfig, ArticleItem, enums)
 │   │   ├── WidgetConfigStore.kt      # DataStore — widget config persistence
 │   │   ├── ReadStatusStore.kt        # DataStore — read article ID persistence
-│   │   ├── ReadYouRepository.kt      # RSS/Atom fetching, description/image parsing, thumbnails
-│   │   ├── ThumbnailHelper.kt        # Shared cache file path for thumbnails
+│   │   ├── ReadYouRepository.kt      # RSS/Atom fetching, charset fix, image extraction, thumbnails
+│   │   ├── ThumbnailHelper.kt        # Shared cache file path helper for thumbnails
 │   │   ├── OpmlManager.kt            # OPML 2.0 import/export
-│   │   └── WidgetStateKey.kt         # Glance state keys
+│   │   └── WidgetStateKey.kt         # Glance DataStore preference keys
 └── res/
-    ├── values/strings.xml            # English strings
-    ├── values-iw/strings.xml         # Hebrew strings (עברית)
-    ├── xml/appwidget_info.xml        # Widget metadata
-    └── xml/file_paths.xml            # FileProvider paths (OPML export)
+    ├── drawable/
+    │   ├── ic_launcher_foreground.xml   # RSS + N vector icon foreground
+    │   └── ic_launcher_background.xml  # Purple icon background
+    ├── mipmap-anydpi-v26/
+    │   ├── ic_launcher.xml             # Adaptive icon (Android 8+)
+    │   └── ic_launcher_round.xml       # Round adaptive icon
+    ├── values/strings.xml              # English strings
+    ├── values-iw/strings.xml           # Hebrew strings (עברית)
+    ├── xml/appwidget_info.xml          # Widget metadata
+    └── xml/file_paths.xml             # FileProvider paths (OPML export)
 ```
 
 ---
@@ -246,9 +282,9 @@ app/src/main/
 | Library | Version | Purpose |
 |---|---|---|
 | `androidx.glance:glance-appwidget` | 1.1.0 | Widget framework (Compose-based) |
-| `androidx.work:work-runtime-ktx` | 2.9.0 | Background refresh |
+| `androidx.work:work-runtime-ktx` | 2.9.0 | Background refresh via WorkManager |
 | `androidx.datastore:datastore-preferences` | 1.1.1 | Config + read-status persistence |
-| `kotlinx-serialization-json` | 1.6.3 | Config JSON serialization |
+| `kotlinx-serialization-json` | 1.6.3 | Config and articles JSON serialization |
 | `com.squareup.okhttp3:okhttp` | 4.12.0 | RSS/Atom feed HTTP fetching |
 | `sh.calvin.reorderable` | 2.3.0 | Drag-to-reorder in config screen |
 
@@ -259,7 +295,6 @@ app/src/main/
 - Android 8.0 (API 26) or higher
 - Internet permission (for RSS fetching)
 - [Read You](https://github.com/Ashinch/ReadYou) app — **optional**: tap-to-open falls back to the system browser if Read You is not installed
-- Galaxy Z Fold inner display recommended (widget scales to any screen size)
 
 ---
 
