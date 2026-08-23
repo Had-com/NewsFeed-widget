@@ -88,14 +88,16 @@ class ReadYouWidget : GlanceAppWidget() {
                     LazyColumn(modifier = GlanceModifier.defaultWeight().fillMaxWidth()) {
                         items(displayArticles) { article ->
                             val feedConfig = feedMap[article.feedId] ?: return@items
-                            FeedItemRow(
-                                article          = article,
-                                feedConfig       = feedConfig,
-                                expandedArticleId = expandedArticleId,
-                                widgetId         = config.widgetId,
-                                fontSize         = config.fontSize,
-                            )
-                            Divider(thin = true)
+                            Column(modifier = GlanceModifier.fillMaxWidth()) {
+                                FeedItemRow(
+                                    article           = article,
+                                    feedConfig        = feedConfig,
+                                    expandedArticleId = expandedArticleId,
+                                    widgetId          = config.widgetId,
+                                    fontSize          = config.fontSize,
+                                )
+                                Divider(thin = true)
+                            }
                         }
                     }
                 }
