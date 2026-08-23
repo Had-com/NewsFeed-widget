@@ -25,6 +25,7 @@ data class WidgetConfig(
     val refreshIntervalMinutes: Int = 15,
     val fontSize: Float = 1.0f,                // 0.5 – 3.0
     val externalApp: String = "browser",       // "readyou" | "browser" | "share"
+    val articleLength: String = "medium",      // "short" | "medium" | "full"
 )
 
 @Serializable

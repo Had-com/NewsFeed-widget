@@ -105,6 +105,7 @@ class ReadYouWidget : GlanceAppWidget() {
                                     expandedArticleId = expandedArticleId,
                                     widgetId          = config.widgetId,
                                     fontSize          = config.fontSize,
+                                    articleLength     = config.articleLength,
                                 )
                                 Divider(thin = true)
                             }

@@ -49,6 +49,7 @@ fun FeedItemRow(
     expandedArticleId: String,
     widgetId: Int,
     fontSize: Float,
+    articleLength: String = "medium",
 ) {
     val context        = LocalContext.current
     val isExpanded     = article.id == expandedArticleId
@@ -179,6 +180,11 @@ fun FeedItemRow(
             // Expanded: description + Open article button
             if (isExpanded) {
                 if (article.description.isNotBlank()) {
+                    val descLines = when (articleLength) {
+                        "short" -> 2
+                        "full"  -> Int.MAX_VALUE
+                        else    -> 5
+                    }
                     Spacer(GlanceModifier.height(4.dp))
                     Text(
                         text = article.description,
@@ -188,7 +194,7 @@ fun FeedItemRow(
                             textAlign = if (isRtl) androidx.glance.text.TextAlign.End
                                         else      androidx.glance.text.TextAlign.Start,
                         ),
-                        maxLines = 6,
+                        maxLines = descLines,
                         modifier = GlanceModifier.fillMaxWidth(),
                     )
                 }

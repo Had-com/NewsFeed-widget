@@ -22,6 +22,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -35,6 +37,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -133,6 +137,7 @@ class WidgetConfigActivity : ComponentActivity() {
                 var showFilterMenu   by remember { mutableStateOf(false) }
                 var showRefreshMenu  by remember { mutableStateOf(false) }
                 var showExternalMenu by remember { mutableStateOf(false) }
+                var showLengthMenu   by remember { mutableStateOf(false) }
 
                 val refreshOptions = listOf(
                     15 to "15 minutes", 30 to "30 minutes", 60 to "1 hour",
@@ -391,6 +396,48 @@ class WidgetConfigActivity : ComponentActivity() {
                                     valueRange = 0.5f..3.0f,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
+                                // Live preview
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                ) {
+                                    Text(
+                                        "ynet מבזקים  ·  14:30",
+                                        fontSize = (9f * config.fontSize).sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        "כותרת כתבה לדוגמה — Sample article headline",
+                                        fontSize = (13f * config.fontSize).sp,
+                                        fontWeight = FontWeight.Medium,
+                                        lineHeight = (17f * config.fontSize).sp,
+                                    )
+                                }
+                                Spacer(Modifier.height(8.dp))
+
+                                // Article length (controls description lines in expanded view)
+                                val lengthOptions = listOf(
+                                    "short"  to "Short (2 lines)",
+                                    "medium" to "Medium (5 lines)",
+                                    "full"   to "Full (no limit)",
+                                )
+                                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                                    Text("Expanded article", style = MaterialTheme.typography.bodyMedium)
+                                    androidx.compose.foundation.layout.Box {
+                                        val lengthLabel = lengthOptions.firstOrNull { it.first == config.articleLength }?.second ?: "Medium (5 lines)"
+                                        TextButton(onClick = { showLengthMenu = true }) { Text("$lengthLabel ▾", fontSize = 13.sp) }
+                                        DropdownMenu(showLengthMenu, { showLengthMenu = false }) {
+                                            lengthOptions.forEach { (key, lbl) ->
+                                                DropdownMenuItem(text = { Text(lbl) },
+                                                    onClick = { config = config.copy(articleLength = key); showLengthMenu = false })
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             HorizontalDivider()
                         }
