@@ -35,6 +35,7 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.text.FontFamily
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -97,7 +98,7 @@ class NewsFeedWidget : GlanceAppWidget() {
                     ) {
                         Text(
                             text = "No articles",
-                            style = TextStyle(fontSize = 13.sp, color = GlanceTheme.colors.onSurfaceVariant),
+                            style = TextStyle(fontSize = 13.sp, fontFamily = FontFamily.SansSerif, color = GlanceTheme.colors.onSurfaceVariant),
                         )
                     }
                 } else {
@@ -147,16 +148,17 @@ class NewsFeedWidget : GlanceAppWidget() {
         ) {
             Text(
                 text = "NewsFeed",
-                style = TextStyle(fontSize = 13.sp, color = GlanceTheme.colors.onSurfaceVariant),
+                style = TextStyle(fontSize = 13.sp, fontFamily = FontFamily.SansSerif, color = GlanceTheme.colors.onSurfaceVariant),
             )
             Spacer(GlanceModifier.defaultWeight())
             if (unreadCount > 0) {
                 Text(
                     text = if (unreadCount > 99) "99+" else "$unreadCount",
                     style = TextStyle(
-                        fontSize = 11.sp,
+                        fontSize   = 11.sp,
+                        fontFamily = FontFamily.SansSerif,
                         fontWeight = FontWeight.Medium,
-                        color = GlanceTheme.colors.onPrimaryContainer,
+                        color      = GlanceTheme.colors.onPrimaryContainer,
                     ),
                     modifier = GlanceModifier
                         .background(GlanceTheme.colors.primaryContainer)
@@ -193,7 +195,7 @@ class NewsFeedWidget : GlanceAppWidget() {
         ) {
             Text(
                 text = countdownText,
-                style = TextStyle(fontSize = 11.sp, color = GlanceTheme.colors.primary),
+                style = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.SansSerif, color = GlanceTheme.colors.primary),
                 modifier = GlanceModifier.clickable(actionRunCallback<RefreshNowCallback>()),
             )
             Spacer(GlanceModifier.defaultWeight())

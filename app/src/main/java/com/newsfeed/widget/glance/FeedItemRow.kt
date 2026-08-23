@@ -125,9 +125,10 @@ fun FeedItemRow(
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(initial, style = TextStyle(
-                                fontSize = (8f * fontSize).sp,
+                                fontSize   = (8f * fontSize).sp,
+                                fontFamily = FontFamily.SansSerif,
                                 fontWeight = FontWeight.Bold,
-                                color = ColorProvider(Color.White),
+                                color      = ColorProvider(Color.White),
                             ))
                         }
                     }
@@ -214,11 +215,17 @@ fun FeedItemRow(
 
             // Expanded: description + Open article button
             if (isExpanded) {
+                val feedFontFamily = when (feedConfig.fontFamily) {
+                    "serif" -> FontFamily.Serif
+                    "mono"  -> FontFamily.Monospace
+                    else    -> FontFamily.SansSerif
+                }
                 val descStyle = TextStyle(
-                    fontSize = (10f * fontSize).sp,
-                    color = GlanceTheme.colors.onSurfaceVariant,
-                    textAlign = if (isRtl) androidx.glance.text.TextAlign.End
-                                else      androidx.glance.text.TextAlign.Start,
+                    fontSize   = (10f * fontSize).sp,
+                    fontFamily = feedFontFamily,
+                    color      = GlanceTheme.colors.onSurfaceVariant,
+                    textAlign  = if (isRtl) androidx.glance.text.TextAlign.End
+                                 else      androidx.glance.text.TextAlign.Start,
                 )
 
                 if (articleLength == "full") {
@@ -245,8 +252,9 @@ fun FeedItemRow(
                             Text(
                                 text = "Load full article ↓",
                                 style = TextStyle(
-                                    fontSize = (9f * fontSize).sp,
-                                    color = accentProvider,
+                                    fontSize   = (9f * fontSize).sp,
+                                    fontFamily = FontFamily.SansSerif,
+                                    color      = accentProvider,
                                 ),
                                 modifier = GlanceModifier
                                     .background(GlanceTheme.colors.primaryContainer)
@@ -282,8 +290,9 @@ fun FeedItemRow(
                     Text(
                         text = "Open article →",
                         style = TextStyle(
-                            fontSize = (9f * fontSize).sp,
-                            color = accentProvider,
+                            fontSize   = (9f * fontSize).sp,
+                            fontFamily = FontFamily.SansSerif,
+                            color      = accentProvider,
                         ),
                         modifier = GlanceModifier
                             .background(GlanceTheme.colors.primaryContainer)
