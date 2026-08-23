@@ -169,17 +169,18 @@ fun FeedItemRow(
             }
         }
 
-        // Thumbnail (compact / non-expanded only)
+        // Thumbnail: scales with fontSize so it matches the article title area height
         if (feedConfig.displayMode == "image" && !isExpanded) {
             val thumbFile = ThumbnailHelper.file(context, article.id)
             if (thumbFile.exists()) {
                 val bmp = BitmapFactory.decodeFile(thumbFile.absolutePath)
                 if (bmp != null) {
+                    val thumbSize = (40f * fontSize).dp
                     Image(
                         provider = ImageProvider(bmp),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = GlanceModifier.width(40.dp).height(40.dp),
+                        modifier = GlanceModifier.width(thumbSize).height(thumbSize),
                     )
                 }
             }
