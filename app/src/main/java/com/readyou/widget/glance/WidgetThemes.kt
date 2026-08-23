@@ -8,14 +8,14 @@ import androidx.glance.material3.ColorProviders as buildColorProviders
 
 object WidgetThemes {
 
-    fun colorProvidersFor(theme: String): ColorProviders? = when (theme) {
+    fun colorProvidersFor(theme: String): ColorProviders = when (theme) {
         "light"  -> buildColorProviders(light = LIGHT,  dark = LIGHT)
         "dark"   -> buildColorProviders(light = DARK,   dark = DARK)
         "glassy" -> buildColorProviders(light = GLASSY, dark = GLASSY)
         "simple" -> buildColorProviders(light = SIMPLE, dark = SIMPLE)
         "tech"   -> buildColorProviders(light = TECH,   dark = TECH)
         "glamer" -> buildColorProviders(light = GLAMER, dark = GLAMER)
-        else     -> null   // "auto" — caller uses DynamicThemeColorProviders
+        else     -> buildColorProviders(light = lightColorScheme(), dark = darkColorScheme())  // "auto"
     }
 
     // ── Light ─────────────────────────────────────────────────────────────────

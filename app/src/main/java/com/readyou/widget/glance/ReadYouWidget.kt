@@ -12,7 +12,6 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
-import androidx.glance.material3.DynamicThemeColorProviders
 import androidx.glance.LocalContext
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -75,7 +74,6 @@ class ReadYouWidget : GlanceAppWidget() {
         val unreadCount     = displayArticles.count { !it.isRead }
 
         val themeColors = WidgetThemes.colorProvidersFor(config.widgetTheme)
-            ?: DynamicThemeColorProviders
 
         GlanceTheme(colors = themeColors) {
             Column(
