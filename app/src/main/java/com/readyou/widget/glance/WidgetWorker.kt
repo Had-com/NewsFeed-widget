@@ -56,6 +56,7 @@ class WidgetWorker(
             }
             // Download thumbnails for the merged set so accumulated articles are covered too
             repo.downloadThumbnails(merged.take(30), config.feeds)
+            repo.downloadFavicons(config.feeds)
         }
 
         ReadYouWidget().updateAll(context)

@@ -21,6 +21,7 @@ import androidx.glance.layout.Column
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
@@ -33,6 +34,7 @@ import androidx.glance.text.TextDecoration
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.readyou.widget.data.ArticleItem
+import com.readyou.widget.data.FaviconHelper
 import com.readyou.widget.data.FeedConfig
 import com.readyou.widget.data.ThumbnailHelper
 import java.text.SimpleDateFormat
@@ -56,6 +58,8 @@ fun FeedItemRow(
     val isRtl          = feedConfig.layoutDirection == "rtl"
     val metaFontSize   = (9f * fontSize).sp
     val headlineSize   = (13f * fontSize).sp
+    // Row height used for the accent stripe and thumbnail — fills to the divider lines
+    val rowHeight      = if (isExpanded) 96.dp else (52f * fontSize).dp
 
     val toggleAction = actionRunCallback<ToggleExpandCallback>(
         actionParametersOf(ToggleExpandCallback.ARTICLE_ID_KEY to article.id)
@@ -64,24 +68,25 @@ fun FeedItemRow(
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .padding(vertical = 5.dp)
+            .height(rowHeight)
             .clickable(toggleAction),
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         if (!isRtl) {
             Box(modifier = GlanceModifier
                 .width(3.dp)
-                .height(if (isExpanded) 80.dp else 44.dp)
+                .fillMaxHeight()
                 .background(accentProvider)) {}
         }
 
         Column(
             modifier = GlanceModifier
                 .defaultWeight()
-                .padding(horizontal = 8.dp, vertical = 2.dp),
+                .fillMaxHeight()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalAlignment = if (isRtl) Alignment.End else Alignment.Start,
         ) {
-            // Meta row: circle icon + feed name + timestamp
+            // Meta row: favicon circle + feed name + timestamp
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
                 horizontalAlignment = if (isRtl) Alignment.End else Alignment.Start,
@@ -92,8 +97,39 @@ fun FeedItemRow(
                     Spacer(GlanceModifier.width(3.dp))
                 }
 
-                val initial = (feedConfig.displayName.firstOrNull()?.uppercaseChar() ?: '?').toString()
-                val circleSize = (14f * fontSize).dp
+                val circleSize    = (14f * fontSize).dp
+                val faviconFile   = FaviconHelper.file(context, feedConfig.feedId)
+                val faviconBmp    = if (faviconFile.exists()) BitmapFactory.decodeFile(faviconFile.absolutePath) else null
+
+                @Composable
+                fun FeedCircle() {
+                    if (faviconBmp != null) {
+                        Image(
+                            provider = ImageProvider(faviconBmp),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = GlanceModifier
+                                .width(circleSize).height(circleSize)
+                                .cornerRadius(circleSize / 2),
+                        )
+                    } else {
+                        // Fallback: colored circle with first letter until favicon is downloaded
+                        val initial = (feedConfig.displayName.firstOrNull()?.uppercaseChar() ?: '?').toString()
+                        Box(
+                            modifier = GlanceModifier
+                                .width(circleSize).height(circleSize)
+                                .background(accentProvider)
+                                .cornerRadius(circleSize / 2),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(initial, style = TextStyle(
+                                fontSize = (8f * fontSize).sp,
+                                fontWeight = FontWeight.Bold,
+                                color = ColorProvider(Color.White),
+                            ))
+                        }
+                    }
+                }
 
                 if (isRtl) {
                     Spacer(GlanceModifier.defaultWeight())
@@ -103,35 +139,9 @@ fun FeedItemRow(
                     Text(feedConfig.displayName,
                         style = TextStyle(fontSize = metaFontSize, color = accentProvider))
                     Spacer(GlanceModifier.width(4.dp))
-                    // Circle icon
-                    Box(
-                        modifier = GlanceModifier
-                            .width(circleSize).height(circleSize)
-                            .background(accentProvider)
-                            .cornerRadius(circleSize / 2),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(initial, style = TextStyle(
-                            fontSize = (8f * fontSize).sp,
-                            fontWeight = FontWeight.Bold,
-                            color = ColorProvider(Color.White),
-                        ))
-                    }
+                    FeedCircle()
                 } else {
-                    // Circle icon
-                    Box(
-                        modifier = GlanceModifier
-                            .width(circleSize).height(circleSize)
-                            .background(accentProvider)
-                            .cornerRadius(circleSize / 2),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(initial, style = TextStyle(
-                            fontSize = (8f * fontSize).sp,
-                            fontWeight = FontWeight.Bold,
-                            color = ColorProvider(Color.White),
-                        ))
-                    }
+                    FeedCircle()
                     Spacer(GlanceModifier.width(4.dp))
                     Text(feedConfig.displayName,
                         style = TextStyle(fontSize = metaFontSize, color = accentProvider))
@@ -142,7 +152,7 @@ fun FeedItemRow(
                 }
             }
 
-            Spacer(GlanceModifier.height(2.dp))
+            Spacer(GlanceModifier.height(3.dp))
 
             // Headline
             Text(
@@ -207,18 +217,17 @@ fun FeedItemRow(
             }
         }
 
-        // Thumbnail: scales with fontSize to match article row height
+        // Thumbnail: fills the full row height so it touches both divider lines
         if (feedConfig.displayMode == "image" && !isExpanded) {
             val thumbFile = ThumbnailHelper.file(context, article.id)
             if (thumbFile.exists()) {
                 val bmp = BitmapFactory.decodeFile(thumbFile.absolutePath)
                 if (bmp != null) {
-                    val thumbSize = (40f * fontSize).dp
                     Image(
                         provider = ImageProvider(bmp),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = GlanceModifier.width(thumbSize).height(thumbSize),
+                        modifier = GlanceModifier.width(rowHeight).fillMaxHeight(),
                     )
                 }
             }
@@ -228,7 +237,7 @@ fun FeedItemRow(
             Spacer(GlanceModifier.width(6.dp))
             Box(modifier = GlanceModifier
                 .width(3.dp)
-                .height(if (isExpanded) 80.dp else 44.dp)
+                .fillMaxHeight()
                 .background(accentProvider)) {}
         }
     }

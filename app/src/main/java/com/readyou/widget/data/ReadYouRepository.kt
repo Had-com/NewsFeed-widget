@@ -57,6 +57,29 @@ class ReadYouRepository(private val context: Context) {
         } catch (_: Exception) { null }
     }
 
+    suspend fun downloadFavicons(feeds: List<FeedConfig>) = withContext(Dispatchers.IO) {
+        for (feed in feeds) {
+            if (feed.feedUrl.isBlank()) continue
+            val file = FaviconHelper.file(context, feed.feedId)
+            // Re-fetch at most once per week
+            if (file.exists() && System.currentTimeMillis() - file.lastModified() < 7 * 24 * 3600_000L) continue
+            val host = runCatching { java.net.URL(feed.feedUrl).host }.getOrNull() ?: continue
+            val faviconUrl = "https://www.google.com/s2/favicons?domain=$host&sz=64"
+            runCatching {
+                val req = Request.Builder().url(faviconUrl)
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36")
+                    .build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) return@runCatching
+                    val bytes = resp.body?.bytes() ?: return@runCatching
+                    if (bytes.size < 64) return@runCatching // skip empty/error responses
+                    file.parentFile?.mkdirs()
+                    file.writeBytes(bytes)
+                }
+            }
+        }
+    }
+
     suspend fun downloadThumbnails(articles: List<ArticleItem>, feeds: List<FeedConfig>) =
         withContext(Dispatchers.IO) {
             val imageFeedIds = feeds.filter { it.displayMode == "image" }.map { it.feedId }.toSet()
