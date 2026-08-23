@@ -1,4 +1,4 @@
-package com.readyou.widget.glance
+﻿package com.newsfeed.widget.glance
 
 import android.content.Context
 import android.content.Intent
@@ -6,8 +6,8 @@ import android.net.Uri
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
-import com.readyou.widget.data.ReadStatusStore
-import com.readyou.widget.data.WidgetConfigStore
+import com.newsfeed.widget.data.ReadStatusStore
+import com.newsfeed.widget.data.WidgetConfigStore
 import kotlinx.coroutines.flow.first
 
 class OpenExternalCallback : ActionCallback {

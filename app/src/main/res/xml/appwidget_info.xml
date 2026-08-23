@@ -11,6 +11,6 @@
     android:minResizeHeight="200dp"
     android:updatePeriodMillis="0"
     android:widgetCategory="home_screen"
-    android:configure="com.readyou.widget.config.WidgetConfigActivity"
+    android:configure="com.newsfeed.widget.config.WidgetConfigActivity"
     android:resizeMode="horizontal|vertical"
     android:widgetFeatures="reconfigurable|configuration_optional" />

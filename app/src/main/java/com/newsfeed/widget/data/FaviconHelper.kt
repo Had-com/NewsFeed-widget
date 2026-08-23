@@ -1,4 +1,4 @@
-package com.readyou.widget.data
+﻿package com.newsfeed.widget.data
 
 import android.content.Context
 import java.io.File

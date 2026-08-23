@@ -1,4 +1,4 @@
-package com.readyou.widget.data
+﻿package com.newsfeed.widget.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-private val Context.readStatusDataStore by preferencesDataStore(name = "readyou_widget_read_status")
+private val Context.readStatusDataStore by preferencesDataStore(name = "newsfeed_read_status")
 private val READ_IDS_KEY = stringPreferencesKey("read_article_ids")
 private const val MAX_STORED = 500   // oldest entries are dropped beyond this
 

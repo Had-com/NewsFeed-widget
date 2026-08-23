@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">ווידג\'ט Read You</string>
-    <string name="widget_description">מציג את הפידים של Read You עם התאמה אישית לכל פיד</string>
-    <string name="widget_label">פידים של Read You</string>
+    <string name="app_name">NewsFeed</string>
+    <string name="widget_description">מציג כתבות RSS מהפידים שלך עם התאמה אישית לכל פיד</string>
+    <string name="widget_label">NewsFeed</string>
 
     <string name="sort_newest">החדש ביותר קודם</string>
     <string name="sort_oldest">הישן ביותר קודם</string>

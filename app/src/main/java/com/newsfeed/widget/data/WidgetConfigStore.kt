@@ -1,4 +1,4 @@
-package com.readyou.widget.data
+﻿package com.newsfeed.widget.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-private val Context.dataStore by preferencesDataStore(name = "readyou_widget_config")
+private val Context.dataStore by preferencesDataStore(name = "newsfeed_config")
 
 private val json = Json { ignoreUnknownKeys = true }
 

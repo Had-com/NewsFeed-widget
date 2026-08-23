@@ -1,11 +1,11 @@
-package com.readyou.widget.glance
+﻿package com.newsfeed.widget.glance
 
 import android.content.Context
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.state.updateAppWidgetState
-import com.readyou.widget.data.WidgetStateKey
+import com.newsfeed.widget.data.WidgetStateKey
 
 class ToggleExpandCallback : ActionCallback {
     companion object {
@@ -22,6 +22,6 @@ class ToggleExpandCallback : ActionCallback {
             val current = prefs[WidgetStateKey.expandedArticleId] ?: ""
             prefs[WidgetStateKey.expandedArticleId] = if (current == articleId) "" else articleId
         }
-        ReadYouWidget().update(context, glanceId)
+        NewsFeedWidget().update(context, glanceId)
     }
 }

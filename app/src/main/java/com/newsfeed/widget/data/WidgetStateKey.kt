@@ -1,4 +1,4 @@
-package com.readyou.widget.data
+﻿package com.newsfeed.widget.data
 
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey

@@ -1,4 +1,4 @@
-package com.readyou.widget.data
+﻿package com.newsfeed.widget.data
 
 import android.util.Xml
 import org.xmlpull.v1.XmlPullParser
@@ -9,7 +9,7 @@ object OpmlManager {
     fun export(feeds: List<FeedConfig>): String = buildString {
         appendLine("""<?xml version="1.0" encoding="UTF-8"?>""")
         appendLine("""<opml version="2.0">""")
-        appendLine("""  <head><title>ReadYou Widget Feeds</title></head>""")
+        appendLine("""  <head><title>NewsFeed Feeds</title></head>""")
         appendLine("""  <body>""")
         for (feed in feeds) {
             if (feed.feedUrl.isNotBlank()) {

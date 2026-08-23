@@ -1,4 +1,4 @@
-package com.readyou.widget.config
+﻿package com.newsfeed.widget.config
 
 import android.appwidget.AppWidgetManager
 import android.content.Intent
@@ -52,15 +52,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.glance.appwidget.GlanceAppWidgetManager
-import com.readyou.widget.data.FeedConfig
-import com.readyou.widget.data.FilterMode
-import com.readyou.widget.data.OpmlManager
-import com.readyou.widget.data.ReadYouRepository
-import com.readyou.widget.data.SortOrder
-import com.readyou.widget.data.WidgetConfig
-import com.readyou.widget.data.WidgetConfigStore
-import com.readyou.widget.glance.ReadYouWidget
-import com.readyou.widget.glance.WidgetWorker
+import com.newsfeed.widget.data.FeedConfig
+import com.newsfeed.widget.data.FilterMode
+import com.newsfeed.widget.data.OpmlManager
+import com.newsfeed.widget.data.NewsFeedRepository
+import com.newsfeed.widget.data.SortOrder
+import com.newsfeed.widget.data.WidgetConfig
+import com.newsfeed.widget.data.WidgetConfigStore
+import com.newsfeed.widget.glance.NewsFeedWidget
+import com.newsfeed.widget.glance.WidgetWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -93,7 +93,7 @@ class WidgetConfigActivity : ComponentActivity() {
         }
 
         val store = WidgetConfigStore(this)
-        val repo  = ReadYouRepository(this)
+        val repo  = NewsFeedRepository(this)
 
         setContent {
             MaterialTheme {
@@ -156,7 +156,7 @@ class WidgetConfigActivity : ComponentActivity() {
 
                 var searchQuery    by remember { mutableStateOf("") }
                 var isSearching    by remember { mutableStateOf(false) }
-                var searchResults  by remember { mutableStateOf<List<com.readyou.widget.data.FeedSearchResult>>(emptyList()) }
+                var searchResults  by remember { mutableStateOf<List<com.newsfeed.widget.data.FeedSearchResult>>(emptyList()) }
                 var searchError    by remember { mutableStateOf<String?>(null) }
                 var searchDone     by remember { mutableStateOf(false) }
 
@@ -307,7 +307,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                         WidgetWorker.schedule(this@WidgetConfigActivity, final.refreshIntervalMinutes.toLong())
                                         WidgetWorker.refreshNow(this@WidgetConfigActivity)
                                         val glanceId = GlanceAppWidgetManager(this@WidgetConfigActivity).getGlanceIdBy(appWidgetId)
-                                        ReadYouWidget().update(this@WidgetConfigActivity, glanceId)
+                                        NewsFeedWidget().update(this@WidgetConfigActivity, glanceId)
                                         setResult(RESULT_OK, Intent().apply { putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId) })
                                         finish()
                                     }

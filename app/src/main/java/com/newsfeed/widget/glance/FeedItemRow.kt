@@ -1,4 +1,4 @@
-package com.readyou.widget.glance
+﻿package com.newsfeed.widget.glance
 
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.Composable
@@ -33,10 +33,10 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextDecoration
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import com.readyou.widget.data.ArticleItem
-import com.readyou.widget.data.FaviconHelper
-import com.readyou.widget.data.FeedConfig
-import com.readyou.widget.data.ThumbnailHelper
+import com.newsfeed.widget.data.ArticleItem
+import com.newsfeed.widget.data.FaviconHelper
+import com.newsfeed.widget.data.FeedConfig
+import com.newsfeed.widget.data.ThumbnailHelper
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date

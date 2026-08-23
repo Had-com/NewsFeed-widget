@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ReadYouWidget"
+rootProject.name = "NewsFeed"
 include(":app")

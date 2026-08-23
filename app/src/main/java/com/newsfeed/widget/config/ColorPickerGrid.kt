@@ -1,4 +1,4 @@
-package com.readyou.widget.config
+﻿package com.newsfeed.widget.config
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

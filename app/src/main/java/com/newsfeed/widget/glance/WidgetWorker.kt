@@ -1,4 +1,4 @@
-package com.readyou.widget.glance
+﻿package com.newsfeed.widget.glance
 
 import android.content.Context
 import androidx.glance.appwidget.GlanceAppWidgetManager
@@ -10,11 +10,11 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.readyou.widget.data.ArticleItem
-import com.readyou.widget.data.ReadStatusStore
-import com.readyou.widget.data.ReadYouRepository
-import com.readyou.widget.data.WidgetConfigStore
-import com.readyou.widget.data.WidgetStateKey
+import com.newsfeed.widget.data.ArticleItem
+import com.newsfeed.widget.data.ReadStatusStore
+import com.newsfeed.widget.data.NewsFeedRepository
+import com.newsfeed.widget.data.WidgetConfigStore
+import com.newsfeed.widget.data.WidgetStateKey
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -28,10 +28,10 @@ class WidgetWorker(
 
     override suspend fun doWork(): Result {
         val store     = WidgetConfigStore(context)
-        val repo      = ReadYouRepository(context)
+        val repo      = NewsFeedRepository(context)
         val readIds   = ReadStatusStore(context).readIdsFlow().first()
         val manager   = GlanceAppWidgetManager(context)
-        val widgetIds = manager.getGlanceIds(ReadYouWidget::class.java)
+        val widgetIds = manager.getGlanceIds(NewsFeedWidget::class.java)
 
         for (glanceId in widgetIds) {
             val appWidgetId = manager.getAppWidgetId(glanceId)
@@ -59,12 +59,12 @@ class WidgetWorker(
             repo.downloadFavicons(config.feeds)
         }
 
-        ReadYouWidget().updateAll(context)
+        NewsFeedWidget().updateAll(context)
         return Result.success()
     }
 
     companion object {
-        private const val WORK_NAME = "ReadYouWidgetRefresh"
+        private const val WORK_NAME = "NewsFeedRefresh"
 
         fun schedule(context: Context, intervalMinutes: Long = 15) {
             val request = PeriodicWorkRequestBuilder<WidgetWorker>(

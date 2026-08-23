@@ -1,4 +1,4 @@
-package com.readyou.widget.glance
+﻿package com.newsfeed.widget.glance
 
 import android.content.Context
 import androidx.glance.GlanceId

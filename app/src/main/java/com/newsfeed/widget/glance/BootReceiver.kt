@@ -1,10 +1,10 @@
-package com.readyou.widget.glance
+﻿package com.newsfeed.widget.glance
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import androidx.glance.appwidget.GlanceAppWidgetManager
-import com.readyou.widget.glance.WidgetWorker
+import com.newsfeed.widget.glance.WidgetWorker
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 
@@ -15,9 +15,9 @@ class BootReceiver : BroadcastReceiver() {
         MainScope().launch {
             try {
                 val ids = GlanceAppWidgetManager(context)
-                    .getGlanceIds(ReadYouWidget::class.java)
+                    .getGlanceIds(NewsFeedWidget::class.java)
                 if (ids.isNotEmpty()) {
-                    ReadYouWidgetReceiver.scheduleClockTick(context)
+                    NewsFeedWidgetReceiver.scheduleClockTick(context)
                     WidgetWorker.schedule(context)
                 }
             } finally {

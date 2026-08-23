@@ -1,4 +1,4 @@
-package com.readyou.widget.data
+﻿package com.newsfeed.widget.data
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -17,7 +17,7 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
-class ReadYouRepository(private val context: Context) {
+class NewsFeedRepository(private val context: Context) {
 
     val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)

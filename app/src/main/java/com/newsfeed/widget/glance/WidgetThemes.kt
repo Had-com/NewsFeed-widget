@@ -1,4 +1,4 @@
-package com.readyou.widget.glance
+﻿package com.newsfeed.widget.glance
 
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme

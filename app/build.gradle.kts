@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.readyou.widget"
+    namespace = "com.newsfeed.widget"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.readyou.widget"
+        applicationId = "com.newsfeed.widget"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

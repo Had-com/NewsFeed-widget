@@ -1,4 +1,4 @@
-package com.readyou.widget.config
+﻿package com.newsfeed.widget.config
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
@@ -35,8 +35,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.readyou.widget.R
-import com.readyou.widget.data.FeedConfig
+import com.newsfeed.widget.R
+import com.newsfeed.widget.data.FeedConfig
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 
 @Composable

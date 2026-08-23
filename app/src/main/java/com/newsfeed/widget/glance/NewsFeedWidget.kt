@@ -1,4 +1,4 @@
-package com.readyou.widget.glance
+﻿package com.newsfeed.widget.glance
 
 import android.app.AlarmManager
 import android.app.PendingIntent
@@ -36,16 +36,16 @@ import androidx.glance.layout.padding
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import com.readyou.widget.config.WidgetConfigActivity
-import com.readyou.widget.data.ArticleItem
-import com.readyou.widget.data.WidgetConfig
-import com.readyou.widget.data.WidgetStateKey
+import com.newsfeed.widget.config.WidgetConfigActivity
+import com.newsfeed.widget.data.ArticleItem
+import com.newsfeed.widget.data.WidgetConfig
+import com.newsfeed.widget.data.WidgetStateKey
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.util.concurrent.TimeUnit
 
-class ReadYouWidget : GlanceAppWidget() {
+class NewsFeedWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent { WidgetContent() }
@@ -203,8 +203,8 @@ class ReadYouWidget : GlanceAppWidget() {
     }
 }
 
-class ReadYouWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget = ReadYouWidget()
+class NewsFeedWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget = NewsFeedWidget()
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
@@ -223,7 +223,7 @@ class ReadYouWidgetReceiver : GlanceAppWidgetReceiver() {
         if (intent.action == ACTION_CLOCK_TICK) {
             val pending = goAsync()
             MainScope().launch {
-                try { ReadYouWidget().updateAll(context) }
+                try { NewsFeedWidget().updateAll(context) }
                 finally { pending.finish() }
             }
             scheduleClockTick(context)
@@ -231,7 +231,7 @@ class ReadYouWidgetReceiver : GlanceAppWidgetReceiver() {
     }
 
     companion object {
-        const val ACTION_CLOCK_TICK = "com.readyou.widget.CLOCK_TICK"
+        const val ACTION_CLOCK_TICK = "com.newsfeed.widget.CLOCK_TICK"
         private const val RC_CLOCK  = 1001
 
         fun scheduleClockTick(context: Context) {
@@ -249,7 +249,7 @@ class ReadYouWidgetReceiver : GlanceAppWidgetReceiver() {
 
         private fun clockPi(context: Context) = PendingIntent.getBroadcast(
             context, RC_CLOCK,
-            Intent(ACTION_CLOCK_TICK, null, context, ReadYouWidgetReceiver::class.java),
+            Intent(ACTION_CLOCK_TICK, null, context, NewsFeedWidgetReceiver::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }

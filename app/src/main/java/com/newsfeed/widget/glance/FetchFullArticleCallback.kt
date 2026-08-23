@@ -1,4 +1,4 @@
-package com.readyou.widget.glance
+﻿package com.newsfeed.widget.glance
 
 import android.content.Context
 import android.text.Html
@@ -6,7 +6,7 @@ import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.state.updateAppWidgetState
-import com.readyou.widget.data.WidgetStateKey
+import com.newsfeed.widget.data.WidgetStateKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -32,7 +32,7 @@ class FetchFullArticleCallback : ActionCallback {
             prefs[WidgetStateKey.fullArticleId]   = articleId
             prefs[WidgetStateKey.fullArticleText] = content
         }
-        ReadYouWidget().update(context, glanceId)
+        NewsFeedWidget().update(context, glanceId)
     }
 
     private fun fetchContent(url: String): String {
