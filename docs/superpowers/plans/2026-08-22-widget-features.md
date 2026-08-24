@@ -8,6 +8,8 @@
 
 **Tech Stack:** Jetpack Compose Glance 1.1.0, WorkManager 2.9.0, OkHttp 4.12.0, DataStore Preferences, kotlinx.serialization, Android XmlPullParser (no namespace processing).
 
+**Status:** ✅ All tasks complete. Commits: `ce26b32` (race condition fix), `ede46bd` (encodeToString import), `110c1ea` (6 bugs), `22d4547` (Hebrew bitmap font).
+
 ---
 
 ## File map

@@ -247,3 +247,32 @@ In `WidgetConfigActivity` Sort & Filter section, add an "Open article in" row wi
 - **`media:` namespace in XmlPullParser**: `android.util.Xml.newPullParser()` does not enable namespace processing by default. Set `parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)` and access elements via `parser.localName` and check namespace URI, OR leave namespace processing off and match on `parser.name` which returns the prefixed name (`"media:thumbnail"`, `"content:encoded"`). Use the latter — simpler and consistent with the current parser.
 - **`FLAG_ACTIVITY_NEW_TASK`**: Required for all `startActivity` calls from `ActionCallback` (which runs in a non-Activity context). Add to all intents in `OpenExternalCallback`.
 - **`Html.fromHtml` API level**: `FROM_HTML_MODE_COMPACT` requires API 24. Our `minSdk` is 26 — safe.
+
+---
+
+## Bug fixes and improvements (shipped 2026-08-22 → 2026-08-24)
+
+The following bugs were identified post-implementation and fixed:
+
+| # | Bug | Fix |
+|---|---|---|
+| 1 | No Hebrew handwriting fonts available | Glamour theme renders headlines via Canvas bitmap using **Miriam Libre Bold** (bundled TTF); see `TextBitmapHelper.kt` |
+| 2 | Timestamp not left-aligned in LTR rows | Meta row now places timestamp first on the left: `Time · Circle · Name` |
+| 3 | Headlines not bold by default | Non-Glamour headlines now default to `FontWeight.Bold` unless `"normal"` is in `feedConfig.textStyle` |
+| 4 | Glamour title color wrong (should be #7A5C3A, bold) | Glamour headlines use `GLAMER_LIGHT.onSurfaceVariant = Color(0xFF7A5C3A)` (dark: `0xFFA08060`); Miriam Libre Bold is inherently bold |
+| 5 | Settings apply only on second entry | Race condition: `NewsFeedWidget().update()` ran before `WidgetWorker.refreshNow()` wrote new config to Glance DataStore. Fixed by calling `updateAppWidgetState()` synchronously before `update()` |
+| 6 | Full article opens slowly, no immediate feedback | Two-phase loading: RSS description shown immediately on "Load full article" tap; widget re-renders with full content once the page fetch completes |
+| 7 | Wrong defaults (was Auto/dark/no accent) | Defaults changed to `widgetTheme="glamer"`, `themeVariant="light"`, `useThemeColors=true` |
+| 8 | Settings preview doesn't match selected theme | Preview now uses `WidgetThemes.rawColorSchemeFor()` and `WidgetThemes.fontFamilyFor()` to render a live themed preview of headlines, meta, and description |
+
+### Technical details
+
+**Race condition fix (`WidgetConfigActivity`):** `WidgetWorker.refreshNow()` enqueues an async WorkManager job; calling `NewsFeedWidget().update()` immediately after renders the widget with stale DataStore state. Fix: call `updateAppWidgetState(context, glanceId) { prefs -> prefs[WidgetStateKey.configJson] = Json.encodeToString(final) }` synchronously between `getGlanceIdBy()` and `update()`.
+
+**`kotlinx.serialization.encodeToString` import:** This is a top-level extension on `StringFormat`, not a member of `Json`. Requires `import kotlinx.serialization.encodeToString` in addition to `import kotlinx.serialization.json.Json`.
+
+**`rawColorSchemeFor()` in `WidgetThemes`:** New public function exposing the raw Material3 `ColorScheme` objects (previously private), used by the config activity preview.
+
+**`TextBitmapHelper.kt` (new file):** Canvas-based bitmap renderer for Glamour theme headlines. Loads `R.font.miriam_libre_bold` via `ResourcesCompat.getFont()`, renders with `StaticLayout`, caches bitmaps in an LRU by `"$text|$textSizePx|$colorArgb|$widthPx|$isRtl"` key.
+
+**`FetchFullArticleCallback` two-phase loading:** On tap, immediately writes `article.description` to `WidgetStateKey.fullArticleText` and calls `update()`, then fetches the full web page and calls `update()` again with the complete content.

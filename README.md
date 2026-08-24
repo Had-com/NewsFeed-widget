@@ -112,16 +112,21 @@ A slider in Settings scales all article text from 75% to 150%.
 ### Widget themes
 Seven built-in themes, each with a distinct light and dark variant selectable independently of the system theme:
 
-| Theme | Character |
-|---|---|
-| Auto | Follows the system light/dark setting (Material You) |
-| Lavender | Soft lavender editorial — light purple palette |
-| Amethyst | Rich amethyst — deep purple dark palette |
-| Glassy | Frosted glass with 3D depth, semi-transparent surface |
-| Simple | Pure black and white, no color |
-| Aerospace | Amber on near-black charcoal — mission-control feel |
-| Data Science | Teal-mint on deep navy — silicon-lab precision |
-| Glamour | Beige / warm cream with handwriting-style headlines |
+| Theme | Character | Default |
+|---|---|---|
+| Auto | Follows the system light/dark setting (Material You) | |
+| Lavender | Soft lavender editorial — light purple palette | |
+| Amethyst | Rich amethyst — deep purple dark palette | |
+| Glassy | Frosted glass with 3D depth, semi-transparent surface | |
+| Simple | Pure black and white, no color | |
+| Aerospace | Amber on near-black charcoal — mission-control feel | |
+| Data Science | Teal-mint on deep navy — silicon-lab precision | |
+| Glamour | Warm cream/beige with Miriam Libre Bold Hebrew handwriting headlines | ★ |
+
+**Default on first install:** Glamour theme · Light variant · Accent colors on.
+
+### Glamour Hebrew handwriting font
+Glamour uses **Miriam Libre Bold** (Google Fonts, ~74 KB, bundled in `res/font/`) for article headlines — a Hebrew calligraphic/display font with strong ink-pen character and full Latin support for mixed Hebrew/English feeds. Because Jetpack Glance/RemoteViews cannot load `R.font` resources directly, headlines are rendered to a `Bitmap` via Android Canvas (`StaticLayout` + `TextPaint`) and displayed as an `Image` composable inside the widget. RTL alignment is handled by `Layout.Alignment.ALIGN_OPPOSITE`. The bitmap renderer uses a 40-entry LRU cache keyed on text + size + color + width + direction, and the `Typeface` is loaded once at first use.
 
 ### Feed management
 - **Add by URL** — paste any RSS or Atom feed URL; the widget fetches and validates the feed title automatically
@@ -246,7 +251,8 @@ Android blocks apps not downloaded from the Play Store by default. You need to a
 
 - System locale `iw` (Hebrew) automatically loads Hebrew UI strings
 - Each feed's layout direction is controlled independently
-- No custom fonts required — Hebrew glyphs use Android system fonts
+- **Glamour theme** uses **Miriam Libre Bold** — a Hebrew calligraphic font — for article headlines, rendered via Canvas bitmap (see [Glamour Hebrew handwriting font](#glamour-hebrew-handwriting-font))
+- Other themes use Android system fonts for Hebrew glyphs
 - The config screen itself also supports RTL when the device locale is Hebrew
 - Hebrew news sites (ynet, rotter.net, N12, כאן, וואלה, גלובס) are fetched with browser-like headers to bypass bot detection
 
@@ -258,19 +264,20 @@ Android blocks apps not downloaded from the Play Store by default. You need to a
 app/src/main/
 ├── assets/
 │   └── default_feeds.opml            # Default Hebrew news feeds loaded on first launch
-├── java/com/readyou/widget/
+├── java/com/newsfeed/widget/
 │   ├── glance/
-│   │   ├── ReadYouWidget.kt          # Glance widget + receiver + AlarmManager clock tick
-│   │   ├── FeedItemRow.kt            # Per-article row (circle icon, expand/collapse, thumbnail, date)
+│   │   ├── NewsFeedWidget.kt         # Glance widget + receiver + AlarmManager clock tick
+│   │   ├── FeedItemRow.kt            # Per-article row (circle icon, expand/collapse, thumbnail, bitmap headline)
+│   │   ├── TextBitmapHelper.kt       # Canvas bitmap renderer for Glamour Hebrew headlines (Miriam Libre Bold)
 │   │   ├── WidgetWorker.kt           # WorkManager refresh job + article merge + thumbnail download
-│   │   ├── WidgetThemes.kt           # 7 colour schemes (Lavender, Amethyst, Glassy, Simple, Aerospace, Data Science, Glamour)
+│   │   ├── WidgetThemes.kt           # 7 colour schemes + rawColorSchemeFor() + fontFamilyFor()
 │   │   ├── BootReceiver.kt           # Reschedules WorkManager and clock tick after device reboot
 │   │   ├── RefreshNowCallback.kt     # ActionCallback — immediate refresh on footer tap
 │   │   ├── ToggleExpandCallback.kt   # ActionCallback — expand/collapse article in widget
-│   │   ├── FetchFullArticleCallback.kt # ActionCallback — fetches full web page content for "Full" mode
+│   │   ├── FetchFullArticleCallback.kt # ActionCallback — two-phase loading (description → full web content)
 │   │   └── OpenExternalCallback.kt   # ActionCallback — open article URL, mark read
 │   ├── config/
-│   │   ├── WidgetConfigActivity.kt   # Settings screen (sort, filter, feeds, font size, theme, OPML)
+│   │   ├── WidgetConfigActivity.kt   # Settings screen with live theme preview (sort, filter, feeds, theme, OPML)
 │   │   ├── FeedConfigRow.kt          # Per-feed controls row (color, font, B/I/U, RTL/LTR, IMG/TXT)
 │   │   └── ColorPickerGrid.kt        # 12-color preset picker
 │   ├── data/
@@ -278,7 +285,7 @@ app/src/main/
 │   │   ├── WidgetConfigStore.kt      # DataStore — widget config persistence
 │   │   ├── WidgetStateKey.kt         # Glance DataStore preference keys
 │   │   ├── ReadStatusStore.kt        # DataStore — read article ID persistence
-│   │   ├── ReadYouRepository.kt      # RSS/Atom fetching, charset fix, image extraction, thumbnails
+│   │   ├── NewsFeedRepository.kt     # RSS/Atom fetching, charset fix, image extraction, thumbnails
 │   │   ├── ThumbnailHelper.kt        # Shared cache file path helper for thumbnails
 │   │   ├── FaviconHelper.kt          # Shared cache file path helper for feed favicons
 │   │   └── OpmlManager.kt            # OPML 2.0 import/export
@@ -286,6 +293,8 @@ app/src/main/
     ├── drawable/
     │   ├── ic_launcher_foreground.xml   # RSS + N vector icon foreground
     │   └── ic_launcher_background.xml  # Purple icon background
+    ├── font/
+    │   └── miriam_libre_bold.ttf        # Hebrew calligraphic display font (Glamour theme headlines, ~74 KB)
     ├── mipmap-anydpi-v26/
     │   ├── ic_launcher.xml             # Adaptive icon (Android 8+)
     │   └── ic_launcher_round.xml       # Round adaptive icon
