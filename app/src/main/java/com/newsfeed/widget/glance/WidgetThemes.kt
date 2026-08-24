@@ -9,11 +9,17 @@ import androidx.glance.material3.ColorProviders as buildColorProviders
 object WidgetThemes {
 
     // Returns "serif", "mono", or "sans" — used as the theme's default typeface.
-    // Glance only supports system font families (SansSerif/Serif/Monospace/Cursive).
-    // Glamour uses Cursive for its handwriting feel; Hebrew characters fall back to system Hebrew font.
+    // Maps to system FontFamily in Glance (RemoteViews only supports system fonts).
+    // Android uses these exact fonts: SansSerif=Roboto, Monospace=Roboto Mono, Serif=Noto Serif,
+    // Cursive=Dancing Script. Hebrew falls back within the same family automatically:
+    // Serif→Noto Serif Hebrew, SansSerif/Mono/Cursive→Noto Sans Hebrew / Rubik.
     fun fontFamilyFor(theme: String): String = when (theme) {
-        "glamer" -> "cursive"
-        else     -> "sans"
+        "glamer"                  -> "cursive"   // Dancing Script / Hebrew: Noto Sans Hebrew
+        "lavender", "light"       -> "serif"     // Lora / Hebrew: Noto Serif Hebrew
+        "amethyst", "dark"        -> "serif"     // Lora / Hebrew: Noto Serif Hebrew
+        "aerospace"               -> "mono"      // Roboto Mono (exact) / Hebrew: Noto Sans Hebrew
+        "silicon", "data_science" -> "mono"      // Roboto Mono (exact) / Hebrew: Noto Sans Hebrew
+        else                      -> "sans"      // Roboto (exact) / Hebrew: Roboto Hebrew
     }
 
     fun surfaceColorFor(theme: String, variant: String = "dark"): Color {
