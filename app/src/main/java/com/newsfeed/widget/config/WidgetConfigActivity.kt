@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.state.updateAppWidgetState
 import com.newsfeed.widget.data.FeedConfig
 import com.newsfeed.widget.data.FilterMode
 import com.newsfeed.widget.data.OpmlManager
@@ -61,8 +62,10 @@ import com.newsfeed.widget.data.NewsFeedRepository
 import com.newsfeed.widget.data.SortOrder
 import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetConfigStore
+import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.glance.NewsFeedWidget
 import com.newsfeed.widget.glance.WidgetWorker
+import kotlinx.serialization.json.Json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -306,6 +309,11 @@ class WidgetConfigActivity : ComponentActivity() {
                                         WidgetWorker.schedule(this@WidgetConfigActivity, final.refreshIntervalMinutes.toLong())
                                         WidgetWorker.refreshNow(this@WidgetConfigActivity)
                                         val glanceId = GlanceAppWidgetManager(this@WidgetConfigActivity).getGlanceIdBy(appWidgetId)
+                                        // Push the new config to Glance's DataStore immediately so the
+                                        // re-render below sees the current theme/fonts, not the stale cached value.
+                                        updateAppWidgetState(this@WidgetConfigActivity, glanceId) { prefs ->
+                                            prefs[WidgetStateKey.configJson] = Json.encodeToString(final)
+                                        }
                                         NewsFeedWidget().update(this@WidgetConfigActivity, glanceId)
                                         setResult(RESULT_OK, Intent().apply { putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId) })
                                         finish()
