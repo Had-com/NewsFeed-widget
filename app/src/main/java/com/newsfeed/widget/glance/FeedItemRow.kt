@@ -226,7 +226,7 @@ fun FeedItemRow(
                     "serif"   -> FontFamily.Serif
                     "mono"    -> FontFamily.Monospace
                     "cursive" -> FontFamily.Cursive
-                    else      -> FontFamily.SansSerif
+                        else      -> FontFamily.SansSerif
                 }
                 val descStyle = TextStyle(
                     fontSize   = (10f * fontSize).sp,

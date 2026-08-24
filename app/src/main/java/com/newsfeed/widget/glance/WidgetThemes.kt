@@ -9,13 +9,11 @@ import androidx.glance.material3.ColorProviders as buildColorProviders
 object WidgetThemes {
 
     // Returns "serif", "mono", or "sans" — used as the theme's default typeface.
+    // Glance only supports system font families (SansSerif/Serif/Monospace/Cursive).
+    // Glamour uses Cursive for its handwriting feel; Hebrew characters fall back to system Hebrew font.
     fun fontFamilyFor(theme: String): String = when (theme) {
-        "glamer"                  -> "cursive"
-        "lavender", "light"       -> "serif"
-        "amethyst", "dark"        -> "serif"
-        "aerospace"               -> "mono"
-        "silicon", "data_science" -> "mono"
-        else                      -> "sans"  // glassy, simple, auto
+        "glamer" -> "cursive"
+        else     -> "sans"
     }
 
     fun surfaceColorFor(theme: String, variant: String = "dark"): Color {
