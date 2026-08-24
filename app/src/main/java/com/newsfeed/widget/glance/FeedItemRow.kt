@@ -13,6 +13,7 @@ import androidx.glance.LocalContext
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.action.actionRunCallback
+import androidx.glance.LocalSize
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.background
 import androidx.glance.layout.Alignment
@@ -54,6 +55,7 @@ fun FeedItemRow(
     fullArticleText: String = "",
     useThemeColors: Boolean = false,
     widgetTheme: String = "auto",
+    themeVariant: String = "light",
 ) {
     val context        = LocalContext.current
     val isExpanded     = article.id == expandedArticleId
@@ -173,7 +175,8 @@ fun FeedItemRow(
 
             Spacer(GlanceModifier.height(3.dp))
 
-            // Headline
+            // Headline — Glamour theme uses a custom Hebrew handwriting font (Miriam Libre Bold)
+            // rendered to a Bitmap, since Glance/RemoteViews only supports system font families.
             val headlineFontStr = if (feedConfig.fontFamily == "serif" || feedConfig.fontFamily == "mono")
                 feedConfig.fontFamily else WidgetThemes.fontFamilyFor(widgetTheme)
             val headlineFontFamily = when (headlineFontStr) {
@@ -182,23 +185,46 @@ fun FeedItemRow(
                 "cursive" -> FontFamily.Cursive
                 else      -> FontFamily.SansSerif
             }
-            Text(
-                text = article.title,
-                style = TextStyle(
-                    fontSize = headlineSize,
-                    fontWeight = if ("normal" in feedConfig.textStyle) FontWeight.Normal else FontWeight.Bold,
-                    fontStyle  = if ("italic" in feedConfig.textStyle) FontStyle.Italic else FontStyle.Normal,
-                    textDecoration = if ("underline" in feedConfig.textStyle) TextDecoration.Underline else TextDecoration.None,
-                    fontFamily = headlineFontFamily,
-                    color = if (article.isRead) GlanceTheme.colors.onSurfaceVariant
-                            else if (widgetTheme == "glamer") GlanceTheme.colors.onSurfaceVariant
-                            else GlanceTheme.colors.onSurface,
-                    textAlign = if (isRtl) androidx.glance.text.TextAlign.End
-                                else      androidx.glance.text.TextAlign.Start,
-                ),
-                maxLines = 3,
-                modifier = GlanceModifier.fillMaxWidth(),
-            )
+            if (widgetTheme == "glamer") {
+                val density    = context.resources.displayMetrics.density
+                val scaledDensity = context.resources.displayMetrics.scaledDensity
+                val thumbDp    = if (feedConfig.displayMode == "image" && !isExpanded) 52f * fontSize else 0f
+                val widthPx    = ((LocalSize.current.width.value - 19f - thumbDp) * density)
+                                    .toInt().coerceAtLeast(50)
+                val colorArgb  = if (themeVariant == "dark") 0xFFA08060.toInt()
+                                  else                       0xFF7A5C3A.toInt()
+                val bmp = TextBitmapHelper.headline(
+                    context    = context,
+                    text       = article.title,
+                    textSizePx = headlineSize.value * scaledDensity,
+                    colorArgb  = colorArgb,
+                    widthPx    = widthPx,
+                    isRtl      = isRtl,
+                )
+                Image(
+                    provider           = ImageProvider(bmp),
+                    contentDescription = article.title,
+                    modifier           = GlanceModifier.fillMaxWidth(),
+                    contentScale       = ContentScale.Fit,
+                )
+            } else {
+                Text(
+                    text = article.title,
+                    style = TextStyle(
+                        fontSize   = headlineSize,
+                        fontWeight = if ("normal" in feedConfig.textStyle) FontWeight.Normal else FontWeight.Bold,
+                        fontStyle  = if ("italic" in feedConfig.textStyle) FontStyle.Italic else FontStyle.Normal,
+                        textDecoration = if ("underline" in feedConfig.textStyle) TextDecoration.Underline else TextDecoration.None,
+                        fontFamily = headlineFontFamily,
+                        color = if (article.isRead) GlanceTheme.colors.onSurfaceVariant
+                                else GlanceTheme.colors.onSurface,
+                        textAlign = if (isRtl) androidx.glance.text.TextAlign.End
+                                    else      androidx.glance.text.TextAlign.Start,
+                    ),
+                    maxLines = 3,
+                    modifier = GlanceModifier.fillMaxWidth(),
+                )
+            }
 
             // Expanded: show thumbnail as a header image (if feed is in image mode)
             if (isExpanded && feedConfig.displayMode == "image") {

@@ -118,6 +118,7 @@ class NewsFeedWidget : GlanceAppWidget() {
                                     fullArticleText   = fullArticleText,
                                     useThemeColors    = config.useThemeColors,
                                     widgetTheme       = config.widgetTheme,
+                                    themeVariant      = config.themeVariant,
                                 )
                                 if (!isLast) {
                                     Box(modifier = GlanceModifier
