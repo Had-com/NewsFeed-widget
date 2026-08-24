@@ -1,5 +1,6 @@
 ﻿package com.newsfeed.widget.glance
 
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
@@ -20,6 +21,20 @@ object WidgetThemes {
         "aerospace"               -> "mono"      // Roboto Mono (exact) / Hebrew: Noto Sans Hebrew
         "silicon", "data_science" -> "mono"      // Roboto Mono (exact) / Hebrew: Noto Sans Hebrew
         else                      -> "sans"      // Roboto (exact) / Hebrew: Roboto Hebrew
+    }
+
+    fun rawColorSchemeFor(theme: String, variant: String = "dark"): ColorScheme {
+        val dark = variant == "dark"
+        return when (theme) {
+            "lavender", "light"       -> if (dark) LAVENDER_DARK   else LAVENDER_LIGHT
+            "amethyst", "dark"        -> if (dark) AMETHYST_DARK   else AMETHYST_LIGHT
+            "glassy"                  -> if (dark) GLASSY_DARK     else GLASSY_LIGHT
+            "simple"                  -> if (dark) SIMPLE_DARK     else SIMPLE_LIGHT
+            "aerospace"               -> if (dark) AEROSPACE_DARK  else AEROSPACE_LIGHT
+            "silicon", "data_science" -> if (dark) SILICON_DARK    else SILICON_LIGHT
+            "glamer"                  -> if (dark) GLAMER_DARK     else GLAMER_LIGHT
+            else                      -> if (dark) darkColorScheme() else lightColorScheme()
+        }
     }
 
     fun surfaceColorFor(theme: String, variant: String = "dark"): Color {

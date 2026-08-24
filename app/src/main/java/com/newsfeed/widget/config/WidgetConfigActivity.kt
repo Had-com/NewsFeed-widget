@@ -64,6 +64,7 @@ import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetConfigStore
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.glance.NewsFeedWidget
+import com.newsfeed.widget.glance.WidgetThemes
 import com.newsfeed.widget.glance.WidgetWorker
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -417,33 +418,43 @@ class WidgetConfigActivity : ComponentActivity() {
                                     "full"  -> sampleDesc
                                     else    -> sampleDesc.take(400).trimEnd()
                                 }
+                                val previewScheme = WidgetThemes.rawColorSchemeFor(config.widgetTheme, config.themeVariant)
+                                val previewFont = when (WidgetThemes.fontFamilyFor(config.widgetTheme)) {
+                                    "serif"   -> FontFamily.Serif
+                                    "mono"    -> FontFamily.Monospace
+                                    "cursive" -> FontFamily.Cursive
+                                    else      -> FontFamily.SansSerif
+                                }
+                                val headlineColor = if (config.widgetTheme == "glamer")
+                                    previewScheme.onSurfaceVariant else previewScheme.onSurface
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                        .background(previewScheme.surface)
                                         .padding(horizontal = 12.dp, vertical = 8.dp),
                                 ) {
                                     Text(
-                                        "ynet מבזקים  ·  14:30",
+                                        "14:30  ·  ynet מבזקים",
                                         fontSize   = (9f * config.fontSize).sp,
-                                        fontFamily = FontFamily.SansSerif,
-                                        color      = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontFamily = previewFont,
+                                        color      = previewScheme.onSurfaceVariant,
                                     )
                                     Spacer(Modifier.height(2.dp))
                                     Text(
                                         "כותרת כתבה לדוגמה — Sample article headline",
                                         fontSize   = (13f * config.fontSize).sp,
-                                        fontFamily = FontFamily.SansSerif,
-                                        fontWeight = FontWeight.Medium,
+                                        fontFamily = previewFont,
+                                        fontWeight = FontWeight.Bold,
                                         lineHeight = (17f * config.fontSize).sp,
+                                        color      = headlineColor,
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
                                         previewDesc,
                                         fontSize   = (10f * config.fontSize).sp,
-                                        fontFamily = FontFamily.SansSerif,
-                                        color      = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontFamily = previewFont,
+                                        color      = previewScheme.onSurfaceVariant,
                                         lineHeight = (14f * config.fontSize).sp,
                                     )
                                 }

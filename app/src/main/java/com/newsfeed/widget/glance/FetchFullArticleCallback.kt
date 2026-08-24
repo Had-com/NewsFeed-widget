@@ -14,8 +14,9 @@ import java.net.URL
 
 class FetchFullArticleCallback : ActionCallback {
     companion object {
-        val ARTICLE_ID_KEY  = ActionParameters.Key<String>("fetchArticleId")
-        val ARTICLE_URL_KEY = ActionParameters.Key<String>("fetchArticleUrl")
+        val ARTICLE_ID_KEY          = ActionParameters.Key<String>("fetchArticleId")
+        val ARTICLE_URL_KEY         = ActionParameters.Key<String>("fetchArticleUrl")
+        val ARTICLE_DESCRIPTION_KEY = ActionParameters.Key<String>("fetchArticleDesc")
     }
 
     override suspend fun onAction(
@@ -23,9 +24,20 @@ class FetchFullArticleCallback : ActionCallback {
         glanceId: GlanceId,
         parameters: ActionParameters,
     ) {
-        val articleId  = parameters[ARTICLE_ID_KEY]  ?: return
-        val articleUrl = parameters[ARTICLE_URL_KEY] ?: return
+        val articleId   = parameters[ARTICLE_ID_KEY]  ?: return
+        val articleUrl  = parameters[ARTICLE_URL_KEY] ?: return
+        val description = parameters[ARTICLE_DESCRIPTION_KEY] ?: ""
 
+        // Show the RSS description immediately so users see content right away
+        if (description.isNotBlank()) {
+            updateAppWidgetState(context, glanceId) { prefs ->
+                prefs[WidgetStateKey.fullArticleId]   = articleId
+                prefs[WidgetStateKey.fullArticleText] = description
+            }
+            NewsFeedWidget().update(context, glanceId)
+        }
+
+        // Fetch the full article in the background; update again when done
         val content = withContext(Dispatchers.IO) { fetchContent(articleUrl) }
 
         updateAppWidgetState(context, glanceId) { prefs ->

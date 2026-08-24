@@ -26,9 +26,9 @@ data class WidgetConfig(
     val fontSize: Float = 1.0f,                // 0.5 – 3.0
     val externalApp: String = "browser",       // "browser" | "share"
     val articleLength: String = "medium",      // "short" | "medium" | "full"
-    val widgetTheme: String = "auto",          // "auto" | "lavender" | "amethyst" | "glassy" | "simple" | "aerospace" | "silicon" | "glamer"
-    val themeVariant: String = "dark",         // "light" | "dark"
-    val useThemeColors: Boolean = false,       // when true, all feeds use the theme accent instead of per-feed colors
+    val widgetTheme: String = "glamer",        // "auto" | "lavender" | "amethyst" | "glassy" | "simple" | "aerospace" | "silicon" | "glamer"
+    val themeVariant: String = "light",        // "light" | "dark"
+    val useThemeColors: Boolean = true,        // when true, all feeds use the theme accent instead of per-feed colors
     val backgroundAlpha: Float = 1.0f,         // 0.0 (fully transparent) – 1.0 (fully opaque)
 )
 

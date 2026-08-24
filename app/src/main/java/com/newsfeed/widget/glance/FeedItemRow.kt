@@ -158,6 +158,9 @@ fun FeedItemRow(
                     Spacer(GlanceModifier.width(4.dp))
                     FeedCircle()
                 } else {
+                    // Time on the left, then circle + name
+                    Text(formatDateTime(article.publishedAt), style = tsStyle, maxLines = 1)
+                    Spacer(GlanceModifier.width(6.dp))
                     FeedCircle()
                     Spacer(GlanceModifier.width(4.dp))
                     if (!article.isRead) {
@@ -165,8 +168,6 @@ fun FeedItemRow(
                         Spacer(GlanceModifier.width(3.dp))
                     }
                     Text(feedConfig.displayName, style = nameStyle, maxLines = 1)
-                    Spacer(GlanceModifier.defaultWeight())
-                    Text(formatDateTime(article.publishedAt), style = tsStyle, maxLines = 1)
                 }
             }
 
@@ -185,11 +186,12 @@ fun FeedItemRow(
                 text = article.title,
                 style = TextStyle(
                     fontSize = headlineSize,
-                    fontWeight = if ("bold" in feedConfig.textStyle) FontWeight.Bold else FontWeight.Normal,
+                    fontWeight = if ("normal" in feedConfig.textStyle) FontWeight.Normal else FontWeight.Bold,
                     fontStyle  = if ("italic" in feedConfig.textStyle) FontStyle.Italic else FontStyle.Normal,
                     textDecoration = if ("underline" in feedConfig.textStyle) TextDecoration.Underline else TextDecoration.None,
                     fontFamily = headlineFontFamily,
                     color = if (article.isRead) GlanceTheme.colors.onSurfaceVariant
+                            else if (widgetTheme == "glamer") GlanceTheme.colors.onSurfaceVariant
                             else GlanceTheme.colors.onSurface,
                     textAlign = if (isRtl) androidx.glance.text.TextAlign.End
                                 else      androidx.glance.text.TextAlign.Start,
@@ -270,8 +272,9 @@ fun FeedItemRow(
                                     .clickable(
                                         actionRunCallback<FetchFullArticleCallback>(
                                             actionParametersOf(
-                                                FetchFullArticleCallback.ARTICLE_ID_KEY  to article.id,
-                                                FetchFullArticleCallback.ARTICLE_URL_KEY to article.articleUrl,
+                                                FetchFullArticleCallback.ARTICLE_ID_KEY          to article.id,
+                                                FetchFullArticleCallback.ARTICLE_URL_KEY         to article.articleUrl,
+                                                FetchFullArticleCallback.ARTICLE_DESCRIPTION_KEY to article.description,
                                             )
                                         )
                                     ),
