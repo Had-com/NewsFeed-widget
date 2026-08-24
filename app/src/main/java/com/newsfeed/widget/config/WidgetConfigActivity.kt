@@ -309,14 +309,16 @@ class WidgetConfigActivity : ComponentActivity() {
                                     scope.launch {
                                         store.save(final)
                                         WidgetWorker.schedule(this@WidgetConfigActivity, final.refreshIntervalMinutes.toLong())
-                                        WidgetWorker.refreshNow(this@WidgetConfigActivity)
                                         val glanceId = GlanceAppWidgetManager(this@WidgetConfigActivity).getGlanceIdBy(appWidgetId)
-                                        // Push the new config to Glance's DataStore immediately so the
-                                        // re-render below sees the current theme/fonts, not the stale cached value.
+                                        // Write configJson synchronously so the re-render below sees
+                                        // the new theme/fonts rather than the stale DataStore value.
                                         updateAppWidgetState(this@WidgetConfigActivity, glanceId) { prefs ->
                                             prefs[WidgetStateKey.configJson] = Json.encodeToString(final)
                                         }
+                                        // update() must complete before refreshNow() so that Glance's
+                                        // DataStore subscription is alive when the worker calls updateAll().
                                         NewsFeedWidget().update(this@WidgetConfigActivity, glanceId)
+                                        WidgetWorker.refreshNow(this@WidgetConfigActivity)
                                         setResult(RESULT_OK, Intent().apply { putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId) })
                                         finish()
                                     }

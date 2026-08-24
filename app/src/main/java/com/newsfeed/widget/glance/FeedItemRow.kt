@@ -186,13 +186,13 @@ fun FeedItemRow(
                 else      -> FontFamily.SansSerif
             }
             if (widgetTheme == "glamer") {
-                val density    = context.resources.displayMetrics.density
+                val density       = context.resources.displayMetrics.density
                 val scaledDensity = context.resources.displayMetrics.scaledDensity
-                val thumbDp    = if (feedConfig.displayMode == "image" && !isExpanded) 52f * fontSize else 0f
-                val widthPx    = ((LocalSize.current.width.value - 19f - thumbDp) * density)
-                                    .toInt().coerceAtLeast(50)
-                val colorArgb  = if (themeVariant == "dark") 0xFFA08060.toInt()
-                                  else                       0xFF7A5C3A.toInt()
+                val thumbDp       = if (feedConfig.displayMode == "image" && !isExpanded) 52f * fontSize else 0f
+                val widthPx       = ((LocalSize.current.width.value - 19f - thumbDp) * density)
+                                        .toInt().coerceAtLeast(50)
+                val colorArgb     = if (themeVariant == "dark") 0xFFA08060.toInt()
+                                    else                        0xFF7A5C3A.toInt()
                 val bmp = TextBitmapHelper.headline(
                     context    = context,
                     text       = article.title,
@@ -201,12 +201,29 @@ fun FeedItemRow(
                     widthPx    = widthPx,
                     isRtl      = isRtl,
                 )
-                Image(
-                    provider           = ImageProvider(bmp),
-                    contentDescription = article.title,
-                    modifier           = GlanceModifier.fillMaxWidth(),
-                    contentScale       = ContentScale.Fit,
-                )
+                if (bmp != null) {
+                    Image(
+                        provider           = ImageProvider(bmp),
+                        contentDescription = article.title,
+                        modifier           = GlanceModifier.fillMaxWidth(),
+                        contentScale       = ContentScale.Fit,
+                    )
+                } else {
+                    // Font load failed — render as Text so the headline is never blank
+                    Text(
+                        text = article.title,
+                        style = TextStyle(
+                            fontSize   = headlineSize,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Cursive,
+                            color      = ColorProvider(Color(colorArgb)),
+                            textAlign  = if (isRtl) androidx.glance.text.TextAlign.End
+                                         else       androidx.glance.text.TextAlign.Start,
+                        ),
+                        maxLines = 3,
+                        modifier = GlanceModifier.fillMaxWidth(),
+                    )
+                }
             } else {
                 Text(
                     text = article.title,
