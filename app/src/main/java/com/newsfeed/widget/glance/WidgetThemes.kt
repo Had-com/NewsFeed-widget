@@ -8,6 +8,16 @@ import androidx.glance.material3.ColorProviders as buildColorProviders
 
 object WidgetThemes {
 
+    // Returns "serif", "mono", or "sans" — used as the theme's default typeface.
+    fun fontFamilyFor(theme: String): String = when (theme) {
+        "glamer"                  -> "cursive"
+        "lavender", "light"       -> "serif"
+        "amethyst", "dark"        -> "serif"
+        "aerospace"               -> "mono"
+        "silicon", "data_science" -> "mono"
+        else                      -> "sans"  // glassy, simple, auto
+    }
+
     fun surfaceColorFor(theme: String, variant: String = "dark"): Color {
         val dark = variant == "dark"
         return when (theme) {

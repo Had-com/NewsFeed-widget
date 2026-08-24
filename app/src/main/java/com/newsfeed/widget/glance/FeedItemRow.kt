@@ -53,6 +53,7 @@ fun FeedItemRow(
     fullArticleId: String = "",
     fullArticleText: String = "",
     useThemeColors: Boolean = false,
+    widgetTheme: String = "auto",
 ) {
     val context        = LocalContext.current
     val isExpanded     = article.id == expandedArticleId
@@ -172,6 +173,14 @@ fun FeedItemRow(
             Spacer(GlanceModifier.height(3.dp))
 
             // Headline
+            val headlineFontStr = if (feedConfig.fontFamily == "serif" || feedConfig.fontFamily == "mono")
+                feedConfig.fontFamily else WidgetThemes.fontFamilyFor(widgetTheme)
+            val headlineFontFamily = when (headlineFontStr) {
+                "serif"   -> FontFamily.Serif
+                "mono"    -> FontFamily.Monospace
+                "cursive" -> FontFamily.Cursive
+                else      -> FontFamily.SansSerif
+            }
             Text(
                 text = article.title,
                 style = TextStyle(
@@ -179,11 +188,7 @@ fun FeedItemRow(
                     fontWeight = if ("bold" in feedConfig.textStyle) FontWeight.Bold else FontWeight.Normal,
                     fontStyle  = if ("italic" in feedConfig.textStyle) FontStyle.Italic else FontStyle.Normal,
                     textDecoration = if ("underline" in feedConfig.textStyle) TextDecoration.Underline else TextDecoration.None,
-                    fontFamily = when (feedConfig.fontFamily) {
-                        "serif" -> FontFamily.Serif
-                        "mono"  -> FontFamily.Monospace
-                        else    -> FontFamily.SansSerif
-                    },
+                    fontFamily = headlineFontFamily,
                     color = if (article.isRead) GlanceTheme.colors.onSurfaceVariant
                             else GlanceTheme.colors.onSurface,
                     textAlign = if (isRtl) androidx.glance.text.TextAlign.End
@@ -215,10 +220,13 @@ fun FeedItemRow(
 
             // Expanded: description + Open article button
             if (isExpanded) {
-                val feedFontFamily = when (feedConfig.fontFamily) {
-                    "serif" -> FontFamily.Serif
-                    "mono"  -> FontFamily.Monospace
-                    else    -> FontFamily.SansSerif
+                val resolvedFont = if (feedConfig.fontFamily == "serif" || feedConfig.fontFamily == "mono")
+                    feedConfig.fontFamily else WidgetThemes.fontFamilyFor(widgetTheme)
+                val feedFontFamily = when (resolvedFont) {
+                    "serif"   -> FontFamily.Serif
+                    "mono"    -> FontFamily.Monospace
+                    "cursive" -> FontFamily.Cursive
+                    else      -> FontFamily.SansSerif
                 }
                 val descStyle = TextStyle(
                     fontSize   = (10f * fontSize).sp,
