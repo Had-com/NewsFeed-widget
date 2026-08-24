@@ -39,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -416,21 +417,24 @@ class WidgetConfigActivity : ComponentActivity() {
                                 ) {
                                     Text(
                                         "ynet מבזקים  ·  14:30",
-                                        fontSize = (9f * config.fontSize).sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize   = (9f * config.fontSize).sp,
+                                        fontFamily = FontFamily.SansSerif,
+                                        color      = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                     Spacer(Modifier.height(2.dp))
                                     Text(
                                         "כותרת כתבה לדוגמה — Sample article headline",
-                                        fontSize = (13f * config.fontSize).sp,
+                                        fontSize   = (13f * config.fontSize).sp,
+                                        fontFamily = FontFamily.SansSerif,
                                         fontWeight = FontWeight.Medium,
                                         lineHeight = (17f * config.fontSize).sp,
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
                                         previewDesc,
-                                        fontSize = (10f * config.fontSize).sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize   = (10f * config.fontSize).sp,
+                                        fontFamily = FontFamily.SansSerif,
+                                        color      = MaterialTheme.colorScheme.onSurfaceVariant,
                                         lineHeight = (14f * config.fontSize).sp,
                                     )
                                 }
