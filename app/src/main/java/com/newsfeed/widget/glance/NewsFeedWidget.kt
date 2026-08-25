@@ -60,6 +60,7 @@ class NewsFeedWidget : GlanceAppWidget() {
         val configJson        = prefs[WidgetStateKey.configJson]
         val articlesJson      = prefs[WidgetStateKey.articles]
         val lastRefreshTime   = prefs[WidgetStateKey.lastRefreshTime] ?: 0L
+        val lastRefreshFailed = prefs[WidgetStateKey.lastRefreshFailed] ?: false
         val expandedArticleId = prefs[WidgetStateKey.expandedArticleId] ?: ""
         val fullArticleId     = prefs[WidgetStateKey.fullArticleId]     ?: ""
         val fullArticleText   = prefs[WidgetStateKey.fullArticleText]   ?: ""
@@ -135,7 +136,7 @@ class NewsFeedWidget : GlanceAppWidget() {
                     }
                 }
 
-                WidgetFooter(lastRefreshTime, config.refreshIntervalMinutes, config.widgetId)
+                WidgetFooter(lastRefreshTime, lastRefreshFailed, config.refreshIntervalMinutes, config.widgetId)
             }
         }
     }
@@ -171,17 +172,19 @@ class NewsFeedWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun WidgetFooter(lastRefreshTime: Long, intervalMinutes: Int, widgetId: Int) {
+    private fun WidgetFooter(lastRefreshTime: Long, lastRefreshFailed: Boolean, intervalMinutes: Int, widgetId: Int) {
         Divider()
         val now           = System.currentTimeMillis()
         val nextMs        = lastRefreshTime + TimeUnit.MINUTES.toMillis(intervalMinutes.toLong())
         val leftMs        = (nextMs - now).coerceAtLeast(0L)
         val leftMin       = TimeUnit.MILLISECONDS.toMinutes(leftMs)
         val countdownText = when {
+            lastRefreshFailed     -> "⚠ refresh failed — tap to retry"
             lastRefreshTime == 0L -> "↻ now"
             leftMs < 60_000L      -> "↻ <1min"
             else                  -> "↻ in ${leftMin}min"
         }
+        val countdownColor = if (lastRefreshFailed) ColorProvider(Color(0xFFE0A030)) else GlanceTheme.colors.primary
 
         val context = LocalContext.current
         val settingsIntent = Intent(context, WidgetConfigActivity::class.java).apply {
@@ -197,7 +200,7 @@ class NewsFeedWidget : GlanceAppWidget() {
         ) {
             Text(
                 text = countdownText,
-                style = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.SansSerif, color = GlanceTheme.colors.primary),
+                style = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.SansSerif, color = countdownColor),
                 modifier = GlanceModifier.clickable(actionRunCallback<RefreshNowCallback>()),
             )
             Spacer(GlanceModifier.defaultWeight())

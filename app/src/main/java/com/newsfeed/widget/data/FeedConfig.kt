@@ -52,6 +52,11 @@ data class FeedSearchResult(
     val subscribers: Int,
 )
 
+data class ArticleFetchResult(
+    val articles: List<ArticleItem>,
+    val allFailed: Boolean,   // true only when every enabled feed's fetch threw
+)
+
 enum class SortOrder(val key: String, val labelRes: String) {
     NEWEST("newest", "Newest first"),
     OLDEST("oldest", "Oldest first"),

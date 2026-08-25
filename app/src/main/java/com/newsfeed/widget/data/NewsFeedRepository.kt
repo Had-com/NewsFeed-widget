@@ -33,13 +33,16 @@ class NewsFeedRepository(private val context: Context) {
         "Accept-Language" to "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7",
     )
 
-    suspend fun getArticles(config: WidgetConfig): List<ArticleItem> = withContext(Dispatchers.IO) {
-        val all = config.feeds
-            .filter { it.enabled && it.feedUrl.isNotBlank() }
-            .map { feed -> async { runCatching { fetchFeedArticles(feed) }.getOrDefault(emptyList()) } }
+    suspend fun getArticles(config: WidgetConfig): ArticleFetchResult = withContext(Dispatchers.IO) {
+        val enabledFeeds = config.feeds.filter { it.enabled && it.feedUrl.isNotBlank() }
+        val results = enabledFeeds
+            .map { feed -> async { runCatching { fetchFeedArticles(feed) } } }
             .awaitAll()
-            .flatten()
-        applyFiltersAndSort(all, config)
+        val all = results.flatMap { it.getOrDefault(emptyList()) }
+        // "Failed" means every enabled feed's fetch threw — a handful of unreachable
+        // feeds among many working ones is normal and shouldn't be flagged as an error.
+        val allFailed = enabledFeeds.isNotEmpty() && results.all { it.isFailure }
+        ArticleFetchResult(applyFiltersAndSort(all, config), allFailed)
     }
 
     suspend fun fetchFeedTitle(url: String): String? = withContext(Dispatchers.IO) {

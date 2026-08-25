@@ -36,7 +36,8 @@ class WidgetWorker(
         for (glanceId in widgetIds) {
             val appWidgetId = manager.getAppWidgetId(glanceId)
             val config      = store.configFlow(appWidgetId).first()
-            val fresh       = repo.getArticles(config).map { a ->
+            val fetchResult = repo.getArticles(config)
+            val fresh       = fetchResult.articles.map { a ->
                 if (a.id in readIds) a.copy(isRead = true) else a
             }
 
@@ -53,6 +54,7 @@ class WidgetWorker(
                 prefs[WidgetStateKey.articles]        = Json.encodeToString(merged)
                 prefs[WidgetStateKey.configJson]      = Json.encodeToString(config)
                 prefs[WidgetStateKey.lastRefreshTime] = now
+                prefs[WidgetStateKey.lastRefreshFailed] = fetchResult.allFailed
             }
             // Download thumbnails for the merged set so accumulated articles are covered too
             repo.downloadThumbnails(merged.take(30), config.feeds)

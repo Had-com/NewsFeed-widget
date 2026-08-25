@@ -152,12 +152,15 @@ fun FeedItemRow(
                     // Time always on physical LEFT regardless of RTL direction
                     Text(formatDateTime(article.publishedAt), style = tsStyle, maxLines = 1)
                     Spacer(GlanceModifier.width(6.dp))
-                    Spacer(GlanceModifier.defaultWeight())
                     if (!article.isRead) {
                         Box(modifier = GlanceModifier.width(5.dp).height(5.dp).background(accentProvider)) {}
                         Spacer(GlanceModifier.width(3.dp))
                     }
-                    Text(feedConfig.displayName, style = nameStyle, maxLines = 1)
+                    // defaultWeight() bounds the name to whatever space is left after the
+                    // fixed-size siblings, so a long name truncates instead of overlapping
+                    // the unread dot or pushing the favicon circle out of the row.
+                    Text(feedConfig.displayName, style = nameStyle, maxLines = 1,
+                        modifier = GlanceModifier.defaultWeight())
                     Spacer(GlanceModifier.width(4.dp))
                     FeedCircle()
                 } else {
@@ -170,7 +173,8 @@ fun FeedItemRow(
                         Box(modifier = GlanceModifier.width(5.dp).height(5.dp).background(accentProvider)) {}
                         Spacer(GlanceModifier.width(3.dp))
                     }
-                    Text(feedConfig.displayName, style = nameStyle, maxLines = 1)
+                    Text(feedConfig.displayName, style = nameStyle, maxLines = 1,
+                        modifier = GlanceModifier.defaultWeight())
                 }
             }
 
