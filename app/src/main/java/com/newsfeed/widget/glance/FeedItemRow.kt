@@ -149,9 +149,10 @@ fun FeedItemRow(
                 )
 
                 if (isRtl) {
-                    Spacer(GlanceModifier.defaultWeight())
+                    // Time always on physical LEFT regardless of RTL direction
                     Text(formatDateTime(article.publishedAt), style = tsStyle, maxLines = 1)
-                    Spacer(GlanceModifier.width(4.dp))
+                    Spacer(GlanceModifier.width(6.dp))
+                    Spacer(GlanceModifier.defaultWeight())
                     if (!article.isRead) {
                         Box(modifier = GlanceModifier.width(5.dp).height(5.dp).background(accentProvider)) {}
                         Spacer(GlanceModifier.width(3.dp))

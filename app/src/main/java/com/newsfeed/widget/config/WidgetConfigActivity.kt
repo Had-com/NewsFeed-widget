@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.lifecycle.lifecycleScope
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
+import androidx.glance.appwidget.updateAll
 import com.newsfeed.widget.data.FeedConfig
 import com.newsfeed.widget.data.FilterMode
 import com.newsfeed.widget.data.OpmlManager
@@ -306,18 +308,19 @@ class WidgetConfigActivity : ComponentActivity() {
                             actions = {
                                 TextButton(onClick = {
                                     val final = config.copy(feedOrder = feedOrder.toList())
-                                    scope.launch {
+                                    lifecycleScope.launch {
                                         store.save(final)
                                         WidgetWorker.schedule(this@WidgetConfigActivity, final.refreshIntervalMinutes.toLong())
-                                        val glanceId = GlanceAppWidgetManager(this@WidgetConfigActivity).getGlanceIdBy(appWidgetId)
-                                        // Write configJson synchronously so the re-render below sees
-                                        // the new theme/fonts rather than the stale DataStore value.
-                                        updateAppWidgetState(this@WidgetConfigActivity, glanceId) { prefs ->
-                                            prefs[WidgetStateKey.configJson] = Json.encodeToString(final)
+                                        runCatching {
+                                            val glanceId = GlanceAppWidgetManager(this@WidgetConfigActivity).getGlanceIdBy(appWidgetId)
+                                            updateAppWidgetState(this@WidgetConfigActivity, glanceId) { prefs ->
+                                                prefs[WidgetStateKey.configJson] = Json.encodeToString(final)
+                                            }
+                                            // update() initialises the Glance DataStore subscription;
+                                            // updateAll() ensures every widget instance re-renders.
+                                            NewsFeedWidget().update(this@WidgetConfigActivity, glanceId)
+                                            NewsFeedWidget().updateAll(this@WidgetConfigActivity)
                                         }
-                                        // update() must complete before refreshNow() so that Glance's
-                                        // DataStore subscription is alive when the worker calls updateAll().
-                                        NewsFeedWidget().update(this@WidgetConfigActivity, glanceId)
                                         WidgetWorker.refreshNow(this@WidgetConfigActivity)
                                         setResult(RESULT_OK, Intent().apply { putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId) })
                                         finish()

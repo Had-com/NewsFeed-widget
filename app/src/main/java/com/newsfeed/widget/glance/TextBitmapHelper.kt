@@ -32,16 +32,17 @@ object TextBitmapHelper {
         return synchronized(this) {
             cachedTypeface ?: run {
                 val ctx = context.applicationContext
-                // API 26+ Resources.getFont() is more reliable than the compat wrapper in
-                // non-Activity contexts (e.g. Glance's composition thread).
+                // Typeface.createFromAssets() is the most reliable method in background/widget
+                // contexts — Resources.getFont() can silently fail on Glance's coroutine thread.
                 val tf: Typeface? = try {
-                    ctx.resources.getFont(R.font.miriam_libre_bold)
-                } catch (_: Exception) {
-                    try {
-                        ResourcesCompat.getFont(ctx, R.font.miriam_libre_bold)
-                    } catch (_: Exception) {
-                        null
+                    ctx.assets.open("fonts/miriam_libre_bold.ttf").use { stream ->
+                        val file = java.io.File(ctx.cacheDir, "miriam_libre_bold.ttf")
+                        file.outputStream().use { stream.copyTo(it) }
+                        Typeface.createFromFile(file)
                     }
+                } catch (_: Exception) {
+                    try { ResourcesCompat.getFont(ctx, R.font.miriam_libre_bold) }
+                    catch (_: Exception) { null }
                 }
                 if (tf != null) cachedTypeface = tf
                 tf ?: Typeface.DEFAULT_BOLD
