@@ -133,8 +133,10 @@ val description: String = ""
 
 `WidgetConfig` gains:
 ```kotlin
-val externalApp: String = "browser"   // "readyou" | "browser" | "share"
+val externalApp: String = "browser"   // "browser" | "share"
 ```
+
+> **Update (2026-08-25):** the third option, opening in a companion "Read You" RSS reader app (`me.ash.reader`), was removed. It depended on an external app most users don't have installed, and QA found it added confusion without adding value over Browser/Share — see the bug-fix log below.
 
 `WidgetStateKey` gains:
 ```kotlin
@@ -165,7 +167,6 @@ Logic:
 1. Read `WidgetConfig` from state to get `externalApp`.
 2. Mark article as read via `ReadStatusStore.markRead(articleId)`.
 3. Launch intent based on `externalApp`:
-   - `"readyou"`: `Intent(ACTION_VIEW, uri).setPackage("me.ash.reader")`, fall back to browser.
    - `"browser"`: `Intent(ACTION_VIEW, uri)`.
    - `"share"`: `Intent(ACTION_SEND).setType("text/plain").putExtra(EXTRA_TEXT, url)` wrapped in `Intent.createChooser`.
 4. All intents require `FLAG_ACTIVITY_NEW_TASK` (launching from non-Activity context).
@@ -200,19 +201,18 @@ The "Open" button has its own click action and does not collapse.
 Opacity dimming for non-expanded articles: Glance `GlanceModifier.alpha()` is not available — use `ColorProvider` tinting or `background` overlay. Practical approach: pass `isDimmed: Boolean` to each row; when true, render headline and meta in muted colors (`rgba(255,255,255,.3)` equivalent via hardcoded `Color`).
 
 "Open in [app]" button label:
-- `"readyou"` → "Open in Read You"
 - `"browser"` → "Open in browser"
 - `"share"` → "Share article"
 
 ### Config UI for external app
 
-In `WidgetConfigActivity` Sort & Filter section, add an "Open article in" row with a dropdown matching the refresh/sort/filter dropdowns. Options: "Read You", "Browser", "Share sheet".
+In `WidgetConfigActivity` Sort & Filter section, add an "Open article in" row with a dropdown matching the refresh/sort/filter dropdowns. Options: "Browser", "Share sheet".
 
 ### Removing `DeepLinkActivity`
 
 - Remove `DeepLinkActivity.kt`.
 - Remove its `<activity>` entry from `AndroidManifest.xml`.
-- Remove `me.ash.reader` / `io.github.ashinch.readyou` from `<queries>` only if no other code references them — keep `me.ash.reader` since `OpenExternalCallback` still needs it for the "Read You" external open option.
+- Remove `me.ash.reader` / `io.github.ashinch.readyou` from `<queries>` — no code references them once the "Read You" external-open option is gone (see 2026-08-25 update above).
 - `FeedItemRow` no longer imports or uses `DeepLinkActivity`.
 
 ---
@@ -276,3 +276,24 @@ The following bugs were identified post-implementation and fixed:
 **`TextBitmapHelper.kt` (new file):** Canvas-based bitmap renderer for Glamour theme headlines. Loads `R.font.miriam_libre_bold` via `ResourcesCompat.getFont()`, renders with `StaticLayout`, caches bitmaps in an LRU by `"$text|$textSizePx|$colorArgb|$widthPx|$isRtl"` key.
 
 **`FetchFullArticleCallback` two-phase loading:** On tap, immediately writes `article.description` to `WidgetStateKey.fullArticleText` and calls `update()`, then fetches the full web page and calls `update()` again with the complete content.
+
+---
+
+## Bug fixes and improvements (shipped 2026-08-25, post-QA)
+
+A full mobile QA pass (`app-debug_v25.apk`, Android 14 emulator, ~65 min of scripted testing) found 10 issues. Auditing HEAD (`df78a19` at the time) against each showed most were already fixed by intervening commits (`ce26b32`, `ede46bd`, `110c1ea`, `22d4547`, `a654321`, `df78a19` — race-condition fix, dark-theme fix, per-line `maxLines`, unified B/I/U style toggle). The table below covers only what changed as a direct result of this pass.
+
+| # | QA finding | Status | Change |
+|---|---|---|---|
+| 1 | Manual refresh fails silently when offline or after force-stop — `WidgetWorker.doWork()` always returned `Result.success()` even when every feed fetch threw, with no way for the UI to tell "refreshed, nothing new" from "refresh didn't work" | **Fixed** | `NewsFeedRepository.getArticles()` now returns `ArticleFetchResult(articles, allFailed)`; `allFailed` is true only when every *enabled* feed's fetch threw (a few dead feeds among many working ones is normal, not an error). `WidgetWorker` persists this as `WidgetStateKey.lastRefreshFailed`. The footer shows "⚠ refresh failed — tap to retry" in place of the countdown when set, using the same tap target as the existing refresh-now action. |
+| 2 | Long feed names wrap illegibly at large font sizes / overlap the unread-dot at minimum widget width | **Hardened** | The feed-name `Text` in `FeedItemRow`'s meta row already had `maxLines = 1`; it lacked a width constraint, so a long name could still push the favicon circle or unread dot out of the row instead of truncating. Added `GlanceModifier.defaultWeight()` to the name `Text` (both RTL and LTR branches) so it's bounded to whatever space remains after the fixed-size siblings. |
+| 3 | Critical: tapping an article did nothing in any "open in" mode, with logcat showing a trampoline-activity pause timeout and OkHttp connection-pool contention | **Not reproducible at HEAD** | The tap path (`ToggleExpandCallback` → expand → `OpenExternalCallback`) does no network I/O — it reads local DataStore and calls `startActivity`. The symptom looks like it belonged to an earlier build of the tap-handling code (v25 predates several of the commits above); no blocking call was found in the current path. Flagged for re-verification once a fresh build can be installed and QA'd (see note below). |
+| 4 | Config Save doesn't refresh the live widget until manual refresh | **Already fixed** | `WidgetConfigActivity`'s Save handler already writes `configJson` into Glance state synchronously and calls `update()`/`updateAll()` before enqueuing the background re-fetch — this is the exact race-condition fix logged as item 5 in the table above, just landed after v25 was built. |
+| 5 | Feed list add/remove doesn't reliably persist | **Already fixed** | Same synchronous-save path as above; `feedOrder` is correctly folded into the saved config (`config.copy(feedOrder = feedOrder.toList())`) before `store.save()`. |
+| 6 | Font size setting intermittently reverts | **Unconfirmed, not changed** | Only observed once by QA, not independently reproducible, and no corresponding code issue was found in the load/save path. Left as-is rather than guessing at a fix for an unconfirmed defect. |
+| 7 | Italic toggle has no active-state highlight | **Already fixed** | Bold/Italic/Underline all render through one shared `StyleToggle()` composable in `FeedConfigRow.kt` with identical highlight logic — there's no special-casing that would make Italic behave differently from the other two. |
+| 8 | No vertical resize handles appear despite `resizeMode="horizontal\|vertical"` | **Not a code defect** | `appwidget_info.xml`'s `minResizeWidth`/`minResizeHeight` already carry correct `dp` units. QA's own note flagged the AVD's very small screen (320×640) as the more likely cause — recommend re-checking on a larger-screen device rather than treating this as a bug. |
+| 9 | Settings screen ignores system dark theme | **Already fixed** | `WidgetConfigActivity.onCreate()` already wraps content in `MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme())` — this is precisely what commit `df78a19` ("config activity now respects system dark mode") landed, one commit after v25 was built. |
+| 10 | "Read You" companion-app open-in option | **Removed** | Confirmed already absent from `FeedConfig.externalApp`'s docstring, `WidgetConfigActivity`'s `externalOptions` list, and `OpenExternalCallback`'s `when` branch — only "Browser" and "Share sheet" remain. `AndroidManifest.xml` has no `DeepLinkActivity` or `me.ash.reader` `<queries>` entry. This spec doc's Feature 5 section has been updated to match (see the 2026-08-25 note above). |
+
+**Verification note:** local `gradlew assembleDebug` could not be run in the environment these fixes were made in — the Gradle daemon couldn't establish its loopback IPC connection (a machine-level networking restriction, not a project issue). Changes were reviewed carefully by reading the surrounding code paths, but a real build + install + QA re-pass (items 3 and 6 especially) is recommended once these commits are pushed and CI produces a new build.

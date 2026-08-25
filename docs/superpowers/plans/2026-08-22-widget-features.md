@@ -10,6 +10,8 @@
 
 **Status:** ✅ All tasks complete. Commits: `ce26b32` (race condition fix), `ede46bd` (encodeToString import), `110c1ea` (6 bugs), `22d4547` (Hebrew bitmap font).
 
+> **2026-08-25 update:** the "Read You" companion-app external-open option (referenced throughout Task 5/9's code below as `"readyou"` / `me.ash.reader`) has since been removed from the shipped app — only Browser and Share sheet remain. A QA pass on `app-debug_v25.apk` also drove a further round of fixes (silent-refresh-failure feedback, feed-name overflow at narrow widths). The task snippets below are left as-is as a historical record of what was implemented at each step; see the **"Bug fixes and improvements (shipped 2026-08-25, post-QA)"** section at the bottom of `docs/superpowers/specs/2026-08-22-widget-features-design.md` for the current, authoritative state of these features.
+
 ---
 
 ## File map
