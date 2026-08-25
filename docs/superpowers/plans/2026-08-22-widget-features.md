@@ -1,8 +1,8 @@
-# Widget features — implementation plan
+﻿# Widget features — implementation plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add five features to the Read You widget: inline article expand/collapse reader, configurable external open, per-feed thumbnails, global font size slider, refresh-now button + countdown, and edit-feed-name/URL dialog.
+**Goal:** Add five features to the NewsFeed widget: inline article expand/collapse reader, configurable external open, per-feed thumbnails, global font size slider, refresh-now button + countdown, and edit-feed-name/URL dialog.
 
 **Architecture:** All widget interactions migrate from `DeepLinkActivity` to Glance `ActionCallback`s (`RefreshNowCallback`, `ToggleExpandCallback`, `OpenExternalCallback`). New data fields flow from the data model → RSS parser → WidgetWorker → Glance state → widget rendering. Config screen gains three new controls (font slider, external app dropdown, edit-feed dialog).
 
@@ -16,31 +16,31 @@
 
 | Action | File |
 |---|---|
-| Modify | `app/src/main/java/com/readyou/widget/data/FeedConfig.kt` |
-| Modify | `app/src/main/java/com/readyou/widget/data/WidgetStateKey.kt` |
-| **Create** | `app/src/main/java/com/readyou/widget/data/ThumbnailHelper.kt` |
-| Modify | `app/src/main/java/com/readyou/widget/data/ReadYouRepository.kt` |
-| **Create** | `app/src/main/java/com/readyou/widget/glance/RefreshNowCallback.kt` |
-| **Create** | `app/src/main/java/com/readyou/widget/glance/ToggleExpandCallback.kt` |
-| **Create** | `app/src/main/java/com/readyou/widget/glance/OpenExternalCallback.kt` |
-| Modify | `app/src/main/java/com/readyou/widget/glance/WidgetWorker.kt` |
-| Modify | `app/src/main/java/com/readyou/widget/glance/FeedItemRow.kt` |
-| Modify | `app/src/main/java/com/readyou/widget/glance/ReadYouWidget.kt` |
-| Modify | `app/src/main/java/com/readyou/widget/config/FeedConfigRow.kt` |
-| Modify | `app/src/main/java/com/readyou/widget/config/WidgetConfigActivity.kt` |
-| **Delete** | `app/src/main/java/com/readyou/widget/DeepLinkActivity.kt` |
+| Modify | `app/src/main/java/com/newsfeed/widget/data/FeedConfig.kt` |
+| Modify | `app/src/main/java/com/newsfeed/widget/data/WidgetStateKey.kt` |
+| **Create** | `app/src/main/java/com/newsfeed/widget/data/ThumbnailHelper.kt` |
+| Modify | `app/src/main/java/com/newsfeed/widget/data/NewsFeedRepository.kt` |
+| **Create** | `app/src/main/java/com/newsfeed/widget/glance/RefreshNowCallback.kt` |
+| **Create** | `app/src/main/java/com/newsfeed/widget/glance/ToggleExpandCallback.kt` |
+| **Create** | `app/src/main/java/com/newsfeed/widget/glance/OpenExternalCallback.kt` |
+| Modify | `app/src/main/java/com/newsfeed/widget/glance/WidgetWorker.kt` |
+| Modify | `app/src/main/java/com/newsfeed/widget/glance/FeedItemRow.kt` |
+| Modify | `app/src/main/java/com/newsfeed/widget/glance/NewsFeedWidget.kt` |
+| Modify | `app/src/main/java/com/newsfeed/widget/config/FeedConfigRow.kt` |
+| Modify | `app/src/main/java/com/newsfeed/widget/config/WidgetConfigActivity.kt` |
+| **Delete** | `app/src/main/java/com/newsfeed/widget/DeepLinkActivity.kt` |
 | Modify | `app/src/main/AndroidManifest.xml` |
 
 ---
 
 ## Task 1: Data model — new fields on FeedConfig, WidgetConfig, ArticleItem
 
-**Files:** Modify `app/src/main/java/com/readyou/widget/data/FeedConfig.kt`
+**Files:** Modify `app/src/main/java/com/newsfeed/widget/data/FeedConfig.kt`
 
 - [ ] **Replace the entire file** with the version below. All new fields have defaults so existing DataStore JSON deserializes cleanly (`ignoreUnknownKeys = true` is already set in `WidgetConfigStore`).
 
 ```kotlin
-package com.readyou.widget.data
+package com.newsfeed.widget.data
 
 import kotlinx.serialization.Serializable
 
@@ -104,7 +104,7 @@ Expected: `BUILD SUCCESSFUL`
 
 - [ ] **Commit**
 ```bash
-git add app/src/main/java/com/readyou/widget/data/FeedConfig.kt
+git add app/src/main/java/com/newsfeed/widget/data/FeedConfig.kt
 git commit -m "feat: add displayMode, fontSize, externalApp, description, imageUrl fields"
 ```
 
@@ -112,12 +112,12 @@ git commit -m "feat: add displayMode, fontSize, externalApp, description, imageU
 
 ## Task 2: Glance state keys — lastRefreshTime + expandedArticleId
 
-**Files:** Modify `app/src/main/java/com/readyou/widget/data/WidgetStateKey.kt`
+**Files:** Modify `app/src/main/java/com/newsfeed/widget/data/WidgetStateKey.kt`
 
 - [ ] **Replace the file:**
 
 ```kotlin
-package com.readyou.widget.data
+package com.newsfeed.widget.data
 
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -138,7 +138,7 @@ Expected: `BUILD SUCCESSFUL`
 
 - [ ] **Commit**
 ```bash
-git add app/src/main/java/com/readyou/widget/data/WidgetStateKey.kt
+git add app/src/main/java/com/newsfeed/widget/data/WidgetStateKey.kt
 git commit -m "feat: add lastRefreshTime and expandedArticleId state keys"
 ```
 
@@ -146,12 +146,12 @@ git commit -m "feat: add lastRefreshTime and expandedArticleId state keys"
 
 ## Task 3: ThumbnailHelper — shared cache file path
 
-**Files:** Create `app/src/main/java/com/readyou/widget/data/ThumbnailHelper.kt`
+**Files:** Create `app/src/main/java/com/newsfeed/widget/data/ThumbnailHelper.kt`
 
 - [ ] **Create the file:**
 
 ```kotlin
-package com.readyou.widget.data
+package com.newsfeed.widget.data
 
 import android.content.Context
 import java.io.File
@@ -170,7 +170,7 @@ Expected: `BUILD SUCCESSFUL`
 
 - [ ] **Commit**
 ```bash
-git add app/src/main/java/com/readyou/widget/data/ThumbnailHelper.kt
+git add app/src/main/java/com/newsfeed/widget/data/ThumbnailHelper.kt
 git commit -m "feat: add ThumbnailHelper for shared cache file path"
 ```
 
@@ -178,12 +178,12 @@ git commit -m "feat: add ThumbnailHelper for shared cache file path"
 
 ## Task 4: RSS parser — description, imageUrl, thumbnail download
 
-**Files:** Modify `app/src/main/java/com/readyou/widget/data/ReadYouRepository.kt`
+**Files:** Modify `app/src/main/java/com/newsfeed/widget/data/NewsFeedRepository.kt`
 
 - [ ] **Replace the entire file.** Key changes: `parseItem()` captures `<description>`, `<content:encoded>`, `<media:thumbnail>`, `<media:content>`, `<enclosure>`; new `downloadThumbnails()` and `scaleBitmap()` methods.
 
 ```kotlin
-package com.readyou.widget.data
+package com.newsfeed.widget.data
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -200,7 +200,7 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
-class ReadYouRepository(private val context: Context) {
+class NewsFeedRepository(private val context: Context) {
 
     val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -219,7 +219,7 @@ class ReadYouRepository(private val context: Context) {
 
     suspend fun fetchFeedTitle(url: String): String? = withContext(Dispatchers.IO) {
         try {
-            val req = Request.Builder().url(url).header("User-Agent", "ReadYouWidget/1.0").build()
+            val req = Request.Builder().url(url).header("User-Agent", "NewsFeedWidget/1.0").build()
             client.newCall(req).execute().use { response ->
                 if (!response.isSuccessful) return@withContext null
                 response.body?.byteStream()?.let { stream ->
@@ -241,7 +241,7 @@ class ReadYouRepository(private val context: Context) {
                 if (file.exists() && System.currentTimeMillis() - file.lastModified() < 24 * 3600_000L) continue
                 runCatching {
                     val req = Request.Builder().url(article.imageUrl)
-                        .header("User-Agent", "ReadYouWidget/1.0").build()
+                        .header("User-Agent", "NewsFeedWidget/1.0").build()
                     client.newCall(req).execute().use { resp ->
                         if (!resp.isSuccessful) return@runCatching
                         val bmp = resp.body?.byteStream()?.let { BitmapFactory.decodeStream(it) }
@@ -259,7 +259,7 @@ class ReadYouRepository(private val context: Context) {
     // ── private ───────────────────────────────────────────────────────────────
 
     private fun fetchFeedArticles(feed: FeedConfig): List<ArticleItem> {
-        val req = Request.Builder().url(feed.feedUrl).header("User-Agent", "ReadYouWidget/1.0").build()
+        val req = Request.Builder().url(feed.feedUrl).header("User-Agent", "NewsFeedWidget/1.0").build()
         return client.newCall(req).execute().use { response ->
             if (!response.isSuccessful) return emptyList()
             response.body?.byteStream()?.let { stream ->
@@ -445,7 +445,7 @@ Expected: `BUILD SUCCESSFUL`
 
 - [ ] **Commit**
 ```bash
-git add app/src/main/java/com/readyou/widget/data/ReadYouRepository.kt
+git add app/src/main/java/com/newsfeed/widget/data/NewsFeedRepository.kt
 git commit -m "feat: parse description, imageUrl from RSS; add downloadThumbnails()"
 ```
 
@@ -453,12 +453,12 @@ git commit -m "feat: parse description, imageUrl from RSS; add downloadThumbnail
 
 ## Task 5: Three Glance ActionCallbacks
 
-**Files:** Create three new files in `app/src/main/java/com/readyou/widget/glance/`
+**Files:** Create three new files in `app/src/main/java/com/newsfeed/widget/glance/`
 
 - [ ] **Create `RefreshNowCallback.kt`:**
 
 ```kotlin
-package com.readyou.widget.glance
+package com.newsfeed.widget.glance
 
 import android.content.Context
 import androidx.glance.GlanceId
@@ -479,14 +479,14 @@ class RefreshNowCallback : ActionCallback {
 - [ ] **Create `ToggleExpandCallback.kt`:**
 
 ```kotlin
-package com.readyou.widget.glance
+package com.newsfeed.widget.glance
 
 import android.content.Context
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.state.updateAppWidgetState
-import com.readyou.widget.data.WidgetStateKey
+import com.newsfeed.widget.data.WidgetStateKey
 
 class ToggleExpandCallback : ActionCallback {
     companion object {
@@ -503,7 +503,7 @@ class ToggleExpandCallback : ActionCallback {
             val current = prefs[WidgetStateKey.expandedArticleId] ?: ""
             prefs[WidgetStateKey.expandedArticleId] = if (current == articleId) "" else articleId
         }
-        ReadYouWidget().update(context, glanceId)
+        NewsFeedWidget().update(context, glanceId)
     }
 }
 ```
@@ -511,7 +511,7 @@ class ToggleExpandCallback : ActionCallback {
 - [ ] **Create `OpenExternalCallback.kt`:**
 
 ```kotlin
-package com.readyou.widget.glance
+package com.newsfeed.widget.glance
 
 import android.content.Context
 import android.content.Intent
@@ -519,8 +519,8 @@ import android.net.Uri
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
-import com.readyou.widget.data.ReadStatusStore
-import com.readyou.widget.data.WidgetConfigStore
+import com.newsfeed.widget.data.ReadStatusStore
+import com.newsfeed.widget.data.WidgetConfigStore
 import kotlinx.coroutines.flow.first
 
 class OpenExternalCallback : ActionCallback {
@@ -572,9 +572,9 @@ Expected: `BUILD SUCCESSFUL`
 
 - [ ] **Commit**
 ```bash
-git add app/src/main/java/com/readyou/widget/glance/RefreshNowCallback.kt \
-        app/src/main/java/com/readyou/widget/glance/ToggleExpandCallback.kt \
-        app/src/main/java/com/readyou/widget/glance/OpenExternalCallback.kt
+git add app/src/main/java/com/newsfeed/widget/glance/RefreshNowCallback.kt \
+        app/src/main/java/com/newsfeed/widget/glance/ToggleExpandCallback.kt \
+        app/src/main/java/com/newsfeed/widget/glance/OpenExternalCallback.kt
 git commit -m "feat: add RefreshNow, ToggleExpand, OpenExternal action callbacks"
 ```
 
@@ -582,12 +582,12 @@ git commit -m "feat: add RefreshNow, ToggleExpand, OpenExternal action callbacks
 
 ## Task 6: WidgetWorker — write lastRefreshTime + download thumbnails
 
-**Files:** Modify `app/src/main/java/com/readyou/widget/glance/WidgetWorker.kt`
+**Files:** Modify `app/src/main/java/com/newsfeed/widget/glance/WidgetWorker.kt`
 
 - [ ] **Replace the entire file:**
 
 ```kotlin
-package com.readyou.widget.glance
+package com.newsfeed.widget.glance
 
 import android.content.Context
 import androidx.glance.appwidget.GlanceAppWidgetManager
@@ -599,10 +599,10 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.readyou.widget.data.ReadStatusStore
-import com.readyou.widget.data.ReadYouRepository
-import com.readyou.widget.data.WidgetConfigStore
-import com.readyou.widget.data.WidgetStateKey
+import com.newsfeed.widget.data.ReadStatusStore
+import com.newsfeed.widget.data.NewsFeedRepository
+import com.newsfeed.widget.data.WidgetConfigStore
+import com.newsfeed.widget.data.WidgetStateKey
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -615,10 +615,10 @@ class WidgetWorker(
 
     override suspend fun doWork(): Result {
         val store   = WidgetConfigStore(context)
-        val repo    = ReadYouRepository(context)
+        val repo    = NewsFeedRepository(context)
         val readIds = ReadStatusStore(context).readIdsFlow().first()
         val manager = GlanceAppWidgetManager(context)
-        val widgetIds = manager.getGlanceIds(ReadYouWidget::class.java)
+        val widgetIds = manager.getGlanceIds(NewsFeedWidget::class.java)
 
         for (glanceId in widgetIds) {
             val appWidgetId = manager.getAppWidgetId(glanceId)
@@ -637,12 +637,12 @@ class WidgetWorker(
             }
         }
 
-        ReadYouWidget().updateAll(context)
+        NewsFeedWidget().updateAll(context)
         return Result.success()
     }
 
     companion object {
-        private const val WORK_NAME = "ReadYouWidgetRefresh"
+        private const val WORK_NAME = "NewsFeedWidgetRefresh"
 
         fun schedule(context: Context, intervalMinutes: Long = 15) {
             val request = PeriodicWorkRequestBuilder<WidgetWorker>(
@@ -673,7 +673,7 @@ Expected: `BUILD SUCCESSFUL`
 
 - [ ] **Commit**
 ```bash
-git add app/src/main/java/com/readyou/widget/glance/WidgetWorker.kt
+git add app/src/main/java/com/newsfeed/widget/glance/WidgetWorker.kt
 git commit -m "feat: write lastRefreshTime to state; download thumbnails in worker"
 ```
 
@@ -681,12 +681,12 @@ git commit -m "feat: write lastRefreshTime to state; download thumbnails in work
 
 ## Task 7: FeedItemRow — expand/collapse, dimming, thumbnail, font size
 
-**Files:** Modify `app/src/main/java/com/readyou/widget/glance/FeedItemRow.kt`
+**Files:** Modify `app/src/main/java/com/newsfeed/widget/glance/FeedItemRow.kt`
 
 - [ ] **Replace the entire file.** The composable now accepts `expandedArticleId`, `widgetId`, and `fontSize`. Expanded article shows description + Open button. Non-expanded articles dim when any article is open.
 
 ```kotlin
-package com.readyou.widget.glance
+package com.newsfeed.widget.glance
 
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -719,9 +719,9 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextDecoration
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import com.readyou.widget.data.ArticleItem
-import com.readyou.widget.data.FeedConfig
-import com.readyou.widget.data.ThumbnailHelper
+import com.newsfeed.widget.data.ArticleItem
+import com.newsfeed.widget.data.FeedConfig
+import com.newsfeed.widget.data.ThumbnailHelper
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -909,24 +909,24 @@ private fun relativeTime(epochMs: Long): String {
 ```bash
 gradle assembleDebug 2>&1 | tail -5
 ```
-Expected: `BUILD SUCCESSFUL` (ReadYouWidget.kt will have compile errors until Task 8 — fix those first if needed)
+Expected: `BUILD SUCCESSFUL` (NewsFeedWidget.kt will have compile errors until Task 8 — fix those first if needed)
 
 - [ ] **Commit**
 ```bash
-git add app/src/main/java/com/readyou/widget/glance/FeedItemRow.kt
+git add app/src/main/java/com/newsfeed/widget/glance/FeedItemRow.kt
 git commit -m "feat: FeedItemRow — expand/collapse, dimming, thumbnails, font size"
 ```
 
 ---
 
-## Task 8: ReadYouWidget — footer refresh + countdown, pass new params
+## Task 8: NewsFeedWidget — footer refresh + countdown, pass new params
 
-**Files:** Modify `app/src/main/java/com/readyou/widget/glance/ReadYouWidget.kt`
+**Files:** Modify `app/src/main/java/com/newsfeed/widget/glance/NewsFeedWidget.kt`
 
 - [ ] **Replace the entire file:**
 
 ```kotlin
-package com.readyou.widget.glance
+package com.newsfeed.widget.glance
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -956,12 +956,12 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import com.readyou.widget.data.ArticleItem
-import com.readyou.widget.data.WidgetConfig
-import com.readyou.widget.data.WidgetStateKey
+import com.newsfeed.widget.data.ArticleItem
+import com.newsfeed.widget.data.WidgetConfig
+import com.newsfeed.widget.data.WidgetStateKey
 import kotlinx.serialization.json.Json
 
-class ReadYouWidget : GlanceAppWidget() {
+class NewsFeedWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: android.content.Context, id: GlanceId) {
         provideContent { WidgetContent() }
@@ -1028,7 +1028,7 @@ class ReadYouWidget : GlanceAppWidget() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Read You",
+                text = "NewsFeed",
                 style = TextStyle(fontSize = 13.sp, color = GlanceTheme.colors.onSurfaceVariant),
             )
             Spacer(GlanceModifier.defaultWeight())
@@ -1105,8 +1105,8 @@ class ReadYouWidget : GlanceAppWidget() {
     }
 }
 
-class ReadYouWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget = ReadYouWidget()
+class NewsFeedWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget = NewsFeedWidget()
 
     override fun onEnabled(context: android.content.Context) {
         super.onEnabled(context)
@@ -1128,7 +1128,7 @@ Expected: `BUILD SUCCESSFUL`
 
 - [ ] **Commit**
 ```bash
-git add app/src/main/java/com/readyou/widget/glance/ReadYouWidget.kt
+git add app/src/main/java/com/newsfeed/widget/glance/NewsFeedWidget.kt
 git commit -m "feat: widget footer refresh countdown; pass expandedArticleId, widgetId, fontSize"
 ```
 
@@ -1136,12 +1136,12 @@ git commit -m "feat: widget footer refresh countdown; pass expandedArticleId, wi
 
 ## Task 9: FeedConfigRow — display mode toggle + tappable name
 
-**Files:** Modify `app/src/main/java/com/readyou/widget/config/FeedConfigRow.kt`
+**Files:** Modify `app/src/main/java/com/newsfeed/widget/config/FeedConfigRow.kt`
 
 - [ ] **Replace the entire file.** Adds `onEditRequest: () -> Unit` callback; makes display name tappable; adds Text/Image toggle after the RTL/LTR button.
 
 ```kotlin
-package com.readyou.widget.config
+package com.newsfeed.widget.config
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
@@ -1178,8 +1178,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.readyou.widget.R
-import com.readyou.widget.data.FeedConfig
+import com.newsfeed.widget.R
+import com.newsfeed.widget.data.FeedConfig
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 
 @Composable
@@ -1363,7 +1363,7 @@ Expected: compile error in `WidgetConfigActivity.kt` (missing `onEditRequest` pa
 
 - [ ] **Commit** (partial — will finish in Task 10):
 ```bash
-git add app/src/main/java/com/readyou/widget/config/FeedConfigRow.kt
+git add app/src/main/java/com/newsfeed/widget/config/FeedConfigRow.kt
 git commit -m "feat: FeedConfigRow — tappable name (onEditRequest), TXT/IMG toggle"
 ```
 
@@ -1371,7 +1371,7 @@ git commit -m "feat: FeedConfigRow — tappable name (onEditRequest), TXT/IMG to
 
 ## Task 10: WidgetConfigActivity — font slider, external app dropdown, edit-feed dialog
 
-**Files:** Modify `app/src/main/java/com/readyou/widget/config/WidgetConfigActivity.kt`
+**Files:** Modify `app/src/main/java/com/newsfeed/widget/config/WidgetConfigActivity.kt`
 
 This is the largest config change. Key additions:
 1. `editingFeed` state → `AlertDialog` with Name + URL fields
@@ -1382,7 +1382,7 @@ This is the largest config change. Key additions:
 - [ ] **Replace the entire file:**
 
 ```kotlin
-package com.readyou.widget.config
+package com.newsfeed.widget.config
 
 import android.appwidget.AppWidgetManager
 import android.content.Intent
@@ -1432,15 +1432,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.glance.appwidget.GlanceAppWidgetManager
-import com.readyou.widget.data.FeedConfig
-import com.readyou.widget.data.FilterMode
-import com.readyou.widget.data.OpmlManager
-import com.readyou.widget.data.ReadYouRepository
-import com.readyou.widget.data.SortOrder
-import com.readyou.widget.data.WidgetConfig
-import com.readyou.widget.data.WidgetConfigStore
-import com.readyou.widget.glance.ReadYouWidget
-import com.readyou.widget.glance.WidgetWorker
+import com.newsfeed.widget.data.FeedConfig
+import com.newsfeed.widget.data.FilterMode
+import com.newsfeed.widget.data.OpmlManager
+import com.newsfeed.widget.data.NewsFeedRepository
+import com.newsfeed.widget.data.SortOrder
+import com.newsfeed.widget.data.WidgetConfig
+import com.newsfeed.widget.data.WidgetConfigStore
+import com.newsfeed.widget.glance.NewsFeedWidget
+import com.newsfeed.widget.glance.WidgetWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -1466,7 +1466,7 @@ class WidgetConfigActivity : ComponentActivity() {
         }
 
         val store = WidgetConfigStore(this)
-        val repo  = ReadYouRepository(this)
+        val repo  = NewsFeedRepository(this)
 
         setContent {
             MaterialTheme {
@@ -1497,7 +1497,7 @@ class WidgetConfigActivity : ComponentActivity() {
                 )
                 val externalOptions = listOf(
                     "browser"  to "Browser",
-                    "readyou"  to "Read You",
+                    "readyou"  to "NewsFeed",
                     "share"    to "Share sheet",
                 )
 
@@ -1651,7 +1651,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                         WidgetWorker.schedule(this@WidgetConfigActivity, final.refreshIntervalMinutes.toLong())
                                         WidgetWorker.refreshNow(this@WidgetConfigActivity)
                                         val glanceId = GlanceAppWidgetManager(this@WidgetConfigActivity).getGlanceIdBy(appWidgetId)
-                                        ReadYouWidget().update(this@WidgetConfigActivity, glanceId)
+                                        NewsFeedWidget().update(this@WidgetConfigActivity, glanceId)
                                         setResult(RESULT_OK, Intent().apply { putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId) })
                                         finish()
                                     }
@@ -1837,7 +1837,7 @@ Expected: `BUILD SUCCESSFUL`
 
 - [ ] **Commit**
 ```bash
-git add app/src/main/java/com/readyou/widget/config/WidgetConfigActivity.kt
+git add app/src/main/java/com/newsfeed/widget/config/WidgetConfigActivity.kt
 git commit -m "feat: font size slider, external app setting, edit-feed dialog in config"
 ```
 
@@ -1873,7 +1873,7 @@ rm "C:\readyou-widget\app\src\main\java\com\readyou\widget\DeepLinkActivity.kt"
         android:theme="@android:style/Theme.DeviceDefault">
 
         <receiver
-            android:name=".glance.ReadYouWidgetReceiver"
+            android:name=".glance.NewsFeedWidgetReceiver"
             android:exported="true"
             android:label="@string/widget_label">
             <intent-filter>
@@ -1917,7 +1917,7 @@ Expected: `BUILD SUCCESSFUL`
 - [ ] **Commit**
 ```bash
 git add app/src/main/AndroidManifest.xml
-git rm app/src/main/java/com/readyou/widget/DeepLinkActivity.kt
+git rm app/src/main/java/com/newsfeed/widget/DeepLinkActivity.kt
 git commit -m "feat: remove DeepLinkActivity; clean up manifest"
 ```
 
@@ -1955,7 +1955,7 @@ git push
 - `ToggleExpandCallback.ARTICLE_ID_KEY` defined in Task 5, used in Task 7 ✅
 - `OpenExternalCallback.ARTICLE_URL_KEY / ARTICLE_ID_KEY / WIDGET_ID_KEY` defined in Task 5, used in Task 7 ✅
 - `ThumbnailHelper.file(context, articleId)` defined in Task 3, used in Task 4, 6, 7 ✅
-- `ReadYouRepository.downloadThumbnails(articles, feeds)` defined in Task 4, called in Task 6 ✅
+- `NewsFeedRepository.downloadThumbnails(articles, feeds)` defined in Task 4, called in Task 6 ✅
 - `WidgetStateKey.lastRefreshTime` / `expandedArticleId` defined in Task 2, written in Task 6, read in Task 8 ✅
 - `FeedConfig.displayMode`, `WidgetConfig.fontSize`, `WidgetConfig.externalApp`, `ArticleItem.description / imageUrl` all defined in Task 1, used throughout ✅
 - `FeedConfigRow` now has 4 named params: `feedConfig`, `onUpdate`, `onRemove`, `onEditRequest` — all wired in Task 10 ✅
