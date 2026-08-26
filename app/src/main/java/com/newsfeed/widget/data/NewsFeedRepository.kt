@@ -118,8 +118,10 @@ class NewsFeedRepository(private val context: Context) {
                 if (article.feedId !in imageFeedIds) continue
                 if (article.imageUrl.isBlank()) continue
                 val file = ThumbnailHelper.file(context, article.id)
-                // Re-download if file is missing or was saved at the old low resolution (< 20 KB)
-                if (file.exists() && file.length() > 20_000 &&
+                // A 100px JPEG at quality 90 is a few KB; anything bigger is almost certainly a
+                // stale file from before the 300px->100px fix and needs replacing immediately
+                // rather than waiting out the normal 24h cache window.
+                if (file.exists() && file.length() < 15_000 &&
                     System.currentTimeMillis() - file.lastModified() < 24 * 3600_000L) continue
                 runCatching {
                     val req = Request.Builder().url(article.imageUrl)
@@ -129,7 +131,14 @@ class NewsFeedRepository(private val context: Context) {
                         if (!resp.isSuccessful) return@runCatching
                         val bmp = resp.body?.byteStream()?.let { BitmapFactory.decodeStream(it) }
                             ?: return@runCatching
-                        val scaled = scaleBitmap(bmp, 300)
+                        // 100px is ~2x the widget's actual on-screen thumbnail size at typical
+                        // density — plenty sharp. A prior change bumped this to 300px for quality
+                        // and unknowingly blew RemoteViews' ~1.2MB per-update bitmap budget: a
+                        // 300px ARGB_8888 bitmap alone is 360KB, so as few as 4 thumbnails in one
+                        // update crashes the widget to a permanent "Can't show content" state.
+                        // At 100px each bitmap is ~40KB, keeping even a worst-case update (every
+                        // rendered row has a thumbnail) safely under budget.
+                        val scaled = scaleBitmap(bmp, 100)
                         file.parentFile?.mkdirs()
                         file.outputStream().use { out ->
                             scaled.compress(Bitmap.CompressFormat.JPEG, 90, out)
