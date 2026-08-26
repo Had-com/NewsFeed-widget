@@ -357,12 +357,16 @@ fun FeedItemRow(
                     // the Intent at compose time and using actionStartActivity() directly lets
                     // Glance grant the correct launch exemption itself. Read-status marking moved to
                     // ToggleExpandCallback, since this click target can no longer run a suspend body.
+                    // Intent.createChooser()'s wrapper Intent (action=CHOOSER, target Intent
+                    // tucked into EXTRA_INTENT) doesn't survive actionStartActivity()'s handling —
+                    // logcat showed the launched PendingIntent's data replaced with an internal
+                    // "glance-action:/" placeholder and the real intent lost, so the OS saw a null
+                    // target and threw ActivityNotFoundException. A plain ACTION_SEND intent works
+                    // fine (confirmed via ACTION_VIEW above) and Android still shows its own
+                    // disambiguation picker automatically when more than one app can handle it.
                     val openIntent = if (externalApp == "share") {
-                        Intent.createChooser(
-                            Intent(Intent.ACTION_SEND).setType("text/plain")
-                                .putExtra(Intent.EXTRA_TEXT, article.articleUrl),
-                            "Share article",
-                        )
+                        Intent(Intent.ACTION_SEND).setType("text/plain")
+                            .putExtra(Intent.EXTRA_TEXT, article.articleUrl)
                     } else {
                         Intent(Intent.ACTION_VIEW, Uri.parse(article.articleUrl))
                     }
