@@ -74,8 +74,12 @@ class NewsFeedWidget : GlanceAppWidget() {
             ?: emptyList()
 
         val feedMap         = config.feeds.associateBy { it.feedId }
-        val displayArticles = articles.filter { feedMap.containsKey(it.feedId) }.take(50)
-        val unreadCount     = displayArticles.count { !it.isRead }
+        // Each row can carry a Glamour-theme headline bitmap and/or a thumbnail image; RemoteViews
+        // has a hard ~1.2MB total bitmap-memory budget for a widget update (AppWidgetService throws
+        // IllegalArgumentException past it), so the visible row count is capped well under what a
+        // worst-case mix of bitmaps could exceed rather than the ~50 that used to be sent.
+        val displayArticles = articles.filter { feedMap.containsKey(it.feedId) }.take(15)
+        val unreadCount     = articles.count { feedMap.containsKey(it.feedId) && !it.isRead }
 
         val themeColors = WidgetThemes.colorProvidersFor(config.widgetTheme, config.themeVariant)
         val surfaceColor = WidgetThemes.surfaceColorFor(config.widgetTheme, config.themeVariant)
@@ -112,13 +116,13 @@ class NewsFeedWidget : GlanceAppWidget() {
                                     article           = article,
                                     feedConfig        = feedConfig,
                                     expandedArticleId = expandedArticleId,
-                                    widgetId          = config.widgetId,
                                     fontSize          = config.fontSize,
                                     articleLength     = config.articleLength,
                                     fullArticleId     = fullArticleId,
                                     fullArticleText   = fullArticleText,
                                     useThemeColors    = config.useThemeColors,
                                     widgetTheme       = config.widgetTheme,
+                                    externalApp       = config.externalApp,
                                     themeVariant      = config.themeVariant,
                                 )
                                 if (!isLast) {

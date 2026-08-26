@@ -1,6 +1,8 @@
 ﻿package com.newsfeed.widget.glance
 
+import android.content.Intent
 import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -13,6 +15,7 @@ import androidx.glance.LocalContext
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.action.actionRunCallback
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.LocalSize
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.background
@@ -48,7 +51,6 @@ fun FeedItemRow(
     article: ArticleItem,
     feedConfig: FeedConfig,
     expandedArticleId: String,
-    widgetId: Int,
     fontSize: Float,
     articleLength: String = "medium",
     fullArticleId: String = "",
@@ -56,6 +58,7 @@ fun FeedItemRow(
     useThemeColors: Boolean = false,
     widgetTheme: String = "auto",
     themeVariant: String = "light",
+    externalApp: String = "browser",
 ) {
     val context        = LocalContext.current
     val isExpanded     = article.id == expandedArticleId
@@ -346,6 +349,23 @@ fun FeedItemRow(
 
                 if (article.articleUrl.isNotBlank()) {
                     Spacer(GlanceModifier.height(6.dp))
+                    // Article rows live inside a LazyColumn, which routes clicks through Glance's
+                    // list-adapter trampoline (InvisibleActionTrampolineActivity). A custom
+                    // ActionCallback that calls context.startActivity() manually doesn't survive
+                    // that extra hop reliably on Android 12+ background-activity-start rules — the
+                    // trampoline task gets created and torn down before the intent fires. Building
+                    // the Intent at compose time and using actionStartActivity() directly lets
+                    // Glance grant the correct launch exemption itself. Read-status marking moved to
+                    // ToggleExpandCallback, since this click target can no longer run a suspend body.
+                    val openIntent = if (externalApp == "share") {
+                        Intent.createChooser(
+                            Intent(Intent.ACTION_SEND).setType("text/plain")
+                                .putExtra(Intent.EXTRA_TEXT, article.articleUrl),
+                            "Share article",
+                        )
+                    } else {
+                        Intent(Intent.ACTION_VIEW, Uri.parse(article.articleUrl))
+                    }
                     Text(
                         text = "Open article →",
                         style = TextStyle(
@@ -356,15 +376,7 @@ fun FeedItemRow(
                         modifier = GlanceModifier
                             .background(GlanceTheme.colors.primaryContainer)
                             .padding(horizontal = 8.dp, vertical = 3.dp)
-                            .clickable(
-                                actionRunCallback<OpenExternalCallback>(
-                                    actionParametersOf(
-                                        OpenExternalCallback.ARTICLE_URL_KEY to article.articleUrl,
-                                        OpenExternalCallback.ARTICLE_ID_KEY  to article.id,
-                                        OpenExternalCallback.WIDGET_ID_KEY   to widgetId,
-                                    )
-                                )
-                            ),
+                            .clickable(actionStartActivity(openIntent)),
                     )
                 }
             }
