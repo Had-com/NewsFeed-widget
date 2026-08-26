@@ -349,33 +349,27 @@ fun FeedItemRow(
 
                 if (article.articleUrl.isNotBlank()) {
                     Spacer(GlanceModifier.height(6.dp))
-                    // Article rows live inside a LazyColumn, which routes clicks through Glance's
-                    // list-adapter trampoline (InvisibleActionTrampolineActivity). A custom
-                    // ActionCallback that calls context.startActivity() manually doesn't survive
-                    // that extra hop reliably on Android 12+ background-activity-start rules — the
-                    // trampoline task gets created and torn down before the intent fires. Building
-                    // the Intent at compose time and using actionStartActivity() directly lets
-                    // Glance grant the correct launch exemption itself. Read-status marking moved to
-                    // ToggleExpandCallback, since this click target can no longer run a suspend body.
-                    // Dropping Intent.createChooser() wasn't the actual fix — every row's Share
-                    // intent still failed identically (data field replaced with a "glance-action:/"
-                    // placeholder, dispatched via a direct RemoteViews.startPendingIntent that never
-                    // goes through Glance's InvisibleActionTrampolineActivity the way Browser mode
-                    // does). Root cause: Glance's own docs warn that actionStartActivity() actions
-                    // are "conflated unless the underlying intents are distinct" — and Intent
-                    // .filterEquals() (which that distinctness check uses) does NOT compare extras,
-                    // only action/data/type/package/component/categories. Every row's plain
-                    // ACTION_SEND intent had the same action+type and differed only in EXTRA_TEXT,
-                    // so all 15 rows' "Open article" buttons looked identical to Glance and got
-                    // conflated into one broken shared action. Browser mode never hit this because
-                    // each article's Uri makes its `data` field genuinely distinct per row.
-                    // setDataAndType() gives Share mode a per-article-distinct `data` too — target
-                    // apps still match on the text/plain mime type, extras still carry the real
-                    // content, `data`'s value itself is irrelevant to how ACTION_SEND is handled.
+                    // Article rows live inside a LazyColumn, so clicks route through Glance's
+                    // list-adapter trampoline (InvisibleActionTrampolineActivity). Building the
+                    // Intent at compose time and using actionStartActivity() (rather than a custom
+                    // ActionCallback manually calling context.startActivity()) is what makes Browser
+                    // mode (a plain ACTION_VIEW) work reliably. Share mode does not: an ACTION_SEND
+                    // intent is inherently ambiguous (multiple apps can match), and two different
+                    // attempts to fix it directly — dropping Intent.createChooser(), then giving each
+                    // row's intent a distinct `data` field to dodge Glance's action-conflation — both
+                    // still failed (the second differently: the trampoline now fires but silently
+                    // self-finishes without ever launching anything). Rather than keep fighting
+                    // Glance's handling of ambiguous/chooser intents, Share mode now targets
+                    // ShareRelayActivity — a real, single, unambiguous target within our own app —
+                    // which then builds and launches the actual chooser from a proper Activity
+                    // context that isn't subject to any of this.
                     val openIntent = if (externalApp == "share") {
-                        Intent(Intent.ACTION_SEND)
-                            .setDataAndType(Uri.parse(article.articleUrl), "text/plain")
-                            .putExtra(Intent.EXTRA_TEXT, article.articleUrl)
+                        // Every row targets the same explicit component, so without a distinct
+                        // `data` too they'd still be Intent.filterEquals()-identical to each other
+                        // and hit the same action-conflation bug this relay was meant to avoid.
+                        Intent(context, ShareRelayActivity::class.java)
+                            .setData(Uri.parse(article.articleUrl))
+                            .putExtra(ShareRelayActivity.EXTRA_ARTICLE_URL, article.articleUrl)
                     } else {
                         Intent(Intent.ACTION_VIEW, Uri.parse(article.articleUrl))
                     }
