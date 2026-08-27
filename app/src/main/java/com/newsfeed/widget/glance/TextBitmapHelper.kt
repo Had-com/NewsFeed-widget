@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.text.Layout
 import android.text.StaticLayout
+import android.text.TextDirectionHeuristics
 import android.text.TextPaint
 import android.text.TextUtils
 import androidx.core.content.res.ResourcesCompat
@@ -90,10 +91,17 @@ object TextBitmapHelper {
                 isFakeBoldText = true
             }
 
-            val alignment = if (isRtl) Layout.Alignment.ALIGN_OPPOSITE else Layout.Alignment.ALIGN_NORMAL
+            // Force the paragraph direction explicitly instead of relying on StaticLayout's
+            // default FIRSTSTRONG_LTR guess. That default already detects Hebrew text as an
+            // RTL paragraph on its own, which made ALIGN_NORMAL mean "right" and ALIGN_OPPOSITE
+            // mean "left" — so the old `if (isRtl) ALIGN_OPPOSITE` was backwards and left-aligned
+            // every RTL headline. ALIGN_NORMAL always means "start of paragraph direction," so
+            // pairing it with an explicit direction keeps the two in sync unambiguously.
+            val textDirection = if (isRtl) TextDirectionHeuristics.RTL else TextDirectionHeuristics.LTR
             val layout = StaticLayout.Builder
                 .obtain(text, 0, text.length, paint, safeWidth)
-                .setAlignment(alignment)
+                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                .setTextDirection(textDirection)
                 .setLineSpacing(0f, 1.2f)
                 .setMaxLines(3)
                 .setEllipsize(TextUtils.TruncateAt.END)
