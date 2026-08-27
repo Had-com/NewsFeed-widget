@@ -203,7 +203,13 @@ fun FeedItemRow(
                 val density       = context.resources.displayMetrics.density
                 val scaledDensity = context.resources.displayMetrics.scaledDensity
                 val thumbDp       = if (feedConfig.displayMode == "image" && !isExpanded) 52f * fontSize else 0f
-                val widthPx       = ((LocalSize.current.width.value - 19f - thumbDp) * density)
+                // Margin was originally estimated at 19dp (3dp accent stripe + 8dp*2 column
+                // padding) but measured ~10dp too conservative on a real device: a uiautomator
+                // bounds comparison on a properly-sized widget (303dp total) showed the text
+                // column actually gets 242dp (303 - 52 thumbnail - 9 true overhead), while this
+                // formula was leaving headlines ~16dp narrower than their available column,
+                // visibly not reaching the row's edge.
+                val widthPx       = ((LocalSize.current.width.value - 9f - thumbDp) * density)
                                         .toInt().coerceAtLeast(50)
                 val colorArgb     = if (themeVariant == "dark") 0xFFA08060.toInt()
                                     else                        0xFF7A5C3A.toInt()
