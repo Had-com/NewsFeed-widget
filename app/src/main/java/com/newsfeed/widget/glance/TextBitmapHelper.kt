@@ -35,13 +35,13 @@ object TextBitmapHelper {
                 // Typeface.createFromAssets() is the most reliable method in background/widget
                 // contexts — Resources.getFont() can silently fail on Glance's coroutine thread.
                 val tf: Typeface? = try {
-                    ctx.assets.open("fonts/miriam_libre_bold.ttf").use { stream ->
-                        val file = java.io.File(ctx.cacheDir, "miriam_libre_bold.ttf")
+                    ctx.assets.open("fonts/refoyl.ttf").use { stream ->
+                        val file = java.io.File(ctx.cacheDir, "refoyl.ttf")
                         file.outputStream().use { stream.copyTo(it) }
                         Typeface.createFromFile(file)
                     }
                 } catch (_: Exception) {
-                    try { ResourcesCompat.getFont(ctx, R.font.miriam_libre_bold) }
+                    try { ResourcesCompat.getFont(ctx, R.font.refoyl) }
                     catch (_: Exception) { null }
                 }
                 if (tf != null) cachedTypeface = tf
@@ -81,6 +81,13 @@ object TextBitmapHelper {
                 textSize    = textSizePx
                 color       = colorArgb
                 isAntiAlias = true
+                // Refoyl ships as a single (regular) weight — synthesize bold via the
+                // paint's fake-bold stroke. Verified this doesn't disturb StaticLayout's
+                // ALIGN_OPPOSITE math on the last line of a wrapped RTL headline (Solitreo,
+                // a different handwriting font tried here, broke that specifically — its last
+                // line rendered flush-left instead of right — even with fake-bold off, so the
+                // bug was in that font's own metrics/shaping, not this bold technique).
+                isFakeBoldText = true
             }
 
             val alignment = if (isRtl) Layout.Alignment.ALIGN_OPPOSITE else Layout.Alignment.ALIGN_NORMAL
