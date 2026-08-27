@@ -145,51 +145,51 @@ fun FeedItemRow(
                     fontFamily  = FontFamily.SansSerif,
                     color       = GlanceTheme.colors.onSurfaceVariant,
                 )
-                val nameStyle = TextStyle(
-                    fontSize   = metaFontSize,
-                    fontFamily = FontFamily.SansSerif,
-                    color      = accentProvider,
-                )
 
+                // Feed name now renders on its own line below (the Text right after this Row)
+                // instead of sharing this row, so it can be right-justified at the
+                // column's full width consistently — whether or not this row has a thumbnail
+                // image, which previously made its available space (and thus its effective
+                // position) differ row to row.
                 if (isRtl) {
-                    // Time always on physical LEFT regardless of RTL direction; the dot+name+
-                    // circle group is pushed to hug the physical right edge by the weighted
-                    // spacer below (previously this weight sat on the name Text itself, which
-                    // fixed a text-overflow bug but broke the grouping — the name's box then
-                    // absorbed all leftover space right after the dot instead of the group being
-                    // positioned first, leaving the name stranded mid-row instead of beside the
-                    // circle on the right). The name now gets a fixed max width instead, so it
-                    // still can't overflow, without needing to be the row's one flexible element.
-                    val nameMaxWidth = (70f * fontSize).dp
+                    // Time always on physical LEFT regardless of RTL direction; dot+circle
+                    // pushed to hug the physical right edge by the weighted spacer.
                     Text(formatDateTime(article.publishedAt), style = tsStyle, maxLines = 1)
-                    Spacer(GlanceModifier.width(6.dp))
                     Spacer(GlanceModifier.defaultWeight())
                     if (!article.isRead) {
                         Box(modifier = GlanceModifier.width(5.dp).height(5.dp).background(accentProvider)) {}
-                        Spacer(GlanceModifier.width(3.dp))
+                        Spacer(GlanceModifier.width(4.dp))
                     }
-                    Text(feedConfig.displayName, style = nameStyle, maxLines = 1,
-                        modifier = GlanceModifier.width(nameMaxWidth))
-                    Spacer(GlanceModifier.width(4.dp))
                     FeedCircle()
                 } else {
-                    // Time on the left, then circle + name
                     Text(formatDateTime(article.publishedAt), style = tsStyle, maxLines = 1)
                     Spacer(GlanceModifier.width(6.dp))
                     FeedCircle()
                     Spacer(GlanceModifier.width(4.dp))
                     if (!article.isRead) {
                         Box(modifier = GlanceModifier.width(5.dp).height(5.dp).background(accentProvider)) {}
-                        Spacer(GlanceModifier.width(3.dp))
                     }
-                    Text(feedConfig.displayName, style = nameStyle, maxLines = 1,
-                        modifier = GlanceModifier.defaultWeight())
                 }
             }
 
+            Spacer(GlanceModifier.height(1.dp))
+
+            Text(
+                feedConfig.displayName,
+                maxLines = 1,
+                style = TextStyle(
+                    fontSize   = metaFontSize,
+                    fontFamily = FontFamily.SansSerif,
+                    color      = accentProvider,
+                    textAlign  = if (isRtl) androidx.glance.text.TextAlign.End
+                                 else       androidx.glance.text.TextAlign.Start,
+                ),
+                modifier = GlanceModifier.fillMaxWidth(),
+            )
+
             Spacer(GlanceModifier.height(3.dp))
 
-            // Headline — Glamour theme uses a custom Hebrew handwriting font (Miriam Libre Bold)
+            // Headline — Glamour theme uses a custom Hebrew handwriting font (Refoyl, bold)
             // rendered to a Bitmap, since Glance/RemoteViews only supports system font families.
             val headlineFontStr = if (feedConfig.fontFamily == "serif" || feedConfig.fontFamily == "mono")
                 feedConfig.fontFamily else WidgetThemes.fontFamilyFor(widgetTheme)
@@ -211,8 +211,12 @@ fun FeedItemRow(
                 // visibly not reaching the row's edge.
                 val widthPx       = ((LocalSize.current.width.value - 9f - thumbDp) * density)
                                         .toInt().coerceAtLeast(50)
-                val colorArgb     = if (themeVariant == "dark") 0xFFA08060.toInt()
-                                    else                        0xFF7A5C3A.toInt()
+                // Glamour's onSurface (the theme's primary/darkest-ink text token — matches
+                // what every other theme's headline uses via GlanceTheme.colors.onSurface).
+                // This used to be onSurfaceVariant's value (a lighter, secondary shade), which
+                // under-emphasized the headline relative to every other theme's convention.
+                val colorArgb     = if (themeVariant == "dark") 0xFFF2E8DC.toInt()
+                                    else                        0xFF2C1A0A.toInt()
                 // Below this, there isn't enough room for the bitmap's internal wrapping to stay
                 // proportionate to how wide it actually gets displayed (fillMaxWidth() + Fit scale
                 // up a too-narrow bitmap into huge, clipped, single-word lines). A plain Text()
@@ -307,8 +311,53 @@ fun FeedItemRow(
                                  else      androidx.glance.text.TextAlign.Start,
                 )
 
+                // Glamour renders body text with the same handwriting font as the headline
+                // (regular weight, not bold — the headline is bold specifically to stand out
+                // from the body). ONLY for short, char-clipped snippets: converting to a bitmap
+                // trades RemoteViews' cheap TextView rendering for a Bitmap, whose memory cost
+                // scales with width × height × 4 bytes. On a resized-large widget at high
+                // density with the max font-size setting, an unbounded/long input could reach
+                // several MB — re-risking the RemoteViews bitmap-memory budget this project
+                // already hit once (see the thumbnail-resolution fix). Caller must pass text
+                // already clipped to a small char count; this also hard-clips defensively so a
+                // future call site can't reintroduce that risk by forgetting to.
+                @Composable
+                fun DescriptionText(text: String, maxLines: Int) {
+                    if (widgetTheme == "glamer") {
+                        val density       = context.resources.displayMetrics.density
+                        val scaledDensity = context.resources.displayMetrics.scaledDensity
+                        val widthPx       = ((LocalSize.current.width.value - 9f) * density)
+                                                .toInt().coerceAtLeast(50)
+                        val colorArgb     = if (themeVariant == "dark") 0xFFA08060.toInt()
+                                            else                        0xFF7A5C3A.toInt()
+                        val safeText = text.take(400)
+                        val bmp = if (widthPx >= 120) TextBitmapHelper.paragraph(
+                            context    = context,
+                            text       = safeText,
+                            textSizePx = 10f * fontSize * scaledDensity,
+                            colorArgb  = colorArgb,
+                            widthPx    = widthPx,
+                            isRtl      = isRtl,
+                            maxLines   = maxLines.coerceAtMost(10),
+                        ) else null
+                        if (bmp != null) {
+                            Image(
+                                provider           = ImageProvider(bmp),
+                                contentDescription = safeText,
+                                modifier           = GlanceModifier.fillMaxWidth(),
+                                contentScale       = ContentScale.Fit,
+                            )
+                            return
+                        }
+                    }
+                    Text(text = text, style = descStyle, maxLines = maxLines, modifier = GlanceModifier.fillMaxWidth())
+                }
+
                 if (articleLength == "full") {
                     if (fullArticleId == article.id && fullArticleText.isNotBlank()) {
+                        // Full fetched article text is unbounded (can run to many KB) — stays
+                        // as plain Text (system cursive) rather than DescriptionText/bitmap;
+                        // see the memory-budget reasoning above.
                         Spacer(GlanceModifier.height(4.dp))
                         Text(
                             text = fullArticleText,
@@ -319,12 +368,8 @@ fun FeedItemRow(
                     } else {
                         if (article.description.isNotBlank()) {
                             Spacer(GlanceModifier.height(4.dp))
-                            Text(
-                                text = article.description,
-                                style = descStyle,
-                                maxLines = 50,
-                                modifier = GlanceModifier.fillMaxWidth(),
-                            )
+                            val clipped = article.description.take(400).trimEnd()
+                            DescriptionText(clipped, maxLines = 10)
                         }
                         if (article.articleUrl.isNotBlank()) {
                             Spacer(GlanceModifier.height(6.dp))
@@ -356,12 +401,7 @@ fun FeedItemRow(
                         val raw     = article.description
                         val clipped = if (raw.length > limit) raw.take(limit).trimEnd() + "…" else raw
                         Spacer(GlanceModifier.height(4.dp))
-                        Text(
-                            text = clipped,
-                            style = descStyle,
-                            maxLines = 50,
-                            modifier = GlanceModifier.fillMaxWidth(),
-                        )
+                        DescriptionText(clipped, maxLines = 10)
                     }
                 }
 
@@ -407,7 +447,9 @@ fun FeedItemRow(
             }
         }
 
-        // Thumbnail: fills the full row height so it touches both divider lines
+        // Thumbnail: slightly shorter than the full row height (extra vertical padding)
+        // so it doesn't touch the divider lines — leaves a little breathing room now that
+        // the row is taller (feed name moved to its own line below the meta row).
         if (feedConfig.displayMode == "image" && !isExpanded) {
             val thumbFile = ThumbnailHelper.file(context, article.id)
             if (thumbFile.exists()) {
@@ -417,7 +459,7 @@ fun FeedItemRow(
                         provider = ImageProvider(bmp),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = GlanceModifier.width(thumbWidth).fillMaxHeight().padding(vertical = 4.dp),
+                        modifier = GlanceModifier.width(thumbWidth).fillMaxHeight().padding(vertical = 10.dp),
                     )
                 }
             }

@@ -68,10 +68,41 @@ object TextBitmapHelper {
         colorArgb: Int,
         widthPx: Int,
         isRtl: Boolean,
+    ): Bitmap? = render(context, text, textSizePx, colorArgb, widthPx, isRtl, bold = true, maxLines = 3)
+
+    /**
+     * Renders a short, already char-clipped body-text snippet with the same handwriting font
+     * as [headline], but in the font's own regular weight — the headline is bold to stand
+     * out, body text isn't. NOT for unbounded text (e.g. a fully-fetched article): a Bitmap's
+     * memory cost scales with width × height × 4 bytes, so an unbounded input on a large,
+     * high-density widget could re-risk the RemoteViews bitmap-memory budget this project
+     * already hit once (see the thumbnail-resolution fix) — callers must clip [text] to a
+     * small char count first, and [maxLines] should stay in the same modest range as the
+     * default. Long input just ellipsizes instead of growing the bitmap further.
+     */
+    fun paragraph(
+        context: Context,
+        text: String,
+        textSizePx: Float,
+        colorArgb: Int,
+        widthPx: Int,
+        isRtl: Boolean,
+        maxLines: Int = 10,
+    ): Bitmap? = render(context, text, textSizePx, colorArgb, widthPx, isRtl, bold = false, maxLines = maxLines)
+
+    private fun render(
+        context: Context,
+        text: String,
+        textSizePx: Float,
+        colorArgb: Int,
+        widthPx: Int,
+        isRtl: Boolean,
+        bold: Boolean,
+        maxLines: Int,
     ): Bitmap? {
         if (text.isBlank() || textSizePx <= 0f) return null
         val safeWidth = widthPx.coerceAtLeast(50)
-        val key = "$text|$textSizePx|$colorArgb|$safeWidth|$isRtl"
+        val key = "$text|$textSizePx|$colorArgb|$safeWidth|$isRtl|$bold|$maxLines"
 
         synchronized(cache) { cache[key] }?.let { return it }
 
@@ -88,7 +119,7 @@ object TextBitmapHelper {
                 // a different handwriting font tried here, broke that specifically — its last
                 // line rendered flush-left instead of right — even with fake-bold off, so the
                 // bug was in that font's own metrics/shaping, not this bold technique).
-                isFakeBoldText = true
+                isFakeBoldText = bold
             }
 
             // Force the paragraph direction explicitly instead of relying on StaticLayout's
@@ -103,7 +134,7 @@ object TextBitmapHelper {
                 .setAlignment(Layout.Alignment.ALIGN_NORMAL)
                 .setTextDirection(textDirection)
                 .setLineSpacing(0f, 1.2f)
-                .setMaxLines(3)
+                .setMaxLines(maxLines)
                 .setEllipsize(TextUtils.TruncateAt.END)
                 .build()
 
