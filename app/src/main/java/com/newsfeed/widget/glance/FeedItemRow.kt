@@ -152,18 +152,24 @@ fun FeedItemRow(
                 )
 
                 if (isRtl) {
-                    // Time always on physical LEFT regardless of RTL direction
+                    // Time always on physical LEFT regardless of RTL direction; the dot+name+
+                    // circle group is pushed to hug the physical right edge by the weighted
+                    // spacer below (previously this weight sat on the name Text itself, which
+                    // fixed a text-overflow bug but broke the grouping — the name's box then
+                    // absorbed all leftover space right after the dot instead of the group being
+                    // positioned first, leaving the name stranded mid-row instead of beside the
+                    // circle on the right). The name now gets a fixed max width instead, so it
+                    // still can't overflow, without needing to be the row's one flexible element.
+                    val nameMaxWidth = (70f * fontSize).dp
                     Text(formatDateTime(article.publishedAt), style = tsStyle, maxLines = 1)
                     Spacer(GlanceModifier.width(6.dp))
+                    Spacer(GlanceModifier.defaultWeight())
                     if (!article.isRead) {
                         Box(modifier = GlanceModifier.width(5.dp).height(5.dp).background(accentProvider)) {}
                         Spacer(GlanceModifier.width(3.dp))
                     }
-                    // defaultWeight() bounds the name to whatever space is left after the
-                    // fixed-size siblings, so a long name truncates instead of overlapping
-                    // the unread dot or pushing the favicon circle out of the row.
                     Text(feedConfig.displayName, style = nameStyle, maxLines = 1,
-                        modifier = GlanceModifier.defaultWeight())
+                        modifier = GlanceModifier.width(nameMaxWidth))
                     Spacer(GlanceModifier.width(4.dp))
                     FeedCircle()
                 } else {
