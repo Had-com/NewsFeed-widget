@@ -215,10 +215,10 @@ fun FeedItemRow(
                                     else                        0xFF7A5C3A.toInt()
                 // Below this, there isn't enough room for the bitmap's internal wrapping to stay
                 // proportionate to how wide it actually gets displayed (fillMaxWidth() + Fit scale
-                // up a too-narrow bitmap into huge, clipped, single-word lines — confirmed via a
-                // real repro at the widget's minResizeWidth, 130dp, where a wide thumbnail also
-                // eating the row left ~59px for text). A plain Text() degrades far more gracefully
-                // at extreme widths (native wrap/ellipsis) than the custom bitmap layout does.
+                // up a too-narrow bitmap into huge, clipped, single-word lines). A plain Text()
+                // degrades far more gracefully at extreme widths (native wrap/ellipsis) than the
+                // custom bitmap layout does — kept as a guard for genuinely tiny placements now
+                // that NewsFeedWidget.sizeMode = Exact reports real widths instead of always 130dp.
                 val bmp = if (widthPx >= 120) TextBitmapHelper.headline(
                     context    = context,
                     text       = article.title,

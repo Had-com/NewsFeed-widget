@@ -22,6 +22,7 @@ import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
 import androidx.glance.background
@@ -49,6 +50,11 @@ import kotlinx.serialization.json.Json
 import java.util.concurrent.TimeUnit
 
 class NewsFeedWidget : GlanceAppWidget() {
+
+    // Default SizeMode.Single pins LocalSize.current to the widget's declared minimum
+    // size forever, regardless of how large the user actually places/resizes it — that
+    // was silently starving the Glamour headline bitmaps of their real column width.
+    override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent { WidgetContent() }
