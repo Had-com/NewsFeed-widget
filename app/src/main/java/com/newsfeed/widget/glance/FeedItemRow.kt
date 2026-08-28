@@ -145,51 +145,52 @@ fun FeedItemRow(
                     fontFamily  = FontFamily.SansSerif,
                     color       = GlanceTheme.colors.onSurfaceVariant,
                 )
+                val nameStyle = TextStyle(
+                    fontSize   = metaFontSize,
+                    fontFamily = FontFamily.SansSerif,
+                    color      = accentProvider,
+                )
 
-                // Feed name now renders on its own line below (the Text right after this Row)
-                // instead of sharing this row, so it can be right-justified at the
-                // column's full width consistently — whether or not this row has a thumbnail
-                // image, which previously made its available space (and thus its effective
-                // position) differ row to row.
+                // Feed name is grouped on this same line with the favicon circle, right-
+                // justified as a unit. This row is now always the column's full width — the
+                // thumbnail (further down) only sits beside the headline lines below, not
+                // this meta row — so the name's available space, and thus its position, is
+                // consistent whether or not this article has a thumbnail.
                 if (isRtl) {
-                    // Time always on physical LEFT regardless of RTL direction; dot+circle
-                    // pushed to hug the physical right edge by the weighted spacer.
+                    // Time always on physical LEFT regardless of RTL direction; the dot+name+
+                    // circle group is pushed to hug the physical right edge by the weighted
+                    // spacer. Name gets a fixed max width so it can't push the circle off
+                    // the row for very long feed names.
+                    val nameMaxWidth = (70f * fontSize).dp
                     Text(formatDateTime(article.publishedAt), style = tsStyle, maxLines = 1)
+                    Spacer(GlanceModifier.width(6.dp))
                     Spacer(GlanceModifier.defaultWeight())
                     if (!article.isRead) {
                         Box(modifier = GlanceModifier.width(5.dp).height(5.dp).background(accentProvider)) {}
-                        Spacer(GlanceModifier.width(4.dp))
+                        Spacer(GlanceModifier.width(3.dp))
                     }
+                    Text(feedConfig.displayName, style = nameStyle, maxLines = 1,
+                        modifier = GlanceModifier.width(nameMaxWidth))
+                    Spacer(GlanceModifier.width(4.dp))
                     FeedCircle()
                 } else {
+                    // Time on the left, then circle + name (name absorbs remaining space).
                     Text(formatDateTime(article.publishedAt), style = tsStyle, maxLines = 1)
                     Spacer(GlanceModifier.width(6.dp))
                     FeedCircle()
                     Spacer(GlanceModifier.width(4.dp))
                     if (!article.isRead) {
                         Box(modifier = GlanceModifier.width(5.dp).height(5.dp).background(accentProvider)) {}
+                        Spacer(GlanceModifier.width(3.dp))
                     }
+                    Text(feedConfig.displayName, style = nameStyle, maxLines = 1,
+                        modifier = GlanceModifier.defaultWeight())
                 }
             }
 
-            Spacer(GlanceModifier.height(1.dp))
-
-            Text(
-                feedConfig.displayName,
-                maxLines = 1,
-                style = TextStyle(
-                    fontSize   = metaFontSize,
-                    fontFamily = FontFamily.SansSerif,
-                    color      = accentProvider,
-                    textAlign  = if (isRtl) androidx.glance.text.TextAlign.End
-                                 else       androidx.glance.text.TextAlign.Start,
-                ),
-                modifier = GlanceModifier.fillMaxWidth(),
-            )
-
             Spacer(GlanceModifier.height(3.dp))
 
-            // Headline — Glamour theme uses a custom Hebrew handwriting font (Refoyl, bold)
+            // Headline — Glamour theme uses a custom Hebrew handwriting font (Dana Yad, bold)
             // rendered to a Bitmap, since Glance/RemoteViews only supports system font families.
             val headlineFontStr = if (feedConfig.fontFamily == "serif" || feedConfig.fontFamily == "mono")
                 feedConfig.fontFamily else WidgetThemes.fontFamilyFor(widgetTheme)
@@ -199,24 +200,50 @@ fun FeedItemRow(
                 "cursive" -> FontFamily.Cursive
                 else      -> FontFamily.SansSerif
             }
+            val showSideThumb = feedConfig.displayMode == "image" && !isExpanded
+            val sideThumbBmp = if (showSideThumb) {
+                val thumbFile = ThumbnailHelper.file(context, article.id)
+                if (thumbFile.exists()) BitmapFactory.decodeFile(thumbFile.absolutePath) else null
+            } else null
+
+            // Thumbnail lives beside the headline only — not the meta row above it — so the
+            // meta row (feed name + circle) is always this Column's full width and stays
+            // right-justified consistently whether or not this article has a thumbnail.
+            // fillMaxHeight() here means the image's height tracks however tall the headline
+            // actually renders (1-3 lines), not the whole card.
+            Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Column(modifier = GlanceModifier.defaultWeight()) {
             if (widgetTheme == "glamer") {
                 val density       = context.resources.displayMetrics.density
                 val scaledDensity = context.resources.displayMetrics.scaledDensity
-                val thumbDp       = if (feedConfig.displayMode == "image" && !isExpanded) 52f * fontSize else 0f
+                // +8f: the Spacer between the headline and the thumbnail, so the bitmap's
+                // width matches its actual available column instead of running under it.
+                val thumbDp       = if (feedConfig.displayMode == "image" && !isExpanded) 52f * fontSize + 8f else 0f
                 // Margin was originally estimated at 19dp (3dp accent stripe + 8dp*2 column
                 // padding) but measured ~10dp too conservative on a real device: a uiautomator
                 // bounds comparison on a properly-sized widget (303dp total) showed the text
                 // column actually gets 242dp (303 - 52 thumbnail - 9 true overhead), while this
                 // formula was leaving headlines ~16dp narrower than their available column,
                 // visibly not reaching the row's edge.
-                val widthPx       = ((LocalSize.current.width.value - 9f - thumbDp) * density)
+                // coerceAtMost(350f): since LocalSize.current now reports the widget's real
+                // size (SizeMode.Exact, fixed elsewhere this session) instead of a frozen
+                // 130dp, a widely-resized widget (up to maxResizeWidth=500dp) or a high-density
+                // device could make each headline bitmap large enough that up to 15 of them
+                // together exceed RemoteViews' total bitmap-memory budget — hit for real
+                // ("Can't show content", `IllegalArgumentException: ... exceeds maximum bitmap
+                // memory usage`) at the config screen's wider 583dp preview panel. Capping the
+                // dp width this formula uses (not the final px, so device density still applies
+                // normally up to that cap) bounds worst-case memory while leaving every tested,
+                // realistic widget size (303dp default, moderate resizes) completely unaffected.
+                val widthPx       = ((LocalSize.current.width.value.coerceAtMost(350f) - 9f - thumbDp) * density)
                                         .toInt().coerceAtLeast(50)
-                // Glamour's onSurface (the theme's primary/darkest-ink text token — matches
-                // what every other theme's headline uses via GlanceTheme.colors.onSurface).
-                // This used to be onSurfaceVariant's value (a lighter, secondary shade), which
-                // under-emphasized the headline relative to every other theme's convention.
-                val colorArgb     = if (themeVariant == "dark") 0xFFF2E8DC.toInt()
-                                    else                        0xFF2C1A0A.toInt()
+                // Explicit design values for the Glamour headline. Light matches
+                // WidgetThemes.kt's GLAMER_LIGHT.onSurface (#4A2E14 — a visibly brown dark
+                // ink, not the near-black #2C1A0A this used to be) so the config-screen
+                // preview and the real widget agree; dark is picked independently and
+                // doesn't match GLAMER_DARK.onSurface.
+                val colorArgb     = if (themeVariant == "dark") 0xFFEDE4D4.toInt()
+                                    else                        0xFF4A2E14.toInt()
                 // Below this, there isn't enough room for the bitmap's internal wrapping to stay
                 // proportionate to how wide it actually gets displayed (fillMaxWidth() + Fit scale
                 // up a too-narrow bitmap into huge, clipped, single-word lines). A plain Text()
@@ -255,6 +282,17 @@ fun FeedItemRow(
                     )
                 }
             } else {
+                // Data Science (light) and Aerospace (dark) use explicit headline colors
+                // instead of the theme's onSurface token — a deliberate, more saturated
+                // choice for these two themes specifically; every other theme keeps using
+                // onSurface as before.
+                val normalHeadlineColor = when {
+                    (widgetTheme == "silicon" || widgetTheme == "data_science") && themeVariant != "dark" ->
+                        ColorProvider(Color(0xFF007870))
+                    widgetTheme == "aerospace" && themeVariant == "dark" ->
+                        ColorProvider(Color(0xFFFFE5B4))
+                    else -> GlanceTheme.colors.onSurface
+                }
                 Text(
                     text = article.title,
                     style = TextStyle(
@@ -264,13 +302,26 @@ fun FeedItemRow(
                         textDecoration = if ("underline" in feedConfig.textStyle) TextDecoration.Underline else TextDecoration.None,
                         fontFamily = headlineFontFamily,
                         color = if (article.isRead) GlanceTheme.colors.onSurfaceVariant
-                                else GlanceTheme.colors.onSurface,
+                                else normalHeadlineColor,
                         textAlign = if (isRtl) androidx.glance.text.TextAlign.End
                                     else      androidx.glance.text.TextAlign.Start,
                     ),
                     maxLines = 3,
                     modifier = GlanceModifier.fillMaxWidth(),
                 )
+            }
+            }
+            if (showSideThumb && sideThumbBmp != null) {
+                Spacer(GlanceModifier.width(8.dp))
+                Image(
+                    provider = ImageProvider(sideThumbBmp),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    // Slightly shorter than the headline's own height (vertical padding)
+                    // rather than stretching edge-to-edge with it.
+                    modifier = GlanceModifier.width(thumbWidth).fillMaxHeight().padding(vertical = 6.dp),
+                )
+            }
             }
 
             // Expanded: show thumbnail as a header image (if feed is in image mode)
@@ -303,10 +354,20 @@ fun FeedItemRow(
                     "cursive" -> FontFamily.Cursive
                         else      -> FontFamily.SansSerif
                 }
+                // Data Science and Aerospace use explicit article/body colors in dark
+                // variant instead of onSurfaceVariant — same deliberate-override pattern
+                // as the headline color above.
+                val descColor = when {
+                    (widgetTheme == "silicon" || widgetTheme == "data_science") && themeVariant == "dark" ->
+                        ColorProvider(Color(0xFFB2EBE8))
+                    widgetTheme == "aerospace" && themeVariant == "dark" ->
+                        ColorProvider(Color(0xFFE8D8A8))
+                    else -> GlanceTheme.colors.onSurfaceVariant
+                }
                 val descStyle = TextStyle(
                     fontSize   = (10f * fontSize).sp,
                     fontFamily = feedFontFamily,
-                    color      = GlanceTheme.colors.onSurfaceVariant,
+                    color      = descColor,
                     textAlign  = if (isRtl) androidx.glance.text.TextAlign.End
                                  else      androidx.glance.text.TextAlign.Start,
                 )
@@ -326,9 +387,15 @@ fun FeedItemRow(
                     if (widgetTheme == "glamer") {
                         val density       = context.resources.displayMetrics.density
                         val scaledDensity = context.resources.displayMetrics.scaledDensity
-                        val widthPx       = ((LocalSize.current.width.value - 9f) * density)
+                        // Same 350dp cap as the headline bitmap above, and for the same
+                        // reason — bounds worst-case RemoteViews bitmap memory at wide/resized
+                        // widths without affecting any tested realistic widget size.
+                        val widthPx       = ((LocalSize.current.width.value.coerceAtMost(350f) - 9f) * density)
                                                 .toInt().coerceAtLeast(50)
-                        val colorArgb     = if (themeVariant == "dark") 0xFFA08060.toInt()
+                        // Dark uses primary (#A87840) for the body — a warmer, more
+                        // saturated tone than a plain muted variant; light keeps the
+                        // established step-lighter-than-headline brown.
+                        val colorArgb     = if (themeVariant == "dark") 0xFFA87840.toInt()
                                             else                        0xFF7A5C3A.toInt()
                         val safeText = text.take(400)
                         val bmp = if (widthPx >= 120) TextBitmapHelper.paragraph(
@@ -442,24 +509,6 @@ fun FeedItemRow(
                             .background(GlanceTheme.colors.primaryContainer)
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                             .clickable(actionStartActivity(openIntent)),
-                    )
-                }
-            }
-        }
-
-        // Thumbnail: slightly shorter than the full row height (extra vertical padding)
-        // so it doesn't touch the divider lines — leaves a little breathing room now that
-        // the row is taller (feed name moved to its own line below the meta row).
-        if (feedConfig.displayMode == "image" && !isExpanded) {
-            val thumbFile = ThumbnailHelper.file(context, article.id)
-            if (thumbFile.exists()) {
-                val bmp = BitmapFactory.decodeFile(thumbFile.absolutePath)
-                if (bmp != null) {
-                    Image(
-                        provider = ImageProvider(bmp),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = GlanceModifier.width(thumbWidth).fillMaxHeight().padding(vertical = 10.dp),
                     )
                 }
             }

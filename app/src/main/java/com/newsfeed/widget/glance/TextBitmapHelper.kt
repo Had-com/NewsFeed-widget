@@ -6,10 +6,13 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.text.Layout
+import android.text.Spannable
+import android.text.SpannableString
 import android.text.StaticLayout
 import android.text.TextDirectionHeuristics
 import android.text.TextPaint
 import android.text.TextUtils
+import android.text.style.MetricAffectingSpan
 import androidx.core.content.res.ResourcesCompat
 import com.newsfeed.widget.R
 
@@ -17,6 +20,12 @@ import com.newsfeed.widget.R
  * Renders a text string to a Bitmap using a custom Typeface loaded from res/font.
  * Used by Glamour theme headlines in Glance widgets, where RemoteViews only supports
  * system font families and cannot reference R.font resources directly.
+ *
+ * Font: Dana Yad (דנה יד), from AlefAlefAlef (alefalefalef.co.il) — free-tier commercial
+ * license, not OFL/GPL. Known restrictions: capped at 5,000 downloads before a paid license
+ * is required, requires the registered account used to obtain it, and is personal/
+ * non-transferable (can't be handed to collaborators or reused in other builds without
+ * their own license). Adopted with explicit user sign-off despite these constraints.
  */
 object TextBitmapHelper {
 
@@ -36,19 +45,54 @@ object TextBitmapHelper {
                 // Typeface.createFromAssets() is the most reliable method in background/widget
                 // contexts — Resources.getFont() can silently fail on Glance's coroutine thread.
                 val tf: Typeface? = try {
-                    ctx.assets.open("fonts/refoyl.ttf").use { stream ->
-                        val file = java.io.File(ctx.cacheDir, "refoyl.ttf")
+                    ctx.assets.open("fonts/dana_yad.otf").use { stream ->
+                        val file = java.io.File(ctx.cacheDir, "dana_yad.otf")
                         file.outputStream().use { stream.copyTo(it) }
                         Typeface.createFromFile(file)
                     }
                 } catch (_: Exception) {
-                    try { ResourcesCompat.getFont(ctx, R.font.refoyl) }
+                    try { ResourcesCompat.getFont(ctx, R.font.dana_yad) }
                     catch (_: Exception) { null }
                 }
                 if (tf != null) cachedTypeface = tf
                 tf ?: Typeface.DEFAULT_BOLD
             }
         }
+    }
+
+    private class RunTypefaceSpan(private val tf: Typeface) : MetricAffectingSpan() {
+        override fun updateDrawState(tp: TextPaint) { tp.typeface = tf }
+        override fun updateMeasureState(tp: TextPaint) { tp.typeface = tf }
+    }
+
+    // Dana Yad (like every Hebrew handwriting font tried for Glamour) has zero Latin glyphs —
+    // verified directly against its cmap table (0/52 A-Za-z, 27/27 Hebrew). Any English
+    // embedded in a headline/description therefore silently fell back to whatever plain
+    // system font Android substitutes, breaking the "handwriting" look for exactly the
+    // characters most likely to appear mid-sentence (site names, abbreviations). Spans the
+    // Latin runs onto Android's built-in generic "cursive" family instead — no new font
+    // asset needed, and it's guaranteed present on every device (unlike shipping/licensing
+    // a second custom Latin script font).
+    private fun withLatinCursiveFallback(text: String, bold: Boolean): CharSequence {
+        var hasLatin = false
+        for (c in text) if (c in 'A'..'Z' || c in 'a'..'z') { hasLatin = true; break }
+        if (!hasLatin) return text
+
+        val latinTf = Typeface.create("cursive", if (bold) Typeface.BOLD else Typeface.NORMAL)
+        val spannable = SpannableString(text)
+        var runStart = -1
+        for (i in text.indices) {
+            val isLatin = text[i] in 'A'..'Z' || text[i] in 'a'..'z'
+            if (isLatin && runStart == -1) runStart = i
+            if (!isLatin && runStart != -1) {
+                spannable.setSpan(RunTypefaceSpan(latinTf), runStart, i, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                runStart = -1
+            }
+        }
+        if (runStart != -1) {
+            spannable.setSpan(RunTypefaceSpan(latinTf), runStart, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        return spannable
     }
 
     /**
@@ -113,7 +157,7 @@ object TextBitmapHelper {
                 textSize    = textSizePx
                 color       = colorArgb
                 isAntiAlias = true
-                // Refoyl ships as a single (regular) weight — synthesize bold via the
+                // Dana Yad ships as a single (regular) weight — synthesize bold via the
                 // paint's fake-bold stroke. Verified this doesn't disturb StaticLayout's
                 // ALIGN_OPPOSITE math on the last line of a wrapped RTL headline (Solitreo,
                 // a different handwriting font tried here, broke that specifically — its last
@@ -129,8 +173,9 @@ object TextBitmapHelper {
             // every RTL headline. ALIGN_NORMAL always means "start of paragraph direction," so
             // pairing it with an explicit direction keeps the two in sync unambiguously.
             val textDirection = if (isRtl) TextDirectionHeuristics.RTL else TextDirectionHeuristics.LTR
+            val renderText = withLatinCursiveFallback(text, bold)
             val layout = StaticLayout.Builder
-                .obtain(text, 0, text.length, paint, safeWidth)
+                .obtain(renderText, 0, renderText.length, paint, safeWidth)
                 .setAlignment(Layout.Alignment.ALIGN_NORMAL)
                 .setTextDirection(textDirection)
                 .setLineSpacing(0f, 1.2f)

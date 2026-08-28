@@ -43,8 +43,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +62,7 @@ import androidx.core.content.FileProvider
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.appwidget.updateAll
+import com.newsfeed.widget.R
 import com.newsfeed.widget.data.FeedConfig
 import com.newsfeed.widget.data.FilterMode
 import com.newsfeed.widget.data.OpmlManager
@@ -427,36 +430,80 @@ class WidgetConfigActivity : ComponentActivity() {
                                     else    -> sampleDesc.take(400).trimEnd()
                                 }
                                 val previewScheme = WidgetThemes.rawColorSchemeFor(config.widgetTheme, config.themeVariant)
+                                // Glamour gets its actual bitmap-rendered font (Dana Yad) here too — this
+                                // Activity isn't RemoteViews-constrained like the real widget, so the
+                                // real Font resource can be used directly instead of the FontFamily.Cursive
+                                // placeholder that used to stand in for it (and looked nothing alike).
                                 val previewFont = when (WidgetThemes.fontFamilyFor(config.widgetTheme)) {
                                     "serif"   -> FontFamily.Serif
                                     "mono"    -> FontFamily.Monospace
-                                    "cursive" -> FontFamily.Cursive
+                                    "cursive" -> FontFamily(Font(R.font.dana_yad))
                                     else      -> FontFamily.SansSerif
                                 }
-                                val headlineColor = if (config.widgetTheme == "glamer")
-                                    previewScheme.onSurfaceVariant else previewScheme.onSurface
+                                // Headline always uses onSurface — the theme's primary/darkest-ink
+                                // token — matching FeedItemRow's real rendering for every theme
+                                // (this used to special-case Glamour onto onSurfaceVariant, the same
+                                // bug that was fixed in the real widget's headline color).
+                                val headlineColor = previewScheme.onSurface
+                                // Fixed reference width instead of the settings screen's full width:
+                                // this is the widget's own verified default size (uiautomator-measured
+                                // 303dp elsewhere this session), so text wraps here exactly the way it
+                                // wraps on an actually-placed widget, not artificially wider.
+                                val previewThumbDp = (52f * config.fontSize).dp
                                 Column(
                                     modifier = Modifier
-                                        .fillMaxWidth()
+                                        .width(303.dp)
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(previewScheme.surface)
                                         .padding(horizontal = 12.dp, vertical = 8.dp),
                                 ) {
-                                    Text(
-                                        "14:30  ·  ynet מבזקים",
-                                        fontSize   = (9f * config.fontSize).sp,
-                                        fontFamily = previewFont,
-                                        color      = previewScheme.onSurfaceVariant,
-                                    )
+                                    // Time stays physically left, feed name grouped to the
+                                    // physical right — matches FeedItemRow.kt's real isRtl
+                                    // meta-row order, not achievable with one combined string.
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            "14:30",
+                                            fontSize   = (9f * config.fontSize).sp,
+                                            fontFamily = previewFont,
+                                            color      = previewScheme.onSurfaceVariant,
+                                        )
+                                        Spacer(Modifier.weight(1f))
+                                        Text(
+                                            "ynet מבזקים",
+                                            fontSize   = (9f * config.fontSize).sp,
+                                            fontFamily = previewFont,
+                                            color      = previewScheme.primary,
+                                        )
+                                    }
                                     Spacer(Modifier.height(2.dp))
-                                    Text(
-                                        "כותרת כתבה לדוגמה — Sample article headline",
-                                        fontSize   = (13f * config.fontSize).sp,
-                                        fontFamily = previewFont,
-                                        fontWeight = FontWeight.Bold,
-                                        lineHeight = (17f * config.fontSize).sp,
-                                        color      = headlineColor,
-                                    )
+                                    Row(verticalAlignment = Alignment.Top) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                "כותרת כתבה לדוגמה — Sample article headline",
+                                                fontSize   = (13f * config.fontSize).sp,
+                                                fontFamily = previewFont,
+                                                fontWeight = FontWeight.Bold,
+                                                lineHeight = (17f * config.fontSize).sp,
+                                                color      = headlineColor,
+                                                textAlign  = TextAlign.End,
+                                                modifier   = Modifier.fillMaxWidth(),
+                                            )
+                                        }
+                                        Spacer(Modifier.width(8.dp))
+                                        // Stand-in for a real per-article thumbnail — content doesn't
+                                        // matter here, only that it occupies the same width so the
+                                        // headline next to it wraps at the same width it really would.
+                                        androidx.compose.foundation.layout.Box(
+                                            modifier = Modifier
+                                                .width(previewThumbDp)
+                                                .height(previewThumbDp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(previewScheme.surfaceVariant),
+                                        )
+                                    }
                                     Spacer(Modifier.height(4.dp))
                                     Text(
                                         previewDesc,
@@ -464,6 +511,8 @@ class WidgetConfigActivity : ComponentActivity() {
                                         fontFamily = previewFont,
                                         color      = previewScheme.onSurfaceVariant,
                                         lineHeight = (14f * config.fontSize).sp,
+                                        textAlign  = TextAlign.End,
+                                        modifier   = Modifier.fillMaxWidth(),
                                     )
                                 }
                                 Spacer(Modifier.height(8.dp))

@@ -236,7 +236,9 @@ object WidgetThemes {
         primaryContainer    = Color(0xFFF3D5AD),
         onPrimaryContainer  = Color(0xFF2C1A0A),
         surface             = Color(0xFFFDFAF6),
-        onSurface           = Color(0xFF2C1A0A),
+        // Was #2C1A0A — read as near-black at headline size/weight. More visibly brown
+        // while staying well darker than onSurfaceVariant for headline/body contrast.
+        onSurface           = Color(0xFF4A2E14),
         onSurfaceVariant    = Color(0xFF7A5C3A),
         surfaceVariant      = Color(0xFFEDE4D4),
         background          = Color(0xFFF5EFE6),
