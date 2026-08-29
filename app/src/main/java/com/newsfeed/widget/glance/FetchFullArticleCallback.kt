@@ -17,6 +17,21 @@ class FetchFullArticleCallback : ActionCallback {
         val ARTICLE_ID_KEY          = ActionParameters.Key<String>("fetchArticleId")
         val ARTICLE_URL_KEY         = ActionParameters.Key<String>("fetchArticleUrl")
         val ARTICLE_DESCRIPTION_KEY = ActionParameters.Key<String>("fetchArticleDesc")
+
+        // Glamour's full-article body renders through a Bitmap (the only way to use the
+        // Dana Yad font in a RemoteViews-hosted widget at all — see TextBitmapHelper), whose
+        // memory cost scales with rendered size. Unbounded fetched-article text could reach
+        // several KB, so it's revealed in bounded chunks via "Load more" (LoadMoreArticleCallback)
+        // instead of one ever-growing bitmap — each already-revealed chunk stays on screen as
+        // its own separate, independently-bounded bitmap. MAX_CHUNKS is deliberately modest
+        // (not just CHUNK_CHARS): every loaded chunk's bitmap memory is additive, alongside
+        // the ~14 other rows' own headline bitmaps in the same RemoteViews update — 6 chunks
+        // at this size would risk re-approaching the ~15.5MB budget this project already blew
+        // once, even before accounting for those other rows. Non-Glamour themes are
+        // unaffected either way, their body text was always cheap plain-Text with no bitmap
+        // cost.
+        const val CHUNK_CHARS = 1200
+        const val MAX_CHUNKS  = 3
     }
 
     override suspend fun onAction(
@@ -31,8 +46,9 @@ class FetchFullArticleCallback : ActionCallback {
         // Show the RSS description immediately so users see content right away
         if (description.isNotBlank()) {
             updateAppWidgetState(context, glanceId) { prefs ->
-                prefs[WidgetStateKey.fullArticleId]   = articleId
-                prefs[WidgetStateKey.fullArticleText] = description
+                prefs[WidgetStateKey.fullArticleId]          = articleId
+                prefs[WidgetStateKey.fullArticleText]        = description
+                prefs[WidgetStateKey.fullArticleShownChars]  = CHUNK_CHARS
             }
             NewsFeedWidget().update(context, glanceId)
         }

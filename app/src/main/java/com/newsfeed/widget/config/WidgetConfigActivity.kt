@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,6 +57,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -471,6 +474,16 @@ class WidgetConfigActivity : ComponentActivity() {
                                 // 303dp elsewhere this session), so text wraps here exactly the way it
                                 // wraps on an actually-placed widget, not artificially wider.
                                 val previewThumbDp = (52f * config.fontSize).dp
+                                // Locks this card's physical child order to LTR regardless of
+                                // the device's system locale. Compose auto-mirrors Row/Column
+                                // child order under an RTL LocalLayoutDirection (unlike Glance,
+                                // which never does) — without this, the meta row's "14:30"
+                                // element (meant to always sit physically left, matching
+                                // FeedItemRow.kt's real widget) would flip to the right on a
+                                // Hebrew-locale device even though nothing about the feed's own
+                                // RTL/LTR setting changed. Per-element textAlign=End below still
+                                // right-aligns the RTL-styled text within its own box either way.
+                                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                                 Column(
                                     modifier = Modifier
                                         .width(303.dp)
@@ -539,6 +552,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                         textAlign  = TextAlign.End,
                                         modifier   = Modifier.fillMaxWidth(),
                                     )
+                                }
                                 }
                                 Spacer(Modifier.height(8.dp))
 

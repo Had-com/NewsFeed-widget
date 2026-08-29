@@ -6,7 +6,10 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.glance.unit.ColorProvider
 import androidx.compose.ui.unit.sp
@@ -57,7 +60,21 @@ class NewsFeedWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        provideContent { WidgetContent() }
+        // Glance's Row/Column child order auto-mirrors under the device's system locale —
+        // same underlying LocalLayoutDirection mechanism as regular Compose, and just as
+        // invisible in English-locale testing as the isRtl xor bug this project also hit.
+        // On a genuinely Hebrew-locale device this flipped the ENTIRE row (accent stripe,
+        // meta-row time/name order, thumbnail side, footer) regardless of each feed's own
+        // explicit RTL/LTR setting, which is the one thing meant to control it — this app
+        // manages direction per-feed deliberately, not by following system locale. Locking
+        // layout direction to Ltr here makes every Row/Column's physical child order behave
+        // identically regardless of device locale, matching what every screenshot taken
+        // during this project's (English-locale) development actually showed.
+        provideContent {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                WidgetContent()
+            }
+        }
     }
 
     @Composable
@@ -70,6 +87,7 @@ class NewsFeedWidget : GlanceAppWidget() {
         val expandedArticleId = prefs[WidgetStateKey.expandedArticleId] ?: ""
         val fullArticleId     = prefs[WidgetStateKey.fullArticleId]     ?: ""
         val fullArticleText   = prefs[WidgetStateKey.fullArticleText]   ?: ""
+        val fullArticleShown  = prefs[WidgetStateKey.fullArticleShownChars] ?: FetchFullArticleCallback.CHUNK_CHARS
 
         val config = configJson
             ?.let { runCatching { Json.decodeFromString<WidgetConfig>(it) }.getOrNull() }
@@ -131,6 +149,7 @@ class NewsFeedWidget : GlanceAppWidget() {
                                     articleLength     = config.articleLength,
                                     fullArticleId     = fullArticleId,
                                     fullArticleText   = fullArticleText,
+                                    fullArticleShown  = fullArticleShown,
                                     useThemeColors    = config.useThemeColors,
                                     widgetTheme       = config.widgetTheme,
                                     externalApp       = config.externalApp,

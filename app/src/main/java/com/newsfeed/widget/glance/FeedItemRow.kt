@@ -56,6 +56,7 @@ fun FeedItemRow(
     articleLength: String = "medium",
     fullArticleId: String = "",
     fullArticleText: String = "",
+    fullArticleShown: Int = FetchFullArticleCallback.CHUNK_CHARS,
     useThemeColors: Boolean = false,
     widgetTheme: String = "auto",
     themeVariant: String = "light",
@@ -70,8 +71,16 @@ fun FeedItemRow(
             .getOrDefault(android.graphics.Color.parseColor("#9B72E3"))
         ColorProvider(Color(parsed))
     }
-    val systemIsRtl    = context.resources.configuration.layoutDirection == android.util.LayoutDirection.RTL
-    val isRtl          = (feedConfig.layoutDirection == "rtl") xor systemIsRtl
+    // Each feed's direction is an explicit, absolute per-feed setting (the config screen's
+    // RTL/LTR toggle) — it must NOT depend on the device's system locale. This used to XOR
+    // against context.resources.configuration.layoutDirection, which silently inverted every
+    // feed's direction on a device with its OS language set to Hebrew (or any other RTL
+    // system locale): a feed explicitly configured as RTL would compute
+    // `true xor true = false` and render LTR, and vice versa for an LTR feed. Invisible in
+    // this project's testing since the dev AVD's system locale was always English
+    // (`false xor anything` is a no-op) — reported by the user only after testing on a
+    // Hebrew-locale device, where justification (and alignment generally) came out backwards.
+    val isRtl          = feedConfig.layoutDirection == "rtl"
     val metaFontSize   = (9f * fontSize).sp
     val headlineSize   = (13f * fontSize).sp
     val articleSize    = (10f * articleFontSize).sp
@@ -383,16 +392,18 @@ fun FeedItemRow(
 
                 // Glamour renders body text with the same handwriting font as the headline
                 // (regular weight, not bold — the headline is bold specifically to stand out
-                // from the body). ONLY for short, char-clipped snippets: converting to a bitmap
-                // trades RemoteViews' cheap TextView rendering for a Bitmap, whose memory cost
-                // scales with width × height × 4 bytes. On a resized-large widget at high
-                // density with the max font-size setting, an unbounded/long input could reach
-                // several MB — re-risking the RemoteViews bitmap-memory budget this project
-                // already hit once (see the thumbnail-resolution fix). Caller must pass text
-                // already clipped to a small char count; this also hard-clips defensively so a
-                // future call site can't reintroduce that risk by forgetting to.
+                // from the body), for short snippets AND the unbounded "full article" fetch —
+                // converting to a bitmap trades RemoteViews' cheap TextView rendering for a
+                // Bitmap, whose memory cost scales with width × height × 4 bytes, so both the
+                // input length (maxChars) and the rendered line count are bounded regardless
+                // of the caller's request. Line count specifically is derived from a fixed
+                // pixel-height budget divided by the actual line height (which already
+                // accounts for articleFontSize and device density) rather than a flat number,
+                // so it stays safe at every combination of those settings instead of only the
+                // ones this was tested at — a fixed line count could still blow the budget at
+                // a high articleFontSize + high-density combination a flat cap wouldn't catch.
                 @Composable
-                fun DescriptionText(text: String, maxLines: Int) {
+                fun DescriptionText(text: String, maxLines: Int, maxChars: Int = 400) {
                     if (widgetTheme == "glamer") {
                         val density       = context.resources.displayMetrics.density
                         val scaledDensity = context.resources.displayMetrics.scaledDensity
@@ -401,10 +412,18 @@ fun FeedItemRow(
                         // widths without affecting any tested realistic widget size.
                         val widthPx       = ((LocalSize.current.width.value.coerceAtMost(350f) - 9f) * density)
                                                 .toInt().coerceAtLeast(50)
+                        // 600px (not the 900px this used before "Load more" existed): short/
+                        // medium mode is unaffected either way since its own maxLines=10 was
+                        // already the tighter constraint, but the "full" article mode's chunks
+                        // can now stack multiple independently-bounded bitmaps at once (up to
+                        // MAX_CHUNKS), so each one needs a smaller individual budget to keep
+                        // the total safe alongside the other rows' headline bitmaps.
+                        val lineHeightPx  = 10f * articleFontSize * scaledDensity * 1.2f
+                        val safeMaxLines  = (600f / lineHeightPx).toInt().coerceIn(4, maxLines)
                         // Same color as the headline (glamerHeadlineColorArgb, hoisted above)
                         // — only size differs, per explicit request. Previously body text
                         // used a separate, deliberately lighter/warmer color.
-                        val safeText = text.take(400)
+                        val safeText = text.take(maxChars)
                         val bmp = if (widthPx >= 120) TextBitmapHelper.paragraph(
                             context    = context,
                             text       = safeText,
@@ -412,7 +431,7 @@ fun FeedItemRow(
                             colorArgb  = glamerHeadlineColorArgb,
                             widthPx    = widthPx,
                             isRtl      = isRtl,
-                            maxLines   = maxLines.coerceAtMost(10),
+                            maxLines   = safeMaxLines,
                         ) else null
                         if (bmp != null) {
                             Image(
@@ -424,21 +443,65 @@ fun FeedItemRow(
                             return
                         }
                     }
+                    // Non-Glamour themes (or a failed bitmap render) bear no bitmap-memory
+                    // cost, so they get the full, uncapped text/line count here regardless of
+                    // maxChars — that cap only exists to bound the Glamour bitmap above.
                     Text(text = text, style = descStyle, maxLines = maxLines, modifier = GlanceModifier.fillMaxWidth())
                 }
 
                 if (articleLength == "full") {
                     if (fullArticleId == article.id && fullArticleText.isNotBlank()) {
-                        // Full fetched article text is unbounded (can run to many KB) — stays
-                        // as plain Text (system cursive) rather than DescriptionText/bitmap;
-                        // see the memory-budget reasoning above.
                         Spacer(GlanceModifier.height(4.dp))
-                        Text(
-                            text = fullArticleText,
-                            style = descStyle,
-                            maxLines = 200,
-                            modifier = GlanceModifier.fillMaxWidth(),
-                        )
+                        if (widgetTheme == "glamer") {
+                            // Chunked pagination: each already-revealed CHUNK_CHARS-sized
+                            // slice renders as its own independently-bounded bitmap (same
+                            // font/color as the headline), rather than one bitmap sized to
+                            // the whole unbounded fetch — see FetchFullArticleCallback for
+                            // why. "Load more" (LoadMoreArticleCallback) reveals the next
+                            // chunk, up to MAX_CHUNKS.
+                            val shown = fullArticleShown.coerceAtMost(fullArticleText.length)
+                            var chunkStart = 0
+                            while (chunkStart < shown) {
+                                val chunkEnd = (chunkStart + FetchFullArticleCallback.CHUNK_CHARS).coerceAtMost(shown)
+                                if (chunkStart > 0) Spacer(GlanceModifier.height(6.dp))
+                                DescriptionText(
+                                    fullArticleText.substring(chunkStart, chunkEnd),
+                                    maxLines  = 30,
+                                    maxChars  = FetchFullArticleCallback.CHUNK_CHARS,
+                                )
+                                chunkStart = chunkEnd
+                            }
+                            val atCap = shown >= FetchFullArticleCallback.CHUNK_CHARS * FetchFullArticleCallback.MAX_CHUNKS
+                            if (shown < fullArticleText.length && !atCap) {
+                                Spacer(GlanceModifier.height(6.dp))
+                                Text(
+                                    text = "Load more ↓",
+                                    style = TextStyle(
+                                        fontSize   = (9f * fontSize).sp,
+                                        fontFamily = FontFamily.SansSerif,
+                                        color      = accentProvider,
+                                    ),
+                                    modifier = GlanceModifier
+                                        .background(GlanceTheme.colors.primaryContainer)
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                        .clickable(
+                                            actionRunCallback<LoadMoreArticleCallback>(
+                                                actionParametersOf(LoadMoreArticleCallback.ARTICLE_ID_KEY to article.id)
+                                            )
+                                        ),
+                                )
+                            }
+                        } else {
+                            // Non-Glamour body text is cheap plain-Text with no bitmap
+                            // memory cost, so it renders the whole fetched article at once —
+                            // pagination only exists to bound Glamour's bitmap rendering.
+                            Text(
+                                text = fullArticleText,
+                                style = descStyle,
+                                maxLines = 200,
+                                modifier = GlanceModifier.fillMaxWidth(),
+                            )
+                        }
                     } else {
                         if (article.description.isNotBlank()) {
                             Spacer(GlanceModifier.height(4.dp))
