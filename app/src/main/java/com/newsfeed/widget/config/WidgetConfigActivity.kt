@@ -306,6 +306,13 @@ class WidgetConfigActivity : ComponentActivity() {
                     config.fontSize < 2.0f  -> "Large"
                     else                    -> "Huge"
                 }
+                val articleFontSizeLabel = when {
+                    config.articleFontSize < 0.75f -> "Tiny"
+                    config.articleFontSize < 1.0f  -> "Small"
+                    config.articleFontSize < 1.5f  -> "Medium"
+                    config.articleFontSize < 2.0f  -> "Large"
+                    else                            -> "Huge"
+                }
 
                 Scaffold(
                     topBar = {
@@ -422,6 +429,20 @@ class WidgetConfigActivity : ComponentActivity() {
                                     valueRange = 0.5f..3.0f,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
+
+                                // Article (expanded body text) font size — independent of the
+                                // headline/meta size above.
+                                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                                    Text("Article font size", style = MaterialTheme.typography.bodyMedium)
+                                    Text(articleFontSizeLabel, fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Slider(
+                                    value = config.articleFontSize,
+                                    onValueChange = { config = config.copy(articleFontSize = it) },
+                                    valueRange = 0.5f..3.0f,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
                                 // Live preview
                                 val sampleDesc = "פרטי הכתבה לדוגמה מופיעים כאן לאחר הפתיחה — When you tap a headline, this is the description text that appears below it. The length setting controls how much of this text is shown."
                                 val previewDesc = when (config.articleLength) {
@@ -507,10 +528,14 @@ class WidgetConfigActivity : ComponentActivity() {
                                     Spacer(Modifier.height(4.dp))
                                     Text(
                                         previewDesc,
-                                        fontSize   = (10f * config.fontSize).sp,
+                                        // Same color as the headline (headlineColor) and same
+                                        // font family (previewFont, already shared) — only
+                                        // size differs, scaled by the independent article
+                                        // font-size setting rather than the headline's.
+                                        fontSize   = (10f * config.articleFontSize).sp,
                                         fontFamily = previewFont,
-                                        color      = previewScheme.onSurfaceVariant,
-                                        lineHeight = (14f * config.fontSize).sp,
+                                        color      = headlineColor,
+                                        lineHeight = (14f * config.articleFontSize).sp,
                                         textAlign  = TextAlign.End,
                                         modifier   = Modifier.fillMaxWidth(),
                                     )

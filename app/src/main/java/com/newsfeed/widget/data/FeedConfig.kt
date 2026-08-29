@@ -24,6 +24,7 @@ data class WidgetConfig(
     val feeds: List<FeedConfig> = emptyList(),
     val refreshIntervalMinutes: Int = 15,
     val fontSize: Float = 1.0f,                // 0.5 – 3.0
+    val articleFontSize: Float = 1.0f,         // 0.5 – 3.0 — independent of fontSize, expanded-article body text only
     val externalApp: String = "browser",       // "browser" | "share"
     val articleLength: String = "medium",      // "short" | "medium" | "full"
     val widgetTheme: String = "glamer",        // "auto" | "lavender" | "amethyst" | "glassy" | "simple" | "aerospace" | "silicon" | "glamer"

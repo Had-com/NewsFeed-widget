@@ -52,6 +52,7 @@ fun FeedItemRow(
     feedConfig: FeedConfig,
     expandedArticleId: String,
     fontSize: Float,
+    articleFontSize: Float = 1.0f,
     articleLength: String = "medium",
     fullArticleId: String = "",
     fullArticleText: String = "",
@@ -73,8 +74,22 @@ fun FeedItemRow(
     val isRtl          = (feedConfig.layoutDirection == "rtl") xor systemIsRtl
     val metaFontSize   = (9f * fontSize).sp
     val headlineSize   = (13f * fontSize).sp
+    val articleSize    = (10f * articleFontSize).sp
     // Thumbnail width: square based on font scale (independent of row height)
     val thumbWidth     = (52f * fontSize).dp
+
+    // Headline color, hoisted so the expanded-article body text below can reuse the exact
+    // same source and always match it (per explicit request: article text should be the
+    // same color as the heading, just smaller — previously body text used a separate,
+    // intentionally muted color).
+    val glamerHeadlineColorArgb = if (themeVariant == "dark") 0xFFEDE4D4.toInt() else 0xFF4A2E14.toInt()
+    val nonGlamerHeadlineColor: ColorProvider = when {
+        (widgetTheme == "silicon" || widgetTheme == "data_science") && themeVariant != "dark" ->
+            ColorProvider(Color(0xFF007870))
+        widgetTheme == "aerospace" && themeVariant == "dark" ->
+            ColorProvider(Color(0xFFFFE5B4))
+        else -> GlanceTheme.colors.onSurface
+    }
 
     val toggleAction = actionRunCallback<ToggleExpandCallback>(
         actionParametersOf(ToggleExpandCallback.ARTICLE_ID_KEY to article.id)
@@ -149,6 +164,14 @@ fun FeedItemRow(
                     fontSize   = metaFontSize,
                     fontFamily = FontFamily.SansSerif,
                     color      = accentProvider,
+                    // RTL's name box is a fixed width (nameMaxWidth) so it can't push the
+                    // circle off the row — without End alignment, a short name sits flush at
+                    // the box's start (left) instead of hugging the circle beside it, leaving
+                    // a gap whose size varies with how much shorter than nameMaxWidth the name
+                    // is. LTR's box is defaultWeight() (starts exactly where the circle ends),
+                    // so Start alignment there never produces a gap either way.
+                    textAlign  = if (isRtl) androidx.glance.text.TextAlign.End
+                                 else       androidx.glance.text.TextAlign.Start,
                 )
 
                 // Feed name is grouped on this same line with the favicon circle, right-
@@ -241,9 +264,9 @@ fun FeedItemRow(
                 // WidgetThemes.kt's GLAMER_LIGHT.onSurface (#4A2E14 — a visibly brown dark
                 // ink, not the near-black #2C1A0A this used to be) so the config-screen
                 // preview and the real widget agree; dark is picked independently and
-                // doesn't match GLAMER_DARK.onSurface.
-                val colorArgb     = if (themeVariant == "dark") 0xFFEDE4D4.toInt()
-                                    else                        0xFF4A2E14.toInt()
+                // doesn't match GLAMER_DARK.onSurface. Hoisted (glamerHeadlineColorArgb)
+                // so the expanded-article body text can reuse the identical value.
+                val colorArgb     = glamerHeadlineColorArgb
                 // Below this, there isn't enough room for the bitmap's internal wrapping to stay
                 // proportionate to how wide it actually gets displayed (fillMaxWidth() + Fit scale
                 // up a too-narrow bitmap into huge, clipped, single-word lines). A plain Text()
@@ -282,17 +305,6 @@ fun FeedItemRow(
                     )
                 }
             } else {
-                // Data Science (light) and Aerospace (dark) use explicit headline colors
-                // instead of the theme's onSurface token — a deliberate, more saturated
-                // choice for these two themes specifically; every other theme keeps using
-                // onSurface as before.
-                val normalHeadlineColor = when {
-                    (widgetTheme == "silicon" || widgetTheme == "data_science") && themeVariant != "dark" ->
-                        ColorProvider(Color(0xFF007870))
-                    widgetTheme == "aerospace" && themeVariant == "dark" ->
-                        ColorProvider(Color(0xFFFFE5B4))
-                    else -> GlanceTheme.colors.onSurface
-                }
                 Text(
                     text = article.title,
                     style = TextStyle(
@@ -302,7 +314,7 @@ fun FeedItemRow(
                         textDecoration = if ("underline" in feedConfig.textStyle) TextDecoration.Underline else TextDecoration.None,
                         fontFamily = headlineFontFamily,
                         color = if (article.isRead) GlanceTheme.colors.onSurfaceVariant
-                                else normalHeadlineColor,
+                                else nonGlamerHeadlineColor,
                         textAlign = if (isRtl) androidx.glance.text.TextAlign.End
                                     else      androidx.glance.text.TextAlign.Start,
                     ),
@@ -354,20 +366,17 @@ fun FeedItemRow(
                     "cursive" -> FontFamily.Cursive
                         else      -> FontFamily.SansSerif
                 }
-                // Data Science and Aerospace use explicit article/body colors in dark
-                // variant instead of onSurfaceVariant — same deliberate-override pattern
-                // as the headline color above.
-                val descColor = when {
-                    (widgetTheme == "silicon" || widgetTheme == "data_science") && themeVariant == "dark" ->
-                        ColorProvider(Color(0xFFB2EBE8))
-                    widgetTheme == "aerospace" && themeVariant == "dark" ->
-                        ColorProvider(Color(0xFFE8D8A8))
-                    else -> GlanceTheme.colors.onSurfaceVariant
-                }
+                // Article/body text matches the headline's color exactly (same source val,
+                // including the isRead dimming) — only font size differs, per explicit
+                // request. feedFontFamily is already identical to headlineFontFamily (both
+                // derive from the same resolvedFont/headlineFontStr logic), so type already
+                // matched; color previously didn't (this used to be a deliberately muted
+                // onSurfaceVariant/secondary shade).
                 val descStyle = TextStyle(
-                    fontSize   = (10f * fontSize).sp,
+                    fontSize   = articleSize,
                     fontFamily = feedFontFamily,
-                    color      = descColor,
+                    color      = if (article.isRead) GlanceTheme.colors.onSurfaceVariant
+                                 else nonGlamerHeadlineColor,
                     textAlign  = if (isRtl) androidx.glance.text.TextAlign.End
                                  else      androidx.glance.text.TextAlign.Start,
                 )
@@ -392,17 +401,15 @@ fun FeedItemRow(
                         // widths without affecting any tested realistic widget size.
                         val widthPx       = ((LocalSize.current.width.value.coerceAtMost(350f) - 9f) * density)
                                                 .toInt().coerceAtLeast(50)
-                        // Dark uses primary (#A87840) for the body — a warmer, more
-                        // saturated tone than a plain muted variant; light keeps the
-                        // established step-lighter-than-headline brown.
-                        val colorArgb     = if (themeVariant == "dark") 0xFFA87840.toInt()
-                                            else                        0xFF7A5C3A.toInt()
+                        // Same color as the headline (glamerHeadlineColorArgb, hoisted above)
+                        // — only size differs, per explicit request. Previously body text
+                        // used a separate, deliberately lighter/warmer color.
                         val safeText = text.take(400)
                         val bmp = if (widthPx >= 120) TextBitmapHelper.paragraph(
                             context    = context,
                             text       = safeText,
-                            textSizePx = 10f * fontSize * scaledDensity,
-                            colorArgb  = colorArgb,
+                            textSizePx = 10f * articleFontSize * scaledDensity,
+                            colorArgb  = glamerHeadlineColorArgb,
                             widthPx    = widthPx,
                             isRtl      = isRtl,
                             maxLines   = maxLines.coerceAtMost(10),

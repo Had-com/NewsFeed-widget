@@ -174,6 +174,13 @@ object TextBitmapHelper {
             // pairing it with an explicit direction keeps the two in sync unambiguously.
             val textDirection = if (isRtl) TextDirectionHeuristics.RTL else TextDirectionHeuristics.LTR
             val renderText = withLatinCursiveFallback(text, bold)
+            // Verified via logcat (safeWidth vs. StaticLayout.getLineWidth(i) per line across
+            // ~15 real headlines) that safeWidth itself is already correct — many lines
+            // independently reached 96-100% of it. The lines that fell short did so purely
+            // from natural word-boundary wrapping (Hebrew news headlines have organically
+            // uneven word lengths), which ragged (non-justified) text always produces to some
+            // degree. Inter-word justification stretches spacing so every line but the true
+            // last one flushes both edges instead of leaving that natural slack.
             val layout = StaticLayout.Builder
                 .obtain(renderText, 0, renderText.length, paint, safeWidth)
                 .setAlignment(Layout.Alignment.ALIGN_NORMAL)
@@ -181,6 +188,7 @@ object TextBitmapHelper {
                 .setLineSpacing(0f, 1.2f)
                 .setMaxLines(maxLines)
                 .setEllipsize(TextUtils.TruncateAt.END)
+                .setJustificationMode(Layout.JUSTIFICATION_MODE_INTER_WORD)
                 .build()
 
             val bmp = Bitmap.createBitmap(safeWidth, layout.height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)

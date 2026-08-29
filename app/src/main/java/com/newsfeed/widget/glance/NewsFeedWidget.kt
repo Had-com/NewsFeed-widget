@@ -85,7 +85,11 @@ class NewsFeedWidget : GlanceAppWidget() {
         // IllegalArgumentException past it), so the visible row count is capped well under what a
         // worst-case mix of bitmaps could exceed rather than the ~50 that used to be sent.
         val displayArticles = articles.filter { feedMap.containsKey(it.feedId) }.take(15)
-        val unreadCount     = articles.count { feedMap.containsKey(it.feedId) && !it.isRead }
+        // Scoped to displayArticles, not the full accumulated store (which can hold up to
+        // 300) — counting the full store made the header badge claim "99+" unread while only
+        // 15 articles were ever reachable by scrolling, which read as a bug (and was reported
+        // as one) rather than the accumulation feature it actually was.
+        val unreadCount     = displayArticles.count { !it.isRead }
 
         val themeColors = WidgetThemes.colorProvidersFor(config.widgetTheme, config.themeVariant)
         val surfaceColor = WidgetThemes.surfaceColorFor(config.widgetTheme, config.themeVariant)
@@ -123,6 +127,7 @@ class NewsFeedWidget : GlanceAppWidget() {
                                     feedConfig        = feedConfig,
                                     expandedArticleId = expandedArticleId,
                                     fontSize          = config.fontSize,
+                                    articleFontSize   = config.articleFontSize,
                                     articleLength     = config.articleLength,
                                     fullArticleId     = fullArticleId,
                                     fullArticleText   = fullArticleText,
