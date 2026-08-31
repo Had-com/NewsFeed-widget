@@ -2,8 +2,10 @@
 
 import android.content.Context
 import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.state.getAppWidgetState
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.appwidget.updateAll
+import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -36,12 +38,26 @@ class WidgetWorker(
         for (glanceId in widgetIds) {
             val appWidgetId = manager.getAppWidgetId(glanceId)
             val config      = store.configFlow(appWidgetId).first()
-            val fetchResult = repo.getArticles(config)
+            // Read prior state before fetching (not just inside updateAppWidgetState below)
+            // so getArticles() knows which feeds are being fetched for the very first time —
+            // a feed with no accumulated articles yet gets its full available backlog instead
+            // of the normal per-refresh item cap (see NewsFeedRepository.getArticles).
+            val priorPrefs    = getAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId)
+            val priorArticles = priorPrefs[WidgetStateKey.articles]
+                ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
+                ?: emptyList()
+            val knownFeedIds  = priorArticles.map { it.feedId }.toSet()
+            val fetchResult = repo.getArticles(config, knownFeedIds)
             val fresh       = fetchResult.articles.map { a ->
                 if (a.id in readIds) a.copy(isRead = true) else a
             }
 
             val now = System.currentTimeMillis()
+            // How long an accumulated article stays in the list, independent of the 300-item
+            // safety cap below — 0 means "no date limit" (300-cap-only, the original behavior).
+            val retentionCutoff = if (config.retentionDays > 0)
+                now - config.retentionDays * 24L * 60 * 60 * 1000
+            else 0L
             var merged: List<ArticleItem> = emptyList()
             updateAppWidgetState(context, glanceId) { prefs ->
                 val existing = prefs[WidgetStateKey.articles]
@@ -49,6 +65,7 @@ class WidgetWorker(
                     ?: emptyList()
                 val freshIds = fresh.map { it.id }.toSet()
                 merged = (fresh + existing.filter { it.id !in freshIds })
+                    .filter { retentionCutoff <= 0L || it.publishedAt >= retentionCutoff }
                     .sortedByDescending { it.publishedAt }
                     .take(300)
                 prefs[WidgetStateKey.articles]        = Json.encodeToString(merged)

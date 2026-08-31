@@ -19,6 +19,17 @@ import java.util.concurrent.TimeUnit
 
 class NewsFeedRepository(private val context: Context) {
 
+    companion object {
+        // Normal per-refresh cap — a feed that's already accumulated articles only needs its
+        // newest handful each poll, not the whole feed body.
+        private const val MAX_ITEMS_PER_FETCH = 50
+        // First time a feed is fetched (no accumulated articles yet), pull as much of its
+        // available backlog as the feed provides, capped only by the same 300-article ceiling
+        // WidgetWorker applies to the overall accumulated store — most RSS feeds only carry a
+        // few dozen to ~100 items anyway, so this is rarely the binding constraint in practice.
+        private const val FIRST_LOAD_MAX_ITEMS = 300
+    }
+
     val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(25, TimeUnit.SECONDS)
@@ -33,16 +44,24 @@ class NewsFeedRepository(private val context: Context) {
         "Accept-Language" to "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7",
     )
 
-    suspend fun getArticles(config: WidgetConfig): ArticleFetchResult = withContext(Dispatchers.IO) {
+    // knownFeedIds: feeds that already have at least one accumulated article. A feed not in
+    // this set is being fetched for the very first time, so it gets its full available
+    // backlog (FIRST_LOAD_MAX_ITEMS) instead of the normal per-refresh cap (MAX_ITEMS_PER_FETCH)
+    // — otherwise a feed's history would always start artificially truncated to whatever was
+    // in its 50 most recent items at the moment it was first added.
+    suspend fun getArticles(config: WidgetConfig, knownFeedIds: Set<String> = emptySet()): ArticleFetchResult = withContext(Dispatchers.IO) {
         val enabledFeeds = config.feeds.filter { it.enabled && it.feedUrl.isNotBlank() }
         val results = enabledFeeds
-            .map { feed -> async { runCatching { fetchFeedArticles(feed) } } }
+            .map { feed ->
+                val maxItems = if (feed.feedId in knownFeedIds) MAX_ITEMS_PER_FETCH else FIRST_LOAD_MAX_ITEMS
+                async { runCatching { fetchFeedArticles(feed, maxItems) } }
+            }
             .awaitAll()
         val all = results.flatMap { it.getOrDefault(emptyList()) }
         // "Failed" means every enabled feed's fetch threw — a handful of unreachable
         // feeds among many working ones is normal and shouldn't be flagged as an error.
         val allFailed = enabledFeeds.isNotEmpty() && results.all { it.isFailure }
-        ArticleFetchResult(applyFiltersAndSort(all, config), allFailed)
+        ArticleFetchResult(applyFiltersAndSort(all, config, knownFeedIds), allFailed)
     }
 
     suspend fun fetchFeedTitle(url: String): String? = withContext(Dispatchers.IO) {
@@ -150,7 +169,7 @@ class NewsFeedRepository(private val context: Context) {
 
     // ── private ───────────────────────────────────────────────────────────────
 
-    private fun fetchFeedArticles(feed: FeedConfig): List<ArticleItem> {
+    private fun fetchFeedArticles(feed: FeedConfig, maxItems: Int = MAX_ITEMS_PER_FETCH): List<ArticleItem> {
         var req = Request.Builder().url(feed.feedUrl)
         browserHeaders(feed.feedUrl).forEach { (k, v) -> req = req.header(k, v) }
         return client.newCall(req.build()).execute().use { response ->
@@ -159,7 +178,7 @@ class NewsFeedRepository(private val context: Context) {
             val text = response.body?.string() ?: return emptyList()
             val parser = Xml.newPullParser()
             parser.setInput(text.reader())
-            parseFeed(parser, feed)
+            parseFeed(parser, feed, maxItems)
         }
     }
 
@@ -179,14 +198,14 @@ class NewsFeedRepository(private val context: Context) {
         return null
     }
 
-    private fun parseFeed(parser: XmlPullParser, feed: FeedConfig): List<ArticleItem> {
+    private fun parseFeed(parser: XmlPullParser, feed: FeedConfig, maxItems: Int): List<ArticleItem> {
         val items = mutableListOf<ArticleItem>()
         var event = try { parser.next() } catch (_: Exception) { return emptyList() }
         while (event != XmlPullParser.END_DOCUMENT) {
             if (event == XmlPullParser.START_TAG &&
                 (parser.name.equals("item", true) || parser.name.equals("entry", true))) {
                 parseItem(parser, feed)?.let { items += it }
-                if (items.size >= 50) break
+                if (items.size >= maxItems) break
             }
             event = try { parser.next() } catch (_: Exception) { break }
         }
@@ -308,7 +327,7 @@ class NewsFeedRepository(private val context: Context) {
         return 0L
     }
 
-    private fun applyFiltersAndSort(items: List<ArticleItem>, config: WidgetConfig): List<ArticleItem> {
+    private fun applyFiltersAndSort(items: List<ArticleItem>, config: WidgetConfig, knownFeedIds: Set<String> = emptySet()): List<ArticleItem> {
         val enabledFeedIds = config.feeds.filter { it.enabled }.map { it.feedId }.toSet()
         val filtered = items
             .filter { it.feedId in enabledFeedIds }
@@ -335,17 +354,22 @@ class NewsFeedRepository(private val context: Context) {
                 result
             }
             else -> {
-                // Cap each feed at its 10 most-relevant articles before the global sort
-                // so a single high-frequency feed can't fill all visible widget slots.
+                // Cap each feed at its 10 most-relevant articles before the global sort so a
+                // single high-frequency feed can't fill all visible widget slots — except a
+                // feed being fetched for the very first time (not yet in knownFeedIds), which
+                // instead gets the same FIRST_LOAD_MAX_ITEMS ceiling its fetch was already
+                // capped at, so newly-added feeds seed their whole available backlog into the
+                // accumulated store instead of only their 10 newest.
                 val perFeed = filtered
                     .groupBy { it.feedId }
                     .values
                     .flatMap { group ->
+                        val cap = if (group.first().feedId in knownFeedIds) 10 else FIRST_LOAD_MAX_ITEMS
                         when (config.sortOrder) {
                             SortOrder.OLDEST.key       -> group.sortedBy { it.publishedAt }
                             SortOrder.UNREAD_FIRST.key -> group.sortedWith(compareBy({ it.isRead }, { -it.publishedAt }))
                             else                       -> group.sortedByDescending { it.publishedAt }
-                        }.take(10)
+                        }.take(cap)
                     }
                 when (config.sortOrder) {
                     SortOrder.OLDEST.key       -> perFeed.sortedBy { it.publishedAt }

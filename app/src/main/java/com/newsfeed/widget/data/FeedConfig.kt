@@ -31,6 +31,7 @@ data class WidgetConfig(
     val themeVariant: String = "light",        // "light" | "dark"
     val useThemeColors: Boolean = true,        // when true, all feeds use the theme accent instead of per-feed colors
     val backgroundAlpha: Float = 1.0f,         // 0.0 (fully transparent) – 1.0 (fully opaque)
+    val retentionDays: Int = 0,                // how long an accumulated article stays in the list; 0 = unlimited (only the 300-article cap applies)
 )
 
 @Serializable

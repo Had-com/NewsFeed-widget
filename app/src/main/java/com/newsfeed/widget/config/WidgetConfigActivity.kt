@@ -154,6 +154,7 @@ class WidgetConfigActivity : ComponentActivity() {
                 var showExternalMenu by remember { mutableStateOf(false) }
                 var showLengthMenu   by remember { mutableStateOf(false) }
                 var showThemeMenu    by remember { mutableStateOf(false) }
+                var showRetentionMenu by remember { mutableStateOf(false) }
 
                 val refreshOptions = listOf(
                     15 to "15 minutes", 30 to "30 minutes", 60 to "1 hour",
@@ -162,6 +163,11 @@ class WidgetConfigActivity : ComponentActivity() {
                 val externalOptions = listOf(
                     "browser"  to "Browser",
                     "share"    to "Share sheet",
+                )
+                // 0 = unlimited (only the 300-article accumulation cap applies)
+                val retentionOptions = listOf(
+                    0 to "Forever", 1 to "1 day", 3 to "3 days", 7 to "1 week",
+                    14 to "2 weeks", 30 to "1 month",
                 )
 
                 var addFeedUrl    by remember { mutableStateOf("") }
@@ -400,6 +406,23 @@ class WidgetConfigActivity : ComponentActivity() {
                                             refreshOptions.forEach { (minutes, lbl) ->
                                                 DropdownMenuItem(text = { Text(lbl) },
                                                     onClick = { config = config.copy(refreshIntervalMinutes = minutes); showRefreshMenu = false })
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Keep articles for (retention — independent of the 300-article
+                                // accumulation cap, which always applies regardless of this setting)
+                                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                                    Text("Keep articles for", style = MaterialTheme.typography.bodyMedium)
+                                    androidx.compose.foundation.layout.Box {
+                                        val label = retentionOptions.firstOrNull { it.first == config.retentionDays }?.second
+                                            ?: "${config.retentionDays} days"
+                                        TextButton(onClick = { showRetentionMenu = true }) { Text("$label ▾", fontSize = 13.sp) }
+                                        DropdownMenu(showRetentionMenu, { showRetentionMenu = false }) {
+                                            retentionOptions.forEach { (days, lbl) ->
+                                                DropdownMenuItem(text = { Text(lbl) },
+                                                    onClick = { config = config.copy(retentionDays = days); showRetentionMenu = false })
                                             }
                                         }
                                     }

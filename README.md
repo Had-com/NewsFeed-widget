@@ -45,7 +45,7 @@ The widget is **fully standalone** — it fetches RSS/Atom feeds directly over t
 - **Settings button** (⚙) in the footer row opens the widget config screen directly from the widget
 
 ### Scrollable article list
-The widget uses a scrollable list — swipe up and down within the widget to browse all articles without leaving the home screen.
+The widget uses a scrollable list — swipe up and down within the widget to browse articles without leaving the home screen. The number of rows shown at once is computed from real per-row memory cost (not a flat guess), and a **Load more articles ↓** button at the bottom reveals more of your accumulated history in chunks as you need them.
 
 ### Tap to read inline
 Tapping an article title expands it inside the widget:
@@ -60,7 +60,7 @@ Tapping an article title expands it inside the widget:
 | Medium | Up to 400 characters of the RSS excerpt (default) |
 | Full | Fetches the full web page content on demand — tap **Load full article ↓** to fetch |
 
-In **Full** mode, the widget fetches the article's web page, extracts the main `<article>` / `<main>` content, strips navigation and scripts, and displays the plain-text result inline. The fetched content is cached for the current widget session.
+In **Full** mode, the widget fetches the article's web page, extracts the main `<article>` / `<main>` content, strips navigation, scripts, and embedded widgets (`<iframe>`/`<object>`/`<embed>`/`<svg>`), and displays the plain-text result inline. Content reveals in chunks — tap **Load more ↓** to keep reading, with an **Open in browser ↗** link next to every chunk so you can jump to the source without scrolling back down. The fetched content is cached for the current widget session.
 
 ### Open article externally
 The "Open article in" setting controls where the Open button sends you:
@@ -140,10 +140,10 @@ Because Jetpack Glance/RemoteViews cannot load `R.font` resources directly, head
 - **Remove** — tap × on any feed row to delete it
 
 ### Article accumulation
-The widget merges freshly fetched articles with previously stored ones (up to 300 total, deduplicated by ID, sorted by date). Articles stay available even between refreshes.
+The widget merges freshly fetched articles with previously stored ones (up to 300 total, deduplicated by ID, sorted by date). Articles stay available even between refreshes. A feed's very first fetch pulls its whole available backlog rather than just the newest handful, so newly added feeds don't start with an artificially short history. A **"Keep articles for"** setting (Forever / 1 day / 3 days / 1 week / 2 weeks / 1 month) controls how long an article stays in the accumulated list, independent of the 300-item cap.
 
 ### Hebrew / RTL news site compatibility
-Feeds are fetched with browser-like HTTP headers so Israeli news sites (ynet, rotter.net, N12, כאן, וואלה, גלובס) do not block the request. Charset encoding is auto-detected (Windows-1255 Hebrew feeds are handled correctly).
+Feeds are fetched with browser-like HTTP headers so Israeli news sites (ynet, rotter.net, N12, כאן, וואלה, גלובס) do not block the request. Charset encoding is auto-detected for both RSS feeds and full-article page fetches — including sites (like rotter.net) that declare their encoding only via an in-page `<meta charset>` tag rather than the HTTP header, which a header-only charset check would miss entirely.
 
 ---
 
@@ -165,7 +165,7 @@ Long-press the widget on your home screen → tap **Edit widget** to open the se
 You can also tap the **⚙** button in the widget footer.
 
 ### Settings screen layout
-1. **Sort & Filter** — global sort order, read/unread filter, refresh interval, "Open article in" dropdown, article length, font size slider, theme picker
+1. **Sort & Filter** — global sort order, read/unread filter, refresh interval, "Keep articles for" retention, "Open article in" dropdown, article length, font size slider (headline + separate article-body slider), theme picker
 2. **Add Feed** — enter a feed URL and tap **Add**, or use **Import OPML** / **Export OPML**
 3. **Feed order & style** — one draggable row per feed with:
    - Grip handle (drag ⠿ to reorder)
@@ -278,7 +278,9 @@ app/src/main/
 │   │   ├── BootReceiver.kt           # Reschedules WorkManager and clock tick after device reboot
 │   │   ├── RefreshNowCallback.kt     # ActionCallback — immediate refresh on footer tap
 │   │   ├── ToggleExpandCallback.kt   # ActionCallback — expand/collapse article in widget
-│   │   ├── FetchFullArticleCallback.kt # ActionCallback — two-phase loading (description → full web content)
+│   │   ├── FetchFullArticleCallback.kt # ActionCallback — two-phase loading (description → full web content, charset-sniffed)
+│   │   ├── LoadMoreArticleCallback.kt  # ActionCallback — reveal next chunk of one article's full text
+│   │   ├── LoadMoreArticlesCallback.kt # ActionCallback — reveal next chunk of the article list
 │   │   └── OpenExternalCallback.kt   # ActionCallback — open article URL, mark read
 │   ├── config/
 │   │   ├── WidgetConfigActivity.kt   # Settings screen with live theme preview (sort, filter, feeds, theme, OPML)

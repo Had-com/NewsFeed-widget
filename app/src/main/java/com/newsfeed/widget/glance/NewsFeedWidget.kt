@@ -17,6 +17,7 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
@@ -98,15 +99,45 @@ class NewsFeedWidget : GlanceAppWidget() {
             ?: emptyList()
 
         val feedMap         = config.feeds.associateBy { it.feedId }
-        // Each row can carry a Glamour-theme headline bitmap and/or a thumbnail image; RemoteViews
-        // has a hard ~1.2MB total bitmap-memory budget for a widget update (AppWidgetService throws
-        // IllegalArgumentException past it), so the visible row count is capped well under what a
-        // worst-case mix of bitmaps could exceed rather than the ~50 that used to be sent.
-        val displayArticles = articles.filter { feedMap.containsKey(it.feedId) }.take(15)
+        val visibleCount    = prefs[WidgetStateKey.visibleArticleCount] ?: LoadMoreArticlesCallback.ARTICLE_CHUNK_SIZE
+        val availableArticles = articles.filter { feedMap.containsKey(it.feedId) }
+
+        // Each row can carry a Glamour-theme headline bitmap and/or a thumbnail image, and
+        // RemoteViews has a real total bitmap-memory budget for one widget update (this
+        // project has hit "IllegalArgumentException: RemoteViews for widget update exceeds
+        // maximum bitmap memory usage" before) — so the row count is capped by an actual
+        // computed budget instead of a flat guessed number, the same chunked-reveal approach
+        // used for full-article "Load more" (see FeedItemRow's maxChunksAllowed). 7.5MB here
+        // + the full-article path's own 6MB budget stay under the ~15.5MB ceiling this
+        // project has hit before, with margin left for other home-screen widgets.
+        val context2       = LocalContext.current
+        val density2       = context2.resources.displayMetrics.density
+        val scaledDensity2 = context2.resources.displayMetrics.scaledDensity
+        val widthPx2       = ((LocalSize.current.width.value.coerceAtMost(350f) - 9f) * density2)
+                                  .toInt().coerceAtLeast(50)
+        val headlineLineHeightPx = 13f * config.fontSize * scaledDensity2 * 1.2f
+        // Worst case per row: a 3-line Glamour headline bitmap plus a small thumbnail —
+        // themes without a bitmap headline (plain Text) cost far less, so this deliberately
+        // overestimates rather than risking under-provisioning.
+        val headlineBytes  = if (config.widgetTheme == "glamer")
+            (widthPx2 * (3 * headlineLineHeightPx) * 4f) else 0f
+        val thumbnailBytes = 100f * 100f * 4f
+        val bytesPerRow    = (headlineBytes + thumbnailBytes).coerceAtLeast(1f)
+        val rowBudgetBytes = 7_500_000f
+        val maxRowsAllowed = (rowBudgetBytes / bytesPerRow).toInt().coerceIn(5, 60)
+
+        val displayArticles = availableArticles.take(visibleCount.coerceAtMost(maxRowsAllowed))
+        // Based on visibleCount (what's been requested), not displayArticles.size (what's
+        // actually shown after clamping) — comparing the clamped size against maxRowsAllowed
+        // was always false the moment a single "chunk" request met or exceeded the memory
+        // ceiling, hiding the button on the very first render whenever that happened instead
+        // of only once truly exhausted. visibleCount vs the two ceilings is what actually
+        // determines whether tapping "Load more" would reveal anything new.
+        val canLoadMoreArticles = visibleCount < maxRowsAllowed && visibleCount < availableArticles.size
         // Scoped to displayArticles, not the full accumulated store (which can hold up to
         // 300) — counting the full store made the header badge claim "99+" unread while only
-        // 15 articles were ever reachable by scrolling, which read as a bug (and was reported
-        // as one) rather than the accumulation feature it actually was.
+        // a fraction of articles were ever reachable by scrolling, which read as a bug (and
+        // was reported as one) rather than the accumulation feature it actually was.
         val unreadCount     = displayArticles.count { !it.isRead }
 
         val themeColors = WidgetThemes.colorProvidersFor(config.widgetTheme, config.themeVariant)
@@ -164,6 +195,27 @@ class NewsFeedWidget : GlanceAppWidget() {
                                         .fillMaxWidth()
                                         .height(2.dp)
                                         .background(ColorProvider(Color(0x33000000)))) {}
+                                }
+                            }
+                        }
+                        if (canLoadMoreArticles) {
+                            item {
+                                Box(
+                                    modifier = GlanceModifier.fillMaxWidth().padding(12.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = "Load more articles ↓",
+                                        style = TextStyle(
+                                            fontSize   = 12.sp,
+                                            fontFamily = FontFamily.SansSerif,
+                                            color      = GlanceTheme.colors.primary,
+                                        ),
+                                        modifier = GlanceModifier
+                                            .background(GlanceTheme.colors.primaryContainer)
+                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                            .clickable(actionRunCallback<LoadMoreArticlesCallback>()),
+                                    )
                                 }
                             }
                         }

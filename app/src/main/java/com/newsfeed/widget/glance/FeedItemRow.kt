@@ -4,6 +4,7 @@ import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -237,12 +238,15 @@ fun FeedItemRow(
                 val thumbFile = ThumbnailHelper.file(context, article.id)
                 if (thumbFile.exists()) BitmapFactory.decodeFile(thumbFile.absolutePath) else null
             } else null
+            // Set below once the headline bitmap is actually rendered, so the thumbnail can
+            // be sized off its real height rather than an unrelated fillMaxHeight() that only
+            // matches whatever the Row happens to stretch to — a 1-line headline made the
+            // thumbnail comically thin instead of the requested "at least 2 rows tall."
+            var headlineBmpHeightPx = 0
 
             // Thumbnail lives beside the headline only — not the meta row above it — so the
             // meta row (feed name + circle) is always this Column's full width and stays
             // right-justified consistently whether or not this article has a thumbnail.
-            // fillMaxHeight() here means the image's height tracks however tall the headline
-            // actually renders (1-3 lines), not the whole card.
             Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(modifier = GlanceModifier.defaultWeight()) {
             if (widgetTheme == "glamer") {
@@ -250,7 +254,13 @@ fun FeedItemRow(
                 val scaledDensity = context.resources.displayMetrics.scaledDensity
                 // +8f: the Spacer between the headline and the thumbnail, so the bitmap's
                 // width matches its actual available column instead of running under it.
-                val thumbDp       = if (feedConfig.displayMode == "image" && !isExpanded) 52f * fontSize + 8f else 0f
+                // Gated on showSideThumb && sideThumbBmp != null (whether an image will
+                // ACTUALLY render for this specific article), not just feedConfig.displayMode
+                // == "image" (the feed's setting) — an image-mode feed can still have
+                // individual articles with no thumbnail file downloaded, and reserving this
+                // width for them left their headlines visibly narrower than the row, not
+                // reaching the far edge, with no image ever appearing to justify the gap.
+                val thumbDp       = if (showSideThumb && sideThumbBmp != null) 52f * fontSize + 8f else 0f
                 // Margin was originally estimated at 19dp (3dp accent stripe + 8dp*2 column
                 // padding) but measured ~10dp too conservative on a real device: a uiautomator
                 // bounds comparison on a properly-sized widget (303dp total) showed the text
@@ -291,6 +301,7 @@ fun FeedItemRow(
                     isRtl      = isRtl,
                 ) else null
                 if (bmp != null) {
+                    headlineBmpHeightPx = bmp.height
                     Image(
                         provider           = ImageProvider(bmp),
                         contentDescription = article.title,
@@ -334,19 +345,39 @@ fun FeedItemRow(
             }
             if (showSideThumb && sideThumbBmp != null) {
                 Spacer(GlanceModifier.width(8.dp))
+                // Sized off the headline's own real rendered height (via headlineBmpHeightPx,
+                // set above when its bitmap is created) rather than fillMaxHeight() — that
+                // just matched whatever the Row happened to stretch to, so a genuinely
+                // 1-line headline made the thumbnail comically thin. Floored at 2 lines'
+                // worth so a short headline still gets a reasonably sized image; for
+                // non-Glamour themes (plain Text headline, no bitmap to measure) this floor
+                // is also the only signal available, so it's used as-is.
+                val thumbDensity       = context.resources.displayMetrics.density
+                val thumbScaledDensity = context.resources.displayMetrics.scaledDensity
+                val minThumbHeightPx   = 2 * headlineSize.value * thumbScaledDensity * 1.2f
+                val thumbHeightPx      = maxOf(headlineBmpHeightPx.toFloat(), minThumbHeightPx)
+                val thumbHeightDp      = (thumbHeightPx / thumbDensity).dp
                 Image(
                     provider = ImageProvider(sideThumbBmp),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    // Slightly shorter than the headline's own height (vertical padding)
-                    // rather than stretching edge-to-edge with it.
-                    modifier = GlanceModifier.width(thumbWidth).fillMaxHeight().padding(vertical = 6.dp),
+                    modifier = GlanceModifier.width(thumbWidth).height(thumbHeightDp).padding(vertical = 6.dp),
                 )
             }
             }
 
+            // Both the thumbnail header and the description/buttons below used to be two
+            // separate `if (isExpanded)` blocks emitting directly into this row's outer
+            // Column — meaning every element in both (plus however many full-article chunks,
+            // each themselves multiple elements) was a direct sibling there. RemoteViews caps
+            // a Column at 10 direct children (hit for real once full-article chunks grew past
+            // it — see memorySafeMaxChunks' comment), so this whole expanded-state block is
+            // now wrapped in one Column, collapsing it to a single child of the outer one
+            // regardless of how much is inside.
+            if (isExpanded) {
+            Column(modifier = GlanceModifier.fillMaxWidth()) {
             // Expanded: show thumbnail as a header image (if feed is in image mode)
-            if (isExpanded && feedConfig.displayMode == "image") {
+            if (feedConfig.displayMode == "image") {
                 val thumbFile = ThumbnailHelper.file(context, article.id)
                 if (thumbFile.exists()) {
                     val bmp = BitmapFactory.decodeFile(thumbFile.absolutePath)
@@ -366,7 +397,7 @@ fun FeedItemRow(
             }
 
             // Expanded: description + Open article button
-            if (isExpanded) {
+            run {
                 val resolvedFont = if (feedConfig.fontFamily == "serif" || feedConfig.fontFamily == "mono")
                     feedConfig.fontFamily else WidgetThemes.fontFamilyFor(widgetTheme)
                 val feedFontFamily = when (resolvedFont) {
@@ -390,6 +421,37 @@ fun FeedItemRow(
                                  else      androidx.glance.text.TextAlign.Start,
                 )
 
+                // Hoisted so both the per-chunk "Open in browser" links (full-article mode —
+                // each break gets its own, so reaching the source doesn't require scrolling
+                // all the way down first) and the final "Open article" button below share one
+                // Intent. See that button's own comment for why this goes through
+                // actionStartActivity()/ShareRelayActivity rather than a plain callback.
+                val openIntent = if (article.articleUrl.isNotBlank()) {
+                    if (externalApp == "share") {
+                        Intent(context, ShareRelayActivity::class.java)
+                            .setData(Uri.parse(article.articleUrl))
+                            .putExtra(ShareRelayActivity.EXTRA_ARTICLE_URL, article.articleUrl)
+                    } else {
+                        Intent(Intent.ACTION_VIEW, Uri.parse(article.articleUrl))
+                    }
+                } else null
+
+                @Composable
+                fun OpenInBrowserLink() {
+                    if (openIntent != null) {
+                        Text(
+                            text = "Open in browser ↗",
+                            style = TextStyle(
+                                fontSize   = (8f * fontSize).sp,
+                                fontFamily = FontFamily.SansSerif,
+                                color      = accentProvider,
+                            ),
+                            modifier = GlanceModifier
+                                .clickable(actionStartActivity(openIntent)),
+                        )
+                    }
+                }
+
                 // Glamour renders body text with the same handwriting font as the headline
                 // (regular weight, not bold — the headline is bold specifically to stand out
                 // from the body), for short snippets AND the unbounded "full article" fetch —
@@ -403,7 +465,7 @@ fun FeedItemRow(
                 // ones this was tested at — a fixed line count could still blow the budget at
                 // a high articleFontSize + high-density combination a flat cap wouldn't catch.
                 @Composable
-                fun DescriptionText(text: String, maxLines: Int, maxChars: Int = 400) {
+                fun DescriptionText(text: String, maxLines: Int, maxChars: Int = 400, heightBudgetPx: Float = 600f) {
                     if (widgetTheme == "glamer") {
                         val density       = context.resources.displayMetrics.density
                         val scaledDensity = context.resources.displayMetrics.scaledDensity
@@ -412,14 +474,15 @@ fun FeedItemRow(
                         // widths without affecting any tested realistic widget size.
                         val widthPx       = ((LocalSize.current.width.value.coerceAtMost(350f) - 9f) * density)
                                                 .toInt().coerceAtLeast(50)
-                        // 600px (not the 900px this used before "Load more" existed): short/
-                        // medium mode is unaffected either way since its own maxLines=10 was
-                        // already the tighter constraint, but the "full" article mode's chunks
-                        // can now stack multiple independently-bounded bitmaps at once (up to
-                        // MAX_CHUNKS), so each one needs a smaller individual budget to keep
-                        // the total safe alongside the other rows' headline bitmaps.
+                        // heightBudgetPx defaults to 600px for short/medium mode (unaffected
+                        // either way since its own maxLines=10 was already the tighter
+                        // constraint). The "full" article chunk path passes its own larger,
+                        // content-sized budget (see below) so a CHUNK_CHARS-sized chunk
+                        // doesn't get silently ellipsis-truncated mid-chunk — see the "full"
+                        // block's own comment for why that was actually the dominant cause of
+                        // "Load more" seeming to stop short of the article's real end.
                         val lineHeightPx  = 10f * articleFontSize * scaledDensity * 1.2f
-                        val safeMaxLines  = (600f / lineHeightPx).toInt().coerceIn(4, maxLines)
+                        val safeMaxLines  = (heightBudgetPx / lineHeightPx).toInt().coerceIn(4, maxLines)
                         // Same color as the headline (glamerHeadlineColorArgb, hoisted above)
                         // — only size differs, per explicit request. Previously body text
                         // used a separate, deliberately lighter/warmer color.
@@ -453,25 +516,98 @@ fun FeedItemRow(
                     if (fullArticleId == article.id && fullArticleText.isNotBlank()) {
                         Spacer(GlanceModifier.height(4.dp))
                         if (widgetTheme == "glamer") {
+                            val density2       = context.resources.displayMetrics.density
+                            val scaledDensity2 = context.resources.displayMetrics.scaledDensity
+                            val widthPx2       = ((LocalSize.current.width.value.coerceAtMost(350f) - 9f) * density2)
+                                                    .toInt().coerceAtLeast(50)
+                            val textSizePx2    = 10f * articleFontSize * scaledDensity2
+                            val lineHeightPx2  = textSizePx2 * 1.2f
+                            // Each chunk must render ALL of its CHUNK_CHARS, or the "shown"
+                            // character count (which the button advances by a flat
+                            // CHUNK_CHARS per tap) silently outruns what's actually visible —
+                            // the old fixed 600px/~18-line budget ellipsized roughly the back
+                            // half of every 1200-char chunk, which was the real reason "Load
+                            // more" seemed to stall well short of the article's true end, not
+                            // just the chunk-count cap below. estCharsPerLine is deliberately
+                            // conservative (assumes narrower average glyphs than typical, so
+                            // it allocates MORE lines than strictly needed rather than risking
+                            // under-provisioning and re-introducing ellipsis truncation).
+                            val estCharsPerLine     = (widthPx2 / (textSizePx2 * 0.55f)).toInt().coerceAtLeast(10)
+                            val chunkHeightBudgetPx = ((FetchFullArticleCallback.CHUNK_CHARS / estCharsPerLine) + 2) * lineHeightPx2
+                            // Bitmap memory for this one expanded row's chunks, computed from
+                            // their real height instead of a guessed flat chunk count — this
+                            // project has hit the ~15.5MB total RemoteViews bitmap-memory
+                            // ceiling once before (see FetchFullArticleCallback's history);
+                            // 9MB here leaves a margin for the other rows' own (much smaller)
+                            // headline bitmaps and any other home-screen widgets.
+                            val bytesPerChunk    = (widthPx2 * chunkHeightBudgetPx * 4f).coerceAtLeast(1f)
+                            val chunkBudgetBytes = 9_000_000f
+                            // Upper bound 10 (not just a memory-derived number): each chunk
+                            // is wrapped in its own Column below specifically so N chunks
+                            // stay as N single-child contributions to their parent rather
+                            // than 3×N siblings — but that parent Column can itself only
+                            // hold 10 direct children (a real RemoteViews limit, hit for
+                            // real as "IllegalArgumentException: Column container cannot
+                            // have more than 10 elements" once the per-chunk "Open in
+                            // browser" link pushed a 2-chunk expansion past it), so this
+                            // caps chunk count at that same ceiling regardless of memory.
+                            val memorySafeMaxChunks = (chunkBudgetBytes / bytesPerChunk).toInt().coerceIn(1, 10)
+                            // Never allocate more chunks than the article actually has —
+                            // a short article should reach its true end (no dangling "Load
+                            // more" past the last real chunk), while a long one is capped by
+                            // memorySafeMaxChunks, the real memory ceiling, not a guessed flat
+                            // number — so "Load more" walks as far into any article as it
+                            // safely can, all the way to the end for most real articles.
+                            val chunksNeededForArticle = (fullArticleText.length + FetchFullArticleCallback.CHUNK_CHARS - 1) /
+                                                              FetchFullArticleCallback.CHUNK_CHARS
+                            val maxChunksAllowed = memorySafeMaxChunks.coerceAtMost(chunksNeededForArticle.coerceAtLeast(1))
+
                             // Chunked pagination: each already-revealed CHUNK_CHARS-sized
                             // slice renders as its own independently-bounded bitmap (same
                             // font/color as the headline), rather than one bitmap sized to
                             // the whole unbounded fetch — see FetchFullArticleCallback for
                             // why. "Load more" (LoadMoreArticleCallback) reveals the next
-                            // chunk, up to MAX_CHUNKS.
+                            // chunk, up to maxChunksAllowed. Clamped here (not just gated by
+                            // hiding the button below) so a stale/racing shown-chars value
+                            // from prefs can never push rendering past the computed-safe cap.
                             val shown = fullArticleShown.coerceAtMost(fullArticleText.length)
+                                            .coerceAtMost(FetchFullArticleCallback.CHUNK_CHARS * maxChunksAllowed)
+                            // Both wrapping Columns below exist only to satisfy RemoteViews'
+                            // real "max 10 direct children per Column" limit (see
+                            // memorySafeMaxChunks' comment) — each chunk's 3 elements
+                            // (spacer/text/link) collapse into 1 child of the outer chunks
+                            // Column, and however many chunks there are collapse into 1
+                            // child of whatever contains this whole block, regardless of
+                            // chunk count.
                             var chunkStart = 0
-                            while (chunkStart < shown) {
-                                val chunkEnd = (chunkStart + FetchFullArticleCallback.CHUNK_CHARS).coerceAtMost(shown)
-                                if (chunkStart > 0) Spacer(GlanceModifier.height(6.dp))
-                                DescriptionText(
-                                    fullArticleText.substring(chunkStart, chunkEnd),
-                                    maxLines  = 30,
-                                    maxChars  = FetchFullArticleCallback.CHUNK_CHARS,
-                                )
-                                chunkStart = chunkEnd
+                            Column(modifier = GlanceModifier.fillMaxWidth()) {
+                                while (chunkStart < shown) {
+                                    val chunkEnd = (chunkStart + FetchFullArticleCallback.CHUNK_CHARS).coerceAtMost(shown)
+                                    // Keyed on chunkStart: without a stable per-iteration key,
+                                    // this loop's repeated DescriptionText/OpenInBrowserLink
+                                    // emissions were only ever showing ONE "Open in browser" link
+                                    // total (after the first chunk) even with 2+ chunks rendered —
+                                    // Glance's RemoteViews translation was collapsing the later,
+                                    // structurally-identical (same text/style/click action) Text
+                                    // nodes into the earlier one instead of emitting each as its
+                                    // own view. key() forces each iteration a distinct identity.
+                                    key(chunkStart) {
+                                        Column(modifier = GlanceModifier.fillMaxWidth()) {
+                                            if (chunkStart > 0) Spacer(GlanceModifier.height(6.dp))
+                                            DescriptionText(
+                                                fullArticleText.substring(chunkStart, chunkEnd),
+                                                maxLines       = 60,
+                                                maxChars       = FetchFullArticleCallback.CHUNK_CHARS,
+                                                heightBudgetPx = chunkHeightBudgetPx,
+                                            )
+                                            Spacer(GlanceModifier.height(3.dp))
+                                            OpenInBrowserLink()
+                                        }
+                                    }
+                                    chunkStart = chunkEnd
+                                }
                             }
-                            val atCap = shown >= FetchFullArticleCallback.CHUNK_CHARS * FetchFullArticleCallback.MAX_CHUNKS
+                            val atCap = shown >= FetchFullArticleCallback.CHUNK_CHARS * maxChunksAllowed
                             if (shown < fullArticleText.length && !atCap) {
                                 Spacer(GlanceModifier.height(6.dp))
                                 Text(
@@ -542,7 +678,7 @@ fun FeedItemRow(
                     }
                 }
 
-                if (article.articleUrl.isNotBlank()) {
+                if (openIntent != null) {
                     Spacer(GlanceModifier.height(6.dp))
                     // Article rows live inside a LazyColumn, so clicks route through Glance's
                     // list-adapter trampoline (InvisibleActionTrampolineActivity). Building the
@@ -557,17 +693,8 @@ fun FeedItemRow(
                     // Glance's handling of ambiguous/chooser intents, Share mode now targets
                     // ShareRelayActivity — a real, single, unambiguous target within our own app —
                     // which then builds and launches the actual chooser from a proper Activity
-                    // context that isn't subject to any of this.
-                    val openIntent = if (externalApp == "share") {
-                        // Every row targets the same explicit component, so without a distinct
-                        // `data` too they'd still be Intent.filterEquals()-identical to each other
-                        // and hit the same action-conflation bug this relay was meant to avoid.
-                        Intent(context, ShareRelayActivity::class.java)
-                            .setData(Uri.parse(article.articleUrl))
-                            .putExtra(ShareRelayActivity.EXTRA_ARTICLE_URL, article.articleUrl)
-                    } else {
-                        Intent(Intent.ACTION_VIEW, Uri.parse(article.articleUrl))
-                    }
+                    // context that isn't subject to any of this. (openIntent itself is built once,
+                    // above, and shared with the per-chunk OpenInBrowserLink links.)
                     Text(
                         text = "Open article →",
                         style = TextStyle(
@@ -581,6 +708,8 @@ fun FeedItemRow(
                             .clickable(actionStartActivity(openIntent)),
                     )
                 }
+            }
+            }
             }
         }
 
