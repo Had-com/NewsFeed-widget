@@ -649,15 +649,22 @@ fun FeedItemRow(
                             // Bitmap memory for this one expanded row's chunks, computed from
                             // their real height instead of a guessed flat chunk count — this
                             // project has hit the ~15.5MB total RemoteViews bitmap-memory
-                            // ceiling once before (see FetchFullArticleCallback's history);
-                            // 9MB here leaves a margin for the other rows' own (much smaller)
-                            // headline bitmaps and any other home-screen widgets.
+                            // ceiling once before (see FetchFullArticleCallback's history).
                             // 1 byte/pixel, not 4 — TextBitmapHelper.paragraph() now renders these
                             // chunk bitmaps as ALPHA_8 (colorless coverage mask, tinted at display
                             // time via ColorFilter.tint()), not ARGB_8888. Matches the same fix in
                             // NewsFeedWidget.kt's headlineBytes calculation.
                             val bytesPerChunk    = (widthPx2 * chunkHeightBudgetPx * 1f).coerceAtLeast(1f)
-                            val chunkBudgetBytes = 9_000_000f
+                            // Rebalanced from the original 9MB/7.5MB split (down to 6.5MB here,
+                            // NewsFeedWidget.kt's rowBudgetBytes up to 10MB — same ~16.5MB total,
+                            // just reallocated). 9MB was sized generously back when this rendered
+                            // ARGB_8888; now that it's ALPHA_8 too (~4x cheaper per chunk, same as
+                            // the row-budget rationale), that much headroom was mostly wasted here
+                            // while capping the row list far more than necessary — only one
+                            // article is ever expanded to full-text at a time, so this budget
+                            // never needs to be as large as the one covering the WHOLE visible
+                            // list simultaneously.
+                            val chunkBudgetBytes = 6_500_000f
                             // Upper bound 10 (not just a memory-derived number): each chunk
                             // is wrapped in its own Column below specifically so N chunks
                             // stay as N single-child contributions to their parent rather

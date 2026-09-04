@@ -161,10 +161,15 @@ class NewsFeedWidget : GlanceAppWidget() {
         // the ALPHA_8 switch only applies to TextBitmapHelper's headline/paragraph rendering.
         val thumbnailBytes = 100f * 100f * 4f
         val bytesPerRow    = (headlineBytes + thumbnailBytes).coerceAtLeast(1f)
-        val rowBudgetBytes = 7_500_000f
+        // Rebalanced from the original 7.5MB/9MB split against FeedItemRow.kt's chunkBudgetBytes
+        // (down to 6.5MB there, up to 10MB here — same ~16.5MB total, just reallocated). The
+        // list itself is what's visible and memory-constrained all the time; the full-article
+        // chunk budget only matters for whichever single article is currently expanded, so it
+        // never needed as large a share as this one.
+        val rowBudgetBytes = 10_000_000f
         // Floor was 5 (never show fewer than 5 rows) until Focus Mode's combined fontSize ×
         // focusScale × HEADLINE_MAX_LINES made a single row's real worst-case bitmap
-        // exceed this entire 7.5MB budget on its own (confirmed on-device at Font size 3.0 +
+        // exceed this entire row budget on its own (confirmed on-device at Font size 3.0 +
         // focus scale 2.5: "Can't show content", RemoteViews' real bitmap-memory ceiling hit
         // for real) — forcing a minimum of 5 such rows when even 1 already doesn't fit is
         // exactly backwards for a safety floor. 1 lets the math legitimately reflect "only a
