@@ -295,7 +295,13 @@ class NewsFeedRepository(private val context: Context) {
         @Suppress("DEPRECATION")
         val description = if (rawDescription.isNotBlank()) {
             Html.fromHtml(rawDescription, Html.FROM_HTML_MODE_COMPACT)
-                .toString().trim().take(2000)
+                .toString()
+                // Same fix as FetchFullArticleCallback.kt: Html.fromHtml() renders the leading
+                // <img> thumbnail wrapper (still present in rawDescription — imageUrl above is
+                // extracted separately, not stripped from this string) as a U+FFFC OBJECT
+                // REPLACEMENT CHARACTER, which shows as a glyphless "[OBJ]" tofu box.
+                .replace("￼", "")
+                .trim().take(2000)
         } else ""
 
         return ArticleItem(

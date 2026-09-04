@@ -121,16 +121,14 @@ Seven built-in themes, each with a distinct light and dark variant selectable in
 | Simple | Pure black and white, no color | |
 | Aerospace | Amber on near-black charcoal — mission-control feel | |
 | Data Science | Teal-mint on deep navy — silicon-lab precision | |
-| Glamour | Warm cream/beige with Dana Yad Hebrew handwriting headlines | ★ |
+| Glamour | Warm cream/beige with Playpen Sans Hebrew handwriting headlines | ★ |
 
 **Default on first install:** Glamour theme · Light variant · Accent colors on.
 
 ### Glamour Hebrew handwriting font
-Glamour uses **Dana Yad** (דנה יד, from [AlefAlefAlef](https://alefalefalef.co.il), bundled in `res/font/` and `assets/fonts/`) for article headlines and body text — a genuinely connected cursive Hebrew script. Dana Yad has no Latin glyphs at all, so English runs embedded in the same string (site names, abbreviations) are spanned onto Android's built-in generic `cursive` system typeface instead of silently falling back to a plain sans font.
+Glamour uses **Playpen Sans Hebrew** (from [Google Fonts](https://fonts.google.com/specimen/Playpen+Sans+Hebrew), by TypeTogether, bundled in `res/font/` and `assets/fonts/`) for article headlines and body text — a marker-style handwriting face with full native coverage of both Hebrew and Latin scripts in the same family, in real regular and bold weights (verified via `fontTools` cmap inspection: 27/27 Hebrew, 52/52 Latin, both weights). English text embedded mid-sentence (site names, abbreviations) renders in the exact same face and weight as the surrounding Hebrew — no fallback typeface needed.
 
-> **License note:** Dana Yad is **not** covered by this project's MIT license — it's AlefAlefAlef's free-tier commercial license: capped at 5,000 downloads before a paid license is required, tied to the registered account used to obtain it, and personal/non-transferable (can't be redistributed to collaborators or other builds without their own license). See the license PDF bundled with the original download for the full terms.
-
-Because Jetpack Glance/RemoteViews cannot load `R.font` resources directly, headlines and body text are rendered to a `Bitmap` via Android Canvas (`StaticLayout` + `TextPaint`) and displayed as an `Image` composable inside the widget. Text direction is set explicitly via `TextDirectionHeuristics.RTL`/`LTR` with `Layout.Alignment.ALIGN_NORMAL` (an earlier `ALIGN_OPPOSITE`-based approach silently left-aligned every RTL headline instead of right-aligning it). The bitmap renderer uses a 40-entry LRU cache keyed on text + size + color + width + direction + weight, and the `Typeface` is loaded once at first use.
+Because Jetpack Glance/RemoteViews cannot load `R.font` resources directly, headlines and body text are rendered to a `Bitmap` via Android Canvas (`StaticLayout` + `TextPaint`) and displayed as an `Image` composable inside the widget. Text direction is set explicitly via `TextDirectionHeuristics.RTL`/`LTR` with `Layout.Alignment.ALIGN_NORMAL` (an earlier `ALIGN_OPPOSITE`-based approach silently left-aligned every RTL headline instead of right-aligning it). The bitmap renderer uses a 40-entry LRU cache keyed on text + size + color + width + direction + weight, and the regular/bold `Typeface`s are each loaded once at first use.
 
 ### Feed management
 - **Add by URL** — paste any RSS or Atom feed URL; the widget fetches and validates the feed title automatically
@@ -255,7 +253,7 @@ Android blocks apps not downloaded from the Play Store by default. You need to a
 
 - System locale `iw` (Hebrew) automatically loads Hebrew UI strings
 - Each feed's layout direction is controlled independently
-- **Glamour theme** uses **Dana Yad** — a Hebrew handwriting/cursive font — for article headlines and body text, rendered via Canvas bitmap (see [Glamour Hebrew handwriting font](#glamour-hebrew-handwriting-font))
+- **Glamour theme** uses **Playpen Sans Hebrew** — a Hebrew/Latin handwriting font — for article headlines and body text, rendered via Canvas bitmap (see [Glamour Hebrew handwriting font](#glamour-hebrew-handwriting-font))
 - Other themes use Android system fonts for Hebrew glyphs
 - The config screen itself also supports RTL when the device locale is Hebrew
 - Hebrew news sites (ynet, rotter.net, N12, כאן, וואלה, גלובס) are fetched with browser-like headers to bypass bot detection
@@ -272,7 +270,7 @@ app/src/main/
 │   ├── glance/
 │   │   ├── NewsFeedWidget.kt         # Glance widget + receiver + AlarmManager clock tick
 │   │   ├── FeedItemRow.kt            # Per-article row (circle icon, expand/collapse, thumbnail, bitmap headline)
-│   │   ├── TextBitmapHelper.kt       # Canvas bitmap renderer for Glamour Hebrew headlines/body (Dana Yad)
+│   │   ├── TextBitmapHelper.kt       # Canvas bitmap renderer for Glamour Hebrew headlines/body (Playpen Sans Hebrew)
 │   │   ├── WidgetWorker.kt           # WorkManager refresh job + article merge + thumbnail download
 │   │   ├── WidgetThemes.kt           # 7 colour schemes + rawColorSchemeFor() + fontFamilyFor()
 │   │   ├── BootReceiver.kt           # Reschedules WorkManager and clock tick after device reboot
@@ -300,7 +298,8 @@ app/src/main/
     │   ├── ic_launcher_foreground.xml   # RSS + N vector icon foreground
     │   └── ic_launcher_background.xml  # Purple icon background
     ├── font/
-    │   └── dana_yad.otf                 # Hebrew handwriting font (Glamour theme headlines/body — see license note)
+    │   ├── playpen_sans_hebrew.ttf       # Hebrew/Latin handwriting font, regular (Glamour theme body text)
+    │   └── playpen_sans_hebrew_bold.ttf  # Same font, bold (Glamour theme headlines)
     ├── mipmap-anydpi-v26/
     │   ├── ic_launcher.xml             # Adaptive icon (Android 8+)
     │   └── ic_launcher_round.xml       # Round adaptive icon
@@ -334,4 +333,4 @@ app/src/main/
 
 ## License
 
-MIT — see [LICENSE](LICENSE) — **except** the bundled Dana Yad font (`res/font/dana_yad.otf`, `assets/fonts/dana_yad.otf`), which is under AlefAlefAlef's own free-tier commercial license, not MIT. See [Glamour Hebrew handwriting font](#glamour-hebrew-handwriting-font) for its terms.
+MIT — see [LICENSE](LICENSE). The bundled Playpen Sans Hebrew font (`res/font/playpen_sans_hebrew*.ttf`, `assets/fonts/playpen_sans_hebrew*.ttf`) is licensed separately under the [SIL Open Font License 1.1](https://openfontlicense.org/) — free to use, modify, and redistribute, including in this repository.

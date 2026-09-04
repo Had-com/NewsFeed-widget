@@ -35,6 +35,28 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+
+    // "focusMode" is a separate, side-by-side-installable app (different applicationId) for
+    // testing the tap-to-focus / shrink-the-rest browsing idea before deciding whether to fold
+    // it into the real app. Same codebase, gated behind BuildConfig.FOCUS_MODE — see
+    // FeedItemRow.kt's fontSize shadowing, FocusStepCallback, and NewsFeedWidget.kt's header
+    // step buttons. "standard" keeps the existing applicationId/behavior completely unchanged,
+    // so nothing about the shipped app's identity or install changes because this dimension
+    // exists.
+    flavorDimensions += "variant"
+    productFlavors {
+        create("standard") {
+            dimension = "variant"
+            buildConfigField("boolean", "FOCUS_MODE", "false")
+        }
+        create("focusMode") {
+            dimension = "variant"
+            applicationIdSuffix = ".focus"
+            versionNameSuffix = "-focus"
+            buildConfigField("boolean", "FOCUS_MODE", "true")
+        }
     }
 }
 
@@ -67,4 +89,9 @@ dependencies {
 
     // HTTP client for RSS fetching
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Real HTML DOM parser for full-article extraction (FetchFullArticleCallback) — replaces a
+    // regex-based tag stripper that had no way to distinguish an ad/related-content block sitting
+    // inside <article> from real body text, only whole noise *tags* like <nav>/<script>.
+    implementation("org.jsoup:jsoup:1.17.2")
 }

@@ -1,5 +1,6 @@
 ﻿package com.newsfeed.widget.glance
 
+import com.newsfeed.widget.BuildConfig
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -10,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.ColorFilter
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
@@ -62,9 +64,42 @@ fun FeedItemRow(
     widgetTheme: String = "auto",
     themeVariant: String = "light",
     externalApp: String = "browser",
+    focusedArticleId: String = "",
+    focusScale: Float = AdjustFocusScaleCallback.DEFAULT_SCALE,
+    focusBackgroundScale: Float = 0.5f,
 ) {
     val context        = LocalContext.current
     val isExpanded     = article.id == expandedArticleId
+    // Focus Mode only (BuildConfig.FOCUS_MODE — see build.gradle.kts' "focusMode" flavor).
+    // Shadows the fontSize parameter so every size derived from it below (headlineSize,
+    // articleSize, thumbWidth, metaFontSize, ...) picks up the adjustment automatically, with
+    // no further changes needed through the rest of this function. Inactive (focusedArticleId
+    // blank, or the standard flavor where BuildConfig.FOCUS_MODE is a compile-time false) is a
+    // complete no-op — every row renders at the widget's normal configured font size, exactly
+    // as before this feature existed. focusScale (the focused row's own multiplier) is live,
+    // on-widget adjustable via the +/- buttons below; focusBackgroundScale (every other row)
+    // is a Settings-screen slider (WidgetConfigActivity.kt) — deliberately different controls
+    // for different reasons: focus size is a per-article, in-the-moment adjustment, background
+    // size is a standing preference.
+    // Captured before the shadow below reassigns fontSize — needed so metaScaleFontSize (right
+    // after) can still see the pre-focus-scale value.
+    val baseFontSize = fontSize
+    @Suppress("NAME_SHADOWING")
+    val fontSize = if (BuildConfig.FOCUS_MODE && focusedArticleId.isNotBlank()) {
+        if (article.id == focusedArticleId) fontSize * focusScale else fontSize * focusBackgroundScale
+    } else fontSize
+    // The meta row (timestamp/feed name/favicon circle) uses this instead of fontSize directly.
+    // fontSize can grow up to 2.5x on the focused row (focusScale), but the row's physical
+    // width does not grow with it — the widget's own width is fixed. Reported and confirmed:
+    // at high focus scale the meta row's content (already sized off fontSize before this fix)
+    // needed more horizontal space than the row had, spilling the feed name/icon off the left
+    // edge instead of wrapping or clipping cleanly. Coercing to baseFontSize caps the meta row
+    // at its normal size regardless of focus scale — it's supporting metadata, not the primary
+    // content being zoomed into, so it has no reason to grow past normal. Background rows'
+    // *shrinking* (focusBackgroundScale, e.g. 0.5x) is unaffected by this — coerceAtMost only
+    // clamps the upper end, so those rows still shrink their meta row along with everything
+    // else, exactly as before.
+    val metaScaleFontSize = fontSize.coerceAtMost(baseFontSize)
     val accentProvider = if (useThemeColors) {
         GlanceTheme.colors.primary
     } else {
@@ -82,11 +117,19 @@ fun FeedItemRow(
     // (`false xor anything` is a no-op) — reported by the user only after testing on a
     // Hebrew-locale device, where justification (and alignment generally) came out backwards.
     val isRtl          = feedConfig.layoutDirection == "rtl"
-    val metaFontSize   = (9f * fontSize).sp
+    val metaFontSize   = (9f * metaScaleFontSize).sp
     val headlineSize   = (13f * fontSize).sp
     val articleSize    = (10f * articleFontSize).sp
-    // Thumbnail width: square based on font scale (independent of row height)
-    val thumbWidth     = (52f * fontSize).dp
+    // Thumbnail width: square based on font scale (independent of row height). Capped —
+    // uncapped, this scales linearly with fontSize with no ceiling: already a latent risk on
+    // the standard flavor at the Font size slider's own top end (52 * 3.0 = 156dp), and made
+    // far more likely to actually be hit by Focus Mode, where fontSize is additionally
+    // multiplied by focusScale (up to 2.5x) on the focused row — e.g. base 3.0 * focus 2.5 =
+    // 7.5x, a 390dp thumbnail alone wider than the entire widget column, breaking the row
+    // layout (headline squeezed into a near-zero-width remainder, or thumbnail overflowing/
+    // clipping unpredictably). 120dp matches the expanded-image header's own fixed height
+    // elsewhere in this file, an already-established "large enough to be a real photo" ceiling.
+    val thumbWidth     = (52f * fontSize).dp.coerceAtMost(120.dp)
 
     // Headline color, hoisted so the expanded-article body text below can reuse the exact
     // same source and always match it (per explicit request: article text should be the
@@ -101,13 +144,53 @@ fun FeedItemRow(
         else -> GlanceTheme.colors.onSurface
     }
 
-    val toggleAction = actionRunCallback<ToggleExpandCallback>(
-        actionParametersOf(ToggleExpandCallback.ARTICLE_ID_KEY to article.id)
-    )
+    // Articles with no <description> at all (see NoOpTapFeedbackCallback) have nothing to
+    // expand into — the expanded block below only ever shows description text or, failing
+    // that, an "Open article" link, and both are conditioned on content this article simply
+    // doesn't have. Routing the tap to a no-op keeps the native press ripple (so the tap
+    // still feels acknowledged) without expanding an empty state or offering a link that,
+    // for these articles specifically, was the sole reason to expand in the first place.
+    // Focus Mode replaces expand-on-tap entirely: a tap sets/clears the focus target instead
+    // (see SetFocusArticleCallback) — expanding into description text doesn't make sense
+    // alongside shrinking every other row to browse by size, so this branch is checked first
+    // and, when BuildConfig.FOCUS_MODE is true, wins regardless of description content.
+    val toggleAction = if (BuildConfig.FOCUS_MODE)
+        actionRunCallback<SetFocusArticleCallback>(
+            actionParametersOf(SetFocusArticleCallback.ARTICLE_ID_KEY to article.id)
+        )
+    else if (article.description.isNotBlank())
+        actionRunCallback<ToggleExpandCallback>(
+            actionParametersOf(ToggleExpandCallback.ARTICLE_ID_KEY to article.id)
+        )
+    else
+        actionRunCallback<NoOpTapFeedbackCallback>(
+            actionParametersOf(NoOpTapFeedbackCallback.ARTICLE_ID_KEY to article.id)
+        )
+
+    // Focus Mode only. The size difference (1.25x vs 0.5x, see the fontSize shadowing above)
+    // is the main signal, but relying on relative size alone to answer "which row is
+    // focused" asks the eye to compare against neighbors instead of just recognizing the one
+    // row directly — a flat background tint answers that at a glance, independent of what's
+    // next to it.
+    val isFocused = BuildConfig.FOCUS_MODE && article.id == focusedArticleId
 
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
+            // Always call .background(), never conditionally omit it. Reported and confirmed
+            // on-device: stepping focus to a different row could leave the PREVIOUS row's
+            // highlight visibly on even though its own fontSize correctly reflected "no longer
+            // focused" — i.e. isFocused really was false for it, but the tan background stuck
+            // around anyway. Root cause: `.let { if (isFocused) it.background(...) else it }`
+            // only emits a "set this background color" instruction when isFocused is true: the
+            // non-focused case doesn't clear anything, it just never mentions a background at
+            // all. If the launcher recycles that row's underlying Android View from a previous
+            // update where it WAS the highlighted one, nothing in the new update ever tells it
+            // to go back to normal. Explicitly setting a transparent background for the
+            // non-focused case (rather than omitting the call) means every update always
+            // carries an explicit instruction either way, so a recycled view can never keep a
+            // stale color from a previous bind.
+            .background(if (isFocused) GlanceTheme.colors.primaryContainer else ColorProvider(Color.Transparent))
             .clickable(toggleAction),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -131,7 +214,7 @@ fun FeedItemRow(
                 horizontalAlignment = if (isRtl) Alignment.End else Alignment.Start,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val circleSize    = (14f * fontSize).dp
+                val circleSize    = (14f * metaScaleFontSize).dp
                 val faviconFile   = FaviconHelper.file(context, feedConfig.feedId)
                 val faviconBmp    = if (faviconFile.exists()) BitmapFactory.decodeFile(faviconFile.absolutePath) else null
 
@@ -156,7 +239,7 @@ fun FeedItemRow(
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(initial, style = TextStyle(
-                                fontSize   = (8f * fontSize).sp,
+                                fontSize   = (8f * metaScaleFontSize).sp,
                                 fontFamily = FontFamily.SansSerif,
                                 fontWeight = FontWeight.Bold,
                                 color      = ColorProvider(Color.White),
@@ -194,7 +277,7 @@ fun FeedItemRow(
                     // circle group is pushed to hug the physical right edge by the weighted
                     // spacer. Name gets a fixed max width so it can't push the circle off
                     // the row for very long feed names.
-                    val nameMaxWidth = (70f * fontSize).dp
+                    val nameMaxWidth = (70f * metaScaleFontSize).dp
                     Text(formatDateTime(article.publishedAt), style = tsStyle, maxLines = 1)
                     Spacer(GlanceModifier.width(6.dp))
                     Spacer(GlanceModifier.defaultWeight())
@@ -223,7 +306,7 @@ fun FeedItemRow(
 
             Spacer(GlanceModifier.height(3.dp))
 
-            // Headline — Glamour theme uses a custom Hebrew handwriting font (Dana Yad, bold)
+            // Headline — Glamour theme uses a custom Hebrew handwriting font (Playpen Sans Hebrew, bold)
             // rendered to a Bitmap, since Glance/RemoteViews only supports system font families.
             val headlineFontStr = if (feedConfig.fontFamily == "serif" || feedConfig.fontFamily == "mono")
                 feedConfig.fontFamily else WidgetThemes.fontFamilyFor(widgetTheme)
@@ -260,7 +343,14 @@ fun FeedItemRow(
                 // individual articles with no thumbnail file downloaded, and reserving this
                 // width for them left their headlines visibly narrower than the row, not
                 // reaching the far edge, with no image ever appearing to justify the gap.
-                val thumbDp       = if (showSideThumb && sideThumbBmp != null) 52f * fontSize + 8f else 0f
+                // Capped consistently with thumbWidth above (120dp) — otherwise, at combined
+                // extreme scale (Focus Mode's focusScale on top of the Font size slider), an
+                // uncapped thumbDp could exceed the row's entire available width before the
+                // headline's own widthPx.coerceAtLeast(50) floor below ever kicks in, starving
+                // the headline bitmap down to that 50px minimum regardless of how much real
+                // space is actually available — a handful of characters per line, not a crash
+                // but a badly broken-looking headline.
+                val thumbDp       = if (showSideThumb && sideThumbBmp != null) (52f * fontSize).coerceAtMost(120f) + 8f else 0f
                 // Margin was originally estimated at 19dp (3dp accent stripe + 8dp*2 column
                 // padding) but measured ~10dp too conservative on a real device: a uiautomator
                 // bounds comparison on a properly-sized widget (303dp total) showed the text
@@ -292,13 +382,29 @@ fun FeedItemRow(
                 // degrades far more gracefully at extreme widths (native wrap/ellipsis) than the
                 // custom bitmap layout does — kept as a guard for genuinely tiny placements now
                 // that NewsFeedWidget.sizeMode = Exact reports real widths instead of always 130dp.
+                // Focus Mode only: the focused row is the one place on the whole widget where
+                // showing more of a long headline is worth its extra bitmap height — it's a
+                // single row, not all of them, so the memory cost stays bounded (also see
+                // NewsFeedWidget.kt's worstCaseRowScale, which already reserves budget for a
+                // taller focused-row bitmap).
+                // Tried and empirically disproved on real hardware (both flavors, confirmed via
+                // screenshot, not just theory): RemoteViews.setTextViewText(CharSequence) with a
+                // Glance FontFamily("Playpen Sans Hebrew") DOES genuinely cross the process
+                // boundary as a android.text.style.TypefaceSpan(String) (traced via javap on the
+                // real glance-appwidget:1.1.0 AAR — that part of the mechanism is real), but the
+                // family-name lookup runs in the LAUNCHER's process at draw time via
+                // Typeface.create(String, int), and this font was never installed as a system
+                // font the launcher can see — it silently fell back to the launcher's default
+                // typeface (no crash, no error, just the wrong font). A bitmap rendered in this
+                // app's own process, where the font asset genuinely is available, remains the
+                // only way to get the real Playpen Sans Hebrew face onto a RemoteViews widget.
                 val bmp = if (widthPx >= 120) TextBitmapHelper.headline(
                     context    = context,
                     text       = article.title,
                     textSizePx = headlineSize.value * scaledDensity,
-                    colorArgb  = colorArgb,
                     widthPx    = widthPx,
                     isRtl      = isRtl,
+                    maxLines   = AdjustFocusScaleCallback.HEADLINE_MAX_LINES,
                 ) else null
                 if (bmp != null) {
                     headlineBmpHeightPx = bmp.height
@@ -307,6 +413,10 @@ fun FeedItemRow(
                         contentDescription = article.title,
                         modifier           = GlanceModifier.fillMaxWidth(),
                         contentScale       = ContentScale.Fit,
+                        // The bitmap itself is colorless now (ALPHA_8 — see TextBitmapHelper's
+                        // render()); this is where the actual color gets applied, at display
+                        // time, instead of being baked into the bitmap's pixels.
+                        colorFilter        = ColorFilter.tint(ColorProvider(Color(colorArgb))),
                     )
                 } else {
                     // Font load failed — render as Text so the headline is never blank
@@ -491,7 +601,6 @@ fun FeedItemRow(
                             context    = context,
                             text       = safeText,
                             textSizePx = 10f * articleFontSize * scaledDensity,
-                            colorArgb  = glamerHeadlineColorArgb,
                             widthPx    = widthPx,
                             isRtl      = isRtl,
                             maxLines   = safeMaxLines,
@@ -502,6 +611,9 @@ fun FeedItemRow(
                                 contentDescription = safeText,
                                 modifier           = GlanceModifier.fillMaxWidth(),
                                 contentScale       = ContentScale.Fit,
+                                // See the headline Image() above — same colorless-bitmap,
+                                // tint-at-display-time model.
+                                colorFilter        = ColorFilter.tint(ColorProvider(Color(glamerHeadlineColorArgb))),
                             )
                             return
                         }
@@ -540,7 +652,11 @@ fun FeedItemRow(
                             // ceiling once before (see FetchFullArticleCallback's history);
                             // 9MB here leaves a margin for the other rows' own (much smaller)
                             // headline bitmaps and any other home-screen widgets.
-                            val bytesPerChunk    = (widthPx2 * chunkHeightBudgetPx * 4f).coerceAtLeast(1f)
+                            // 1 byte/pixel, not 4 — TextBitmapHelper.paragraph() now renders these
+                            // chunk bitmaps as ALPHA_8 (colorless coverage mask, tinted at display
+                            // time via ColorFilter.tint()), not ARGB_8888. Matches the same fix in
+                            // NewsFeedWidget.kt's headlineBytes calculation.
+                            val bytesPerChunk    = (widthPx2 * chunkHeightBudgetPx * 1f).coerceAtLeast(1f)
                             val chunkBudgetBytes = 9_000_000f
                             // Upper bound 10 (not just a memory-derived number): each chunk
                             // is wrapped in its own Column below specifically so N chunks

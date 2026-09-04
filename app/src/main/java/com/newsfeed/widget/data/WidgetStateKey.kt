@@ -1,6 +1,7 @@
 ﻿package com.newsfeed.widget.data
 
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -24,4 +25,16 @@ object WidgetStateKey {
     // article's body: the row count safe to render in one RemoteViews update depends on
     // real bitmap memory (headline/thumbnail bitmaps), not a flat guess.
     val visibleArticleCount = intPreferencesKey("visible_article_count")
+    // Focus Mode only (BuildConfig.FOCUS_MODE build flavor — see FeedItemRow's fontSize
+    // shadowing and FocusStepCallback): which article, if any, is currently shown at full
+    // size while every other displayed row shrinks. Empty string = focus mode inactive, all
+    // rows render at the normal configured font size, same as the standard flavor always does.
+    val focusedArticleId = stringPreferencesKey("focused_article_id")
+    // Focus Mode only. How large the focused row renders, as a multiple of fontSize — live,
+    // on-widget adjustable via +/- buttons on the focused row itself (AdjustFocusScaleCallback),
+    // deliberately NOT a Settings-screen slider like focusBackgroundScale: this is meant to be
+    // tuned in the moment, per article, without leaving the widget. Was a hardcoded 1.25f;
+    // absent (before the user has ever adjusted it, or after focus moves to a different
+    // article — see AdjustFocusScaleCallback) means "use the 1.25f default".
+    val focusScale = floatPreferencesKey("focus_scale")
 }

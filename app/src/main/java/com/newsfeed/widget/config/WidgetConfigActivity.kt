@@ -1,5 +1,6 @@
 ﻿package com.newsfeed.widget.config
 
+import com.newsfeed.widget.BuildConfig
 import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.os.Bundle
@@ -469,6 +470,26 @@ class WidgetConfigActivity : ComponentActivity() {
                                     valueRange = 0.5f..3.0f,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
+
+                                // Focus Mode only. How small every row other than the focused
+                                // one renders (as a fraction of Font size above) — a standing
+                                // preference, so it lives here as a slider, unlike the focused
+                                // row's own size, which is a live, on-widget +/- adjustment
+                                // (AdjustFocusScaleCallback) because that's meant to be tuned
+                                // per article in the moment, not set once in advance.
+                                if (BuildConfig.FOCUS_MODE) {
+                                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                                        Text("Background rows size", style = MaterialTheme.typography.bodyMedium)
+                                        Text("${(config.focusBackgroundScale * 100).toInt()}%", fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Slider(
+                                        value = config.focusBackgroundScale,
+                                        onValueChange = { config = config.copy(focusBackgroundScale = it) },
+                                        valueRange = 0.25f..1.0f,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
                                 // Live preview
                                 val sampleDesc = "פרטי הכתבה לדוגמה מופיעים כאן לאחר הפתיחה — When you tap a headline, this is the description text that appears below it. The length setting controls how much of this text is shown."
                                 val previewDesc = when (config.articleLength) {
@@ -477,14 +498,19 @@ class WidgetConfigActivity : ComponentActivity() {
                                     else    -> sampleDesc.take(400).trimEnd()
                                 }
                                 val previewScheme = WidgetThemes.rawColorSchemeFor(config.widgetTheme, config.themeVariant)
-                                // Glamour gets its actual bitmap-rendered font (Dana Yad) here too — this
-                                // Activity isn't RemoteViews-constrained like the real widget, so the
-                                // real Font resource can be used directly instead of the FontFamily.Cursive
-                                // placeholder that used to stand in for it (and looked nothing alike).
+                                // Glamour gets its actual bitmap-rendered font (Playpen Sans Hebrew) here
+                                // too — this Activity isn't RemoteViews-constrained like the real widget,
+                                // so the real Font resources can be used directly instead of a
+                                // FontFamily.Cursive placeholder. Both weights are registered (unlike
+                                // Dana Yad, which only had one) so Compose's own FontWeight.Bold request
+                                // below picks the font's real bold file instead of synthesizing one.
                                 val previewFont = when (WidgetThemes.fontFamilyFor(config.widgetTheme)) {
                                     "serif"   -> FontFamily.Serif
                                     "mono"    -> FontFamily.Monospace
-                                    "cursive" -> FontFamily(Font(R.font.dana_yad))
+                                    "cursive" -> FontFamily(
+                                        Font(R.font.playpen_sans_hebrew, FontWeight.Normal),
+                                        Font(R.font.playpen_sans_hebrew_bold, FontWeight.Bold),
+                                    )
                                     else      -> FontFamily.SansSerif
                                 }
                                 // Headline always uses onSurface — the theme's primary/darkest-ink
@@ -496,7 +522,16 @@ class WidgetConfigActivity : ComponentActivity() {
                                 // this is the widget's own verified default size (uiautomator-measured
                                 // 303dp elsewhere this session), so text wraps here exactly the way it
                                 // wraps on an actually-placed widget, not artificially wider.
-                                val previewThumbDp = (52f * config.fontSize).dp
+                                // Capped: this scales with fontSize like the headline text does,
+                                // but the preview card itself is a fixed 303dp — left unclamped,
+                                // the thumbnail box and the headline text both grow together at
+                                // large fontSize values and the thumbnail wins the space race,
+                                // squeezing the headline's column so narrow that a single English
+                                // word (e.g. "headline") no longer fits and gets force-broken
+                                // mid-word ("headlin"/"e") instead of wrapping at a word boundary.
+                                // Capping the thumbnail leaves the headline column enough width to
+                                // wrap normally even at the slider's max (3.0x).
+                                val previewThumbDp = (52f * config.fontSize).dp.coerceAtMost(64.dp)
                                 // Locks this card's physical child order to LTR regardless of
                                 // the device's system locale. Compose auto-mirrors Row/Column
                                 // child order under an RTL LocalLayoutDirection (unlike Glance,

@@ -1,5 +1,6 @@
 ﻿package com.newsfeed.widget.glance
 
+import com.newsfeed.widget.BuildConfig
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
@@ -18,6 +19,7 @@ import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.LocalContext
 import androidx.glance.LocalSize
+import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
@@ -40,6 +42,7 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.width
 import androidx.glance.text.FontFamily
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
@@ -89,6 +92,16 @@ class NewsFeedWidget : GlanceAppWidget() {
         val fullArticleId     = prefs[WidgetStateKey.fullArticleId]     ?: ""
         val fullArticleText   = prefs[WidgetStateKey.fullArticleText]   ?: ""
         val fullArticleShown  = prefs[WidgetStateKey.fullArticleShownChars] ?: FetchFullArticleCallback.CHUNK_CHARS
+        // Focus Mode only (BuildConfig.FOCUS_MODE) — see FeedItemRow.kt's fontSize shadowing.
+        // Reading it unconditionally here is harmless for the standard flavor: the key is
+        // simply never written to (SetFocusArticleCallback/FocusStepCallback are only ever
+        // wired up when BuildConfig.FOCUS_MODE is true), so it stays blank forever there.
+        val focusedArticleId  = prefs[WidgetStateKey.focusedArticleId] ?: ""
+        // Focus Mode only — live, on-widget-adjustable via +/- buttons on the focused row
+        // itself (AdjustFocusScaleCallback), not a Settings-screen slider. Absent means
+        // either nothing's been adjusted yet, or focus just moved to a different article
+        // (both callbacks clear this key on any change of *which* article is focused).
+        val focusScale        = prefs[WidgetStateKey.focusScale] ?: AdjustFocusScaleCallback.DEFAULT_SCALE
 
         val config = configJson
             ?.let { runCatching { Json.decodeFromString<WidgetConfig>(it) }.getOrNull() }
@@ -115,16 +128,50 @@ class NewsFeedWidget : GlanceAppWidget() {
         val scaledDensity2 = context2.resources.displayMetrics.scaledDensity
         val widthPx2       = ((LocalSize.current.width.value.coerceAtMost(350f) - 9f) * density2)
                                   .toInt().coerceAtLeast(50)
-        val headlineLineHeightPx = 13f * config.fontSize * scaledDensity2 * 1.2f
-        // Worst case per row: a 3-line Glamour headline bitmap plus a small thumbnail —
-        // themes without a bitmap headline (plain Text) cost far less, so this deliberately
-        // overestimates rather than risking under-provisioning.
+        // Focus Mode only — one row can render at up to focusScale× (default up to 2.5×) and
+        // every other row at focusBackgroundScale× (up to 1.0×, see WidgetConfigActivity.kt's
+        // "Background rows size" slider), neither of which is config.fontSize on its own. This
+        // budget calculation predates focus mode's per-row scale entirely and was never updated
+        // when that was added — it silently assumed every row was uniformly at config.fontSize,
+        // under-provisioning the moment a real focused row's bitmap grew past what had been
+        // reserved for it, eroding the safety margin this ceiling exists to protect (worst
+        // case, re-risking the exact "RemoteViews for widget update exceeds maximum bitmap
+        // memory usage" crash it was built to avoid). Taking the largest of the two scales as a
+        // uniform worst case is the same deliberately-overestimating shape as the "3-line worst
+        // case" comment below, just extended to cover the scale that can now apply to any row.
+        val worstCaseRowScale = if (BuildConfig.FOCUS_MODE)
+            maxOf(focusScale, config.focusBackgroundScale, 1f) else 1f
+        val headlineLineHeightPx = 13f * config.fontSize * worstCaseRowScale * scaledDensity2 * 1.2f
+        // Worst case per row: a Glamour headline bitmap at AdjustFocusScaleCallback's shared
+        // HEADLINE_MAX_LINES (8) — every row uses the same cap now, focused or not, see that
+        // constant's own comment for why one shared number replaced what used to be two — plus
+        // a small thumbnail — themes without a bitmap headline (plain Text) cost far less, so
+        // this deliberately overestimates rather than risking under-provisioning.
+        val worstCaseHeadlineLines = AdjustFocusScaleCallback.HEADLINE_MAX_LINES
+        // 1 byte/pixel, not 4 — TextBitmapHelper now renders headline bitmaps as ALPHA_8 (a
+        // colorless coverage mask, tinted at display time via ColorFilter.tint()), not
+        // ARGB_8888. This formula predates that change and was left at the old multiplier,
+        // making this budget ~4x more conservative than the real bitmaps it's sizing for —
+        // confirmed on-device: Focus Mode's own combined-extreme test case (Font size 3.0 ×
+        // focus scale 2.5) still capped at "Showing 1 of 300" after the ALPHA_8 switch, which
+        // should have relaxed given the real per-row cost just dropped ~4x.
         val headlineBytes  = if (config.widgetTheme == "glamer")
-            (widthPx2 * (3 * headlineLineHeightPx) * 4f) else 0f
+            (widthPx2 * (worstCaseHeadlineLines * headlineLineHeightPx) * 1f) else 0f
+        // Unchanged: this is a real downloaded photo thumbnail (ARGB_8888), not a text bitmap —
+        // the ALPHA_8 switch only applies to TextBitmapHelper's headline/paragraph rendering.
         val thumbnailBytes = 100f * 100f * 4f
         val bytesPerRow    = (headlineBytes + thumbnailBytes).coerceAtLeast(1f)
         val rowBudgetBytes = 7_500_000f
-        val maxRowsAllowed = (rowBudgetBytes / bytesPerRow).toInt().coerceIn(5, 60)
+        // Floor was 5 (never show fewer than 5 rows) until Focus Mode's combined fontSize ×
+        // focusScale × HEADLINE_MAX_LINES made a single row's real worst-case bitmap
+        // exceed this entire 7.5MB budget on its own (confirmed on-device at Font size 3.0 +
+        // focus scale 2.5: "Can't show content", RemoteViews' real bitmap-memory ceiling hit
+        // for real) — forcing a minimum of 5 such rows when even 1 already doesn't fit is
+        // exactly backwards for a safety floor. 1 lets the math legitimately reflect "only a
+        // little room" instead of demanding room that was already established not to exist;
+        // see the textSizePx cap in TextBitmapHelper.render() for the actual backstop that
+        // keeps a single row's bitmap safe regardless of what this calculation concludes.
+        val maxRowsAllowed = (rowBudgetBytes / bytesPerRow).toInt().coerceIn(1, 60)
 
         val displayArticles = availableArticles.take(visibleCount.coerceAtMost(maxRowsAllowed))
         // Based on visibleCount (what's been requested), not displayArticles.size (what's
@@ -134,11 +181,28 @@ class NewsFeedWidget : GlanceAppWidget() {
         // of only once truly exhausted. visibleCount vs the two ceilings is what actually
         // determines whether tapping "Load more" would reveal anything new.
         val canLoadMoreArticles = visibleCount < maxRowsAllowed && visibleCount < availableArticles.size
+        // Complementary "stuck" state: maxRowsAllowed itself (not the requested chunk size) is
+        // the binding constraint, so tapping "Load more" would never reveal anything no matter
+        // how many times it's tapped — this happens whenever maxRowsAllowed <= visibleCount
+        // while more articles are genuinely available (common at larger font sizes / the
+        // Glamour theme's bitmap headlines, where maxRowsAllowed can land as low as its 5-row
+        // floor even with hundreds of articles cached). Previously this was indistinguishable
+        // from "the feed is simply exhausted" — the widget just silently stopped growing with
+        // zero indication that a large backlog was sitting unreachable behind it (reported as a
+        // bug: "Load more" permanently unreachable at normal/large font sizes).
+        val memoryCapReached = displayArticles.size >= maxRowsAllowed &&
+            displayArticles.size < availableArticles.size
         // Scoped to displayArticles, not the full accumulated store (which can hold up to
         // 300) — counting the full store made the header badge claim "99+" unread while only
         // a fraction of articles were ever reachable by scrolling, which read as a bug (and
         // was reported as one) rather than the accumulation feature it actually was.
         val unreadCount     = displayArticles.count { !it.isRead }
+        // Focus Mode only (BuildConfig.FOCUS_MODE) — position within what's actually
+        // rendered (displayArticles, not FocusStepCallback's own visibleCount-only
+        // approximation of it) so the "N / M" indicator always matches what's really on
+        // screen, even in the rare case the two disagree because of the memory cap.
+        val focusedIndex    = if (focusedArticleId.isNotBlank())
+            displayArticles.indexOfFirst { it.id == focusedArticleId } else -1
 
         val themeColors = WidgetThemes.colorProvidersFor(config.widgetTheme, config.themeVariant)
         val surfaceColor = WidgetThemes.surfaceColorFor(config.widgetTheme, config.themeVariant)
@@ -152,7 +216,7 @@ class NewsFeedWidget : GlanceAppWidget() {
                     .cornerRadius(18.dp)
                     .padding(0.dp),
             ) {
-                WidgetHeader(unreadCount)
+                WidgetHeader(unreadCount, availableArticles.size, focusedArticleId, focusedIndex, displayArticles.size)
                 Divider()
 
                 if (displayArticles.isEmpty()) {
@@ -167,7 +231,19 @@ class NewsFeedWidget : GlanceAppWidget() {
                     }
                 } else {
                     LazyColumn(modifier = GlanceModifier.defaultWeight().fillMaxWidth()) {
-                        items(displayArticles) { article ->
+                        // Explicit itemId (verified via decompiling the real glance-appwidget:1.1.0
+                        // jar — LazyListScope.items' default is LazyListScope.UnspecifiedItemId, a
+                        // fixed constant, not a per-item hash as might be assumed; every row was
+                        // effectively unidentified/position-only before this). A reported bug — a
+                        // previously-focused row's highlight not clearing after stepping focus to a
+                        // different row — is consistent with RemoteViews' list-item recycling
+                        // getting view identity wrong across an update when every item shares the
+                        // same id. Keying on the immutable article.id gives Android's list adapter a
+                        // real, stable identity to track per row, independent of which other fields
+                        // (isRead, etc.) changed — a correct improvement on its own regardless of
+                        // whether it's the row-highlight bug's exact root cause, which is not yet
+                        // independently confirmed on-device.
+                        items(displayArticles, itemId = { it.id.hashCode().toLong() }) { article ->
                             val feedConfig = feedMap[article.feedId] ?: return@items
                             val isLast = article == displayArticles.last()
                             Column(modifier = GlanceModifier.fillMaxWidth()) {
@@ -185,6 +261,9 @@ class NewsFeedWidget : GlanceAppWidget() {
                                     widgetTheme       = config.widgetTheme,
                                     externalApp       = config.externalApp,
                                     themeVariant      = config.themeVariant,
+                                    focusedArticleId  = focusedArticleId,
+                                    focusScale        = focusScale,
+                                    focusBackgroundScale = config.focusBackgroundScale,
                                 )
                                 if (!isLast) {
                                     Box(modifier = GlanceModifier
@@ -218,6 +297,37 @@ class NewsFeedWidget : GlanceAppWidget() {
                                     )
                                 }
                             }
+                        } else if (memoryCapReached) {
+                            // Not clickable — there's genuinely nothing tapping could reveal at
+                            // this font size (see memoryCapReached above). Telling the user why,
+                            // instead of silently stopping, is the actual fix: the number itself
+                            // points them at the way out (a smaller font size raises the cap).
+                            // Font size's own slider floor (WidgetConfigActivity.kt) is 0.5f —
+                            // below that, "reduce font size" is not actually possible, so showing
+                            // that hint there is actively misleading (confirmed on-device: still
+                            // capped at 29 of 300 even at the Font size slider's minimum, "Tiny").
+                            // Even at the floor there's a real, permanent ceiling here — the
+                            // RemoteViews bitmap-memory limit this project has hit for real
+                            // before — worth saying plainly rather than pointing at a dead end.
+                            val atFontFloor = config.fontSize <= 0.5f
+                            item {
+                                Box(
+                                    modifier = GlanceModifier.fillMaxWidth().padding(12.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = if (atFontFloor)
+                                            "Showing ${displayArticles.size} of ${availableArticles.size} · this device can't show more at once"
+                                        else
+                                            "Showing ${displayArticles.size} of ${availableArticles.size} · reduce font size to see more",
+                                        style = TextStyle(
+                                            fontSize   = 11.sp,
+                                            fontFamily = FontFamily.SansSerif,
+                                            color      = GlanceTheme.colors.onSurfaceVariant,
+                                        ),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -228,7 +338,13 @@ class NewsFeedWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun WidgetHeader(unreadCount: Int) {
+    private fun WidgetHeader(
+        unreadCount: Int,
+        totalCount: Int,
+        focusedArticleId: String = "",
+        focusedIndex: Int = -1,
+        displayCount: Int = 0,
+    ) {
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
@@ -240,20 +356,114 @@ class NewsFeedWidget : GlanceAppWidget() {
                 style = TextStyle(fontSize = 13.sp, fontFamily = FontFamily.SansSerif, color = GlanceTheme.colors.onSurfaceVariant),
             )
             Spacer(GlanceModifier.defaultWeight())
-            if (unreadCount > 0) {
-                Text(
-                    text = if (unreadCount > 99) "99+" else "$unreadCount",
-                    style = TextStyle(
-                        fontSize   = 11.sp,
-                        fontFamily = FontFamily.SansSerif,
-                        fontWeight = FontWeight.Medium,
-                        color      = GlanceTheme.colors.onPrimaryContainer,
-                    ),
-                    modifier = GlanceModifier
-                        .background(GlanceTheme.colors.primaryContainer)
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
+            // Focus Mode only (BuildConfig.FOCUS_MODE build flavor — see FeedItemRow.kt's
+            // fontSize shadowing). Steps focus to the previous/next article via
+            // FocusStepCallback rather than requiring a precise tap on a row that may currently
+            // be shrunk to half size — that's the actual point of stepping instead of tapping.
+            // Always shown in this flavor (not conditioned on a focus target already being
+            // set): pressing either one from the normal, nothing-focused state starts focus
+            // mode at the first article, same as tapping a row directly would.
+            if (BuildConfig.FOCUS_MODE) {
+                val stepStyle = TextStyle(
+                    fontSize   = 13.sp,
+                    fontFamily = FontFamily.SansSerif,
+                    fontWeight = FontWeight.Bold,
+                    color      = GlanceTheme.colors.primary,
                 )
+                // Position indicator ("N / M") — only meaningful once something is focused;
+                // otherwise every row is the same size and "position" doesn't mean anything.
+                // Answers "where am I in the list" without counting rows by eye, and confirms
+                // ▲/▼ actually moved (there was previously no feedback beyond the row sizes
+                // themselves changing, which is easy to miss at a glance).
+                if (focusedArticleId.isNotBlank() && focusedIndex >= 0) {
+                    Text(
+                        text = "${focusedIndex + 1}/$displayCount",
+                        style = TextStyle(
+                            fontSize   = 10.sp,
+                            fontFamily = FontFamily.SansSerif,
+                            color      = GlanceTheme.colors.onSurfaceVariant,
+                        ),
+                        modifier = GlanceModifier.padding(horizontal = 4.dp),
+                    )
+                }
+                Text(
+                    text = "▲",
+                    style = stepStyle,
+                    modifier = GlanceModifier
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .clickable(actionRunCallback<FocusStepCallback>(
+                            actionParametersOf(FocusStepCallback.DIRECTION_KEY to "prev")
+                        )),
+                )
+                Text(
+                    text = "▼",
+                    style = stepStyle,
+                    modifier = GlanceModifier
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .clickable(actionRunCallback<FocusStepCallback>(
+                            actionParametersOf(FocusStepCallback.DIRECTION_KEY to "next")
+                        )),
+                )
+                // Clear-focus button — only shown once something is actually focused (nothing
+                // to clear otherwise). Exists because the alternative way to clear focus —
+                // tapping the already-focused row again — only works if that tap lands on the
+                // row's current bounds, and focusing a row reflows the whole list (every other
+                // row shrinks), so the row the user thinks they're re-tapping may no longer be
+                // there. This button's position never moves, so it doesn't have that problem.
+                if (focusedArticleId.isNotBlank()) {
+                    Text(
+                        text = "✕",
+                        style = stepStyle,
+                        modifier = GlanceModifier
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .clickable(actionRunCallback<ClearFocusCallback>()),
+                    )
+                    // Focus-area size, moved here from the focused row itself (was FeedItemRow's
+                    // problem to render before) — a fixed header position that never moves as
+                    // the list reflows, same reasoning as the ✕ button beside it, and keeps
+                    // every other on-widget control (▲▼✕) in one place instead of split between
+                    // the header and whichever row happens to be focused.
+                    Text(
+                        text = "−",
+                        style = stepStyle,
+                        modifier = GlanceModifier
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .clickable(actionRunCallback<AdjustFocusScaleCallback>(
+                                actionParametersOf(AdjustFocusScaleCallback.DELTA_KEY to -AdjustFocusScaleCallback.STEP)
+                            )),
+                    )
+                    Text(
+                        text = "+",
+                        style = stepStyle,
+                        modifier = GlanceModifier
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .clickable(actionRunCallback<AdjustFocusScaleCallback>(
+                                actionParametersOf(AdjustFocusScaleCallback.DELTA_KEY to AdjustFocusScaleCallback.STEP)
+                            )),
+                    )
+                }
+                Spacer(GlanceModifier.width(6.dp))
             }
+            // Unread count alongside the total accumulated pool (up to 300) — e.g. "10(300)".
+            // Previously showed only unreadCount, scoped to displayArticles (what's actually
+            // on screen) rather than the full store, specifically to avoid the confusing "99+
+            // unread" the full-store count produced when most of it was capped out of view
+            // (see maxRowsAllowed/memoryCapReached). That reasoning still holds for the first
+            // number; the second number answers a different question — "how much is actually
+            // piled up behind the cap" — without resurrecting that original confusion, since
+            // it's now explicitly labeled as the total rather than presented as unread.
+            Text(
+                text = "${if (unreadCount > 99) "99+" else "$unreadCount"}($totalCount)",
+                style = TextStyle(
+                    fontSize   = 11.sp,
+                    fontFamily = FontFamily.SansSerif,
+                    fontWeight = FontWeight.Medium,
+                    color      = GlanceTheme.colors.onPrimaryContainer,
+                ),
+                modifier = GlanceModifier
+                    .background(GlanceTheme.colors.primaryContainer)
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            )
         }
     }
 

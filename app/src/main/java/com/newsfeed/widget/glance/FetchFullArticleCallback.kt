@@ -1,7 +1,6 @@
 ﻿package com.newsfeed.widget.glance
 
 import android.content.Context
-import android.text.Html
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
@@ -11,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.jsoup.Jsoup
 import java.util.concurrent.TimeUnit
 
 class FetchFullArticleCallback : ActionCallback {
@@ -20,7 +20,7 @@ class FetchFullArticleCallback : ActionCallback {
         val ARTICLE_DESCRIPTION_KEY = ActionParameters.Key<String>("fetchArticleDesc")
 
         // Glamour's full-article body renders through a Bitmap (the only way to use the
-        // Dana Yad font in a RemoteViews-hosted widget at all — see TextBitmapHelper), whose
+        // Playpen Sans Hebrew font in a RemoteViews-hosted widget at all — see TextBitmapHelper), whose
         // memory cost scales with rendered size. Unbounded fetched-article text could reach
         // several KB, so it's revealed in bounded chunks via "Load more" (LoadMoreArticleCallback)
         // instead of one ever-growing bitmap — each already-revealed chunk stays on screen as
@@ -111,68 +111,81 @@ class FetchFullArticleCallback : ActionCallback {
                 String(bytes, charset)
             }
 
-            // Prefer <article> or <main> tag; fall back to <body>
-            val articleRx = Regex("""<article[^>]*>([\s\S]*?)</article>""", RegexOption.IGNORE_CASE)
-            val mainRx    = Regex("""<main[^>]*>([\s\S]*?)</main>""",    RegexOption.IGNORE_CASE)
-            val bodyRx    = Regex("""<body[^>]*>([\s\S]*?)</body>""",     RegexOption.IGNORE_CASE)
+            // Real DOM parser (Jsoup), not regex — lets content be selected by what it actually
+            // *is* (paragraph/heading/list elements) rather than by an ever-growing blacklist of
+            // noise tags. A regex tag-stripper keeps everything inside <article>/<body> except a
+            // few named tags, so an ad slot, a "related articles" grid, or a share-buttons bar
+            // sitting *inside* the article markup as a <div> all survived verbatim — regex has no
+            // notion of "this div is an ad card, not body text." Jsoup gives a real tree to
+            // select and remove things from instead.
+            val doc = Jsoup.parse(html, url)
+            val contentRoot = doc.selectFirst("article") ?: doc.selectFirst("main") ?: doc.body()
 
-            val raw = articleRx.find(html)?.groupValues?.get(1)
-                ?: mainRx.find(html)?.groupValues?.get(1)
-                ?: bodyRx.find(html)?.groupValues?.get(1)
-                ?: html
+            // First pass: whole noise-tag subtrees, same set the old regex version stripped
+            // (iframe/object/embed catch ad and widget embeds a bare fallback would otherwise
+            // pull in verbatim; <form> is excluded here for the same reason it was excluded
+            // before — a single <form> can span nearly the entire body on old-style forum
+            // templates, so removing it wholesale risks deleting genuine article text along with
+            // the noise).
+            contentRoot?.select(
+                "script, style, nav, footer, aside, header, iframe, object, embed, svg, select, noscript, button"
+            )?.remove()
 
-            // Remove script/style/embed/UI-chrome blocks then strip remaining tags.
-            // iframe/object/embed cover ad and widget embeds (e.g. booking/travel widgets)
-            // that a bare <body> fallback would otherwise pull in verbatim. select (dropdown
-            // pickers, e.g. a forum's "jump to forum" menu) is never article content either —
-            // and critically, Html.fromHtml() below doesn't recognize <option> as a block
-            // element, so stripping <select> only at the *tag* level (not the whole block)
-            // left every dropdown option's text glued directly onto the next with no
-            // separator at all (confirmed on a real fetch: "בחר פורום---------סקופיםהזעקה
-            // פוליטיקה..." — dozens of distinct forum category names concatenated into one
-            // unreadable run). <form> was tried the same way but reverted — verified against
-            // a real captured page that a single <form> can span nearly the entire body
-            // (old-style forum templates commonly wrap the whole page in one search/reply
-            // form), so stripping it wholesale risks deleting genuine article text along
-            // with the moderator-controls noise it was meant to remove; not worth that risk
-            // for a comparatively minor bit of leftover UI text.
-            val cleaned = raw
-                .replace(Regex("""<script[\s\S]*?</script>""", RegexOption.IGNORE_CASE), "")
-                .replace(Regex("""<style[\s\S]*?</style>""",   RegexOption.IGNORE_CASE), "")
-                .replace(Regex("""<nav[\s\S]*?</nav>""",       RegexOption.IGNORE_CASE), "")
-                .replace(Regex("""<footer[\s\S]*?</footer>""", RegexOption.IGNORE_CASE), "")
-                .replace(Regex("""<aside[\s\S]*?</aside>""",   RegexOption.IGNORE_CASE), "")
-                .replace(Regex("""<iframe[\s\S]*?</iframe>""", RegexOption.IGNORE_CASE), "")
-                .replace(Regex("""<object[\s\S]*?</object>""", RegexOption.IGNORE_CASE), "")
-                .replace(Regex("""<embed[^>]*>""",              RegexOption.IGNORE_CASE), "")
-                .replace(Regex("""<svg[\s\S]*?</svg>""",       RegexOption.IGNORE_CASE), "")
-                .replace(Regex("""<select[\s\S]*?</select>""", RegexOption.IGNORE_CASE), "")
-                // Defensive general fix, not just for <option>: Html.fromHtml() only inserts
-                // line breaks/spacing around the specific block tags it recognizes (p/div/br/
-                // li/...) — any OTHER tag it doesn't know about (custom elements, tags this
-                // parser predates) gets silently deleted with no separator, gluing whatever
-                // text was on either side of it together. Surrounding every tag with a space
-                // before parsing means no tag boundary can ever glue two words together; any
-                // resulting doubled-up whitespace is collapsed below anyway.
-                .replace(Regex("""<"""), " <")
-                .replace(Regex(""">"""), "> ")
+            // Second pass: elements whose class/id names them as chrome rather than content —
+            // ad slots, share/social widgets, related-content rails, newsletter prompts, comment
+            // sections, cookie/consent banners. These are almost always *div*-shaped, so the old
+            // regex approach (which only knew whole tag names) could never touch them; walking
+            // the real DOM and matching on class/id is what actually reaches them. Broad but
+            // word-bounded ([\s_-] on each side, not a raw substring match) to avoid false hits
+            // like a class named "adjacent-info" matching "ad", or "shared-header" matching
+            // "share" — go the other direction (word-bounded) rather than substring, since a
+            // false REMOVAL silently deletes real article text with no visible symptom, while a
+            // false negative just leaves a little chrome text behind (annoying, not data loss).
+            val noisePattern = Regex(
+                """(?i)(?:^|[\s_-])(ad|ads|advert|advertisement|banner|promo|promoted|sponsor|sponsored|""" +
+                    """outbrain|taboola|share|social|newsletter|related|recommend|comment|widget|popup|""" +
+                    """cookie|consent|paywall|subscribe|breadcrumb|byline-share|tag-list)(?:[\s_-]|$)"""
+            )
+            contentRoot?.select("*")
+                ?.filter { el ->
+                    val key = "${el.className()} ${el.id()}"
+                    key.isNotBlank() && noisePattern.containsMatchIn(key)
+                }
+                ?.forEach { it.remove() }
 
-            @Suppress("DEPRECATION")
-            Html.fromHtml(cleaned, Html.FROM_HTML_MODE_COMPACT)
-                .toString()
-                // Html.fromHtml() represents each <img> it couldn't strip as an ImageSpan
-                // backed by U+FFFC (OBJECT REPLACEMENT CHARACTER) in the resulting text; once
-                // converted to a plain String the span is gone but the character remains,
-                // rendering as a glyphless "[OBJ]" tofu box since no font here has that glyph.
-                .replace("￼", "")
-                // Collapse runs of spaces/tabs (leftover HTML-source indentation) to one
-                // space, then trim each line — without this, lines that were pure
-                // indentation whitespace in the original markup survive as visually blank
-                // paragraphs, and real lines carry stray leading/trailing tabs.
-                .lines()
-                .joinToString("\n") { it.replace(Regex("""[ \t]+"""), " ").trim() }
-                .replace(Regex("""\n{3,}"""), "\n\n")
-                .trim()
+            // Extract only paragraph-shaped content (p/h2-4/blockquote/li) rather than the whole
+            // container's text. This is the real win over the old approach: an ad card or
+            // related-articles grid is essentially never marked up as flowing <p> text — it's
+            // div/li-with-links/button chrome — so selecting specifically for paragraph elements
+            // excludes most of it for free, without needing to have specifically named it above.
+            // Falls back to the container's whole text for minimalist pages that don't wrap body
+            // text in <p> at all (rare, but seen on some older forum-style templates).
+            val paragraphs = contentRoot?.select("p, h2, h3, h4, blockquote, li")
+                ?.map { it.text().trim() }
+                // Length floor of 8 filters stray one/two-word UI labels (e.g. a lone "שתף" /
+                // "Share" or "הבא" / "Next" button whose markup happens to be a <p> or <li>) that
+                // survived the class/id pass above without deleting genuinely short sentences,
+                // which real article prose does still contain occasionally.
+                ?.filter { it.length > 8 }
+                ?: emptyList()
+            val extracted = if (paragraphs.isNotEmpty())
+                paragraphs.joinToString("\n\n")
+            else
+                (contentRoot?.text() ?: doc.text())
+
+            // Extra safety net, kept from the previous implementation: ynet's template still
+            // places a couple of real <p> lines from its comments widget ("הוספת תגובה" / "שלח
+            // תגובה" / "טען תגובות נוספות" — Add/Send comment, Load more comments) right after
+            // the genuine article body, which the class/id pass above doesn't reliably catch
+            // since that particular widget isn't consistently marked with a matching class name.
+            // "מצאתם טעות? כתבו לנו" ("Found a mistake? Write to us") is ynet's standard
+            // end-of-article footer line immediately preceding it, so it's a safe, stable
+            // truncation point. Deliberately not truncating at the first "הוספת תגובה" instead —
+            // that phrase also appears once *before* the real body, as a "jump to comments" link
+            // right under the byline, so matching on it would cut off genuine article text.
+            val commentsMarker = "מצאתם טעות"
+            val markerIdx = extracted.indexOf(commentsMarker)
+            if (markerIdx >= 0) extracted.substring(0, markerIdx).trim() else extracted
         } catch (e: Exception) {
             "Could not load article: ${e.message}"
         }

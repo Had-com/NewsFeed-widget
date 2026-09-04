@@ -32,6 +32,11 @@ data class WidgetConfig(
     val useThemeColors: Boolean = true,        // when true, all feeds use the theme accent instead of per-feed colors
     val backgroundAlpha: Float = 1.0f,         // 0.0 (fully transparent) – 1.0 (fully opaque)
     val retentionDays: Int = 0,                // how long an accumulated article stays in the list; 0 = unlimited (only the 300-article cap applies)
+    // Focus Mode only (BuildConfig.FOCUS_MODE build flavor) — how small every row other than
+    // the focused one renders, as a fraction of fontSize. Was a hardcoded 0.5f in
+    // FeedItemRow.kt; now a Settings slider so it's user-tunable instead of a guess baked
+    // into the code. Irrelevant (never read) in the standard flavor.
+    val focusBackgroundScale: Float = 0.5f,    // 0.25 – 1.0
 )
 
 @Serializable
