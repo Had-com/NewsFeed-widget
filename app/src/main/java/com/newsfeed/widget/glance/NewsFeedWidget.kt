@@ -51,6 +51,7 @@ import com.newsfeed.widget.config.WidgetConfigActivity
 import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetStateKey
+import com.newsfeed.widget.update.UpdateCheckWorker
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -541,12 +542,14 @@ class NewsFeedWidgetReceiver : GlanceAppWidgetReceiver() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         WidgetWorker.schedule(context)
+        UpdateCheckWorker.schedule(context)
         scheduleClockTick(context)
     }
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
         WidgetWorker.cancel(context)
+        UpdateCheckWorker.cancel(context)
         cancelClockTick(context)
     }
 
