@@ -1,8 +1,11 @@
 ﻿package com.newsfeed.widget.config
 
 import com.newsfeed.widget.BuildConfig
+import android.Manifest
 import android.appwidget.AppWidgetManager
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -62,6 +65,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
@@ -78,6 +82,7 @@ import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.glance.NewsFeedWidget
 import com.newsfeed.widget.glance.WidgetThemes
 import com.newsfeed.widget.glance.WidgetWorker
+import com.newsfeed.widget.update.UpdateManager
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.coroutines.Dispatchers
@@ -115,6 +120,9 @@ class WidgetConfigActivity : ComponentActivity() {
             MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
                 var config by remember { mutableStateOf(WidgetConfig(widgetId = appWidgetId)) }
                 val scope  = rememberCoroutineScope()
+                val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { /* proceeds either way — the manual check still works via Toast if denied */ }
 
                 androidx.compose.runtime.LaunchedEffect(appWidgetId) {
                     val saved = store.configFlow(appWidgetId).first()
@@ -873,6 +881,40 @@ class WidgetConfigActivity : ComponentActivity() {
                                     )
                                     HorizontalDivider()
                                 }
+                            }
+                        }
+
+                        // ── App update ──
+                        item {
+                            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                Text("APP UPDATE", fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.05.sp)
+                                Spacer(Modifier.height(8.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("Check for updates", style = MaterialTheme.typography.bodyMedium)
+                                        Text("Currently on build ${BuildConfig.VERSION_CODE}", fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    TextButton(onClick = {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                            ContextCompat.checkSelfPermission(
+                                                this@WidgetConfigActivity, Manifest.permission.POST_NOTIFICATIONS
+                                            ) != PackageManager.PERMISSION_GRANTED
+                                        ) {
+                                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        }
+                                        scope.launch {
+                                            UpdateManager.checkAndUpdate(this@WidgetConfigActivity, notifyOnly = false)
+                                        }
+                                    }) { Text("Check now") }
+                                }
+                                Text(
+                                    "The first time you install an update you may see an “install unknown apps” " +
+                                        "or Google Play Protect prompt — that's expected for an app outside the Play Store.",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                )
                             }
                         }
                     }
