@@ -17,6 +17,20 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // Committed on purpose — see keystore/README or Task 1 of the self-update plan.
+            // Every build (CI and local) must sign with the SAME key or a downloaded "update"
+            // APK can never install over the one already running (Android refuses a signature
+            // mismatch). Gradle's implicit per-machine debug keystore doesn't guarantee that
+            // across CI's fresh-machine-every-run environment.
+            storeFile     = file("../keystore/newsfeed-debug.keystore")
+            storePassword = "newsfeed-debug"
+            keyAlias      = "newsfeed-debug-key"
+            keyPassword   = "newsfeed-debug"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
