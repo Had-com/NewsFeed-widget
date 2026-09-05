@@ -176,7 +176,17 @@ class NewsFeedWidget : GlanceAppWidget() {
         // little room" instead of demanding room that was already established not to exist;
         // see the textSizePx cap in TextBitmapHelper.render() for the actual backstop that
         // keeps a single row's bitmap safe regardless of what this calculation concludes.
-        val maxRowsAllowed = (rowBudgetBytes / bytesPerRow).toInt().coerceIn(1, 60)
+        //
+        // Upper bound was a flat 60 for every theme — but headlineBytes is already 0 for
+        // every non-Glamour theme (plain Text, no bitmap headline), so the honest formula
+        // above already accounts for the real cost (thumbnails only) and safely allows nearly
+        // the whole 300-article store. Capping it at the same flat 60 as Glamour needlessly
+        // throttled non-Glamour themes far below what's actually safe (reported: articles
+        // available when not using Glamour should reach the real total, not stop at 60).
+        // Glamour keeps 60 since its bitmap cost genuinely can grow large and unpredictable
+        // (see AdjustFocusScaleCallback.HEADLINE_MAX_LINES / Focus Mode's combined scaling).
+        val maxRowsCeiling = if (config.widgetTheme == "glamer") 60 else 300
+        val maxRowsAllowed = (rowBudgetBytes / bytesPerRow).toInt().coerceIn(1, maxRowsCeiling)
 
         val displayArticles = availableArticles.take(visibleCount.coerceAtMost(maxRowsAllowed))
         // Based on visibleCount (what's been requested), not displayArticles.size (what's
