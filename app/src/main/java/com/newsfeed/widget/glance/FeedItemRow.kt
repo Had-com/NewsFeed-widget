@@ -69,7 +69,14 @@ fun FeedItemRow(
     focusBackgroundScale: Float = 0.5f,
 ) {
     val context        = LocalContext.current
-    val isExpanded     = article.id == expandedArticleId
+    // Focus Mode only. Hoisted above isExpanded: Focus Mode has no separate expand/collapse
+    // gesture (a tap always sets/clears focus, see toggleAction below) so the focused row —
+    // already the sole thing enlarged and the visual center of attention — auto-expands into
+    // its description/full-article controls instead of requiring a second, different action
+    // the user has no way to trigger. Reported and confirmed: without this, Focus Mode had no
+    // way at all to read an article's paragraph or full text, only to resize its headline.
+    val isFocused      = BuildConfig.FOCUS_MODE && article.id == focusedArticleId
+    val isExpanded     = article.id == expandedArticleId || isFocused
     // Focus Mode only (BuildConfig.FOCUS_MODE — see build.gradle.kts' "focusMode" flavor).
     // Shadows the fontSize parameter so every size derived from it below (headlineSize,
     // articleSize, thumbWidth, metaFontSize, ...) picks up the adjustment automatically, with
@@ -167,12 +174,11 @@ fun FeedItemRow(
             actionParametersOf(NoOpTapFeedbackCallback.ARTICLE_ID_KEY to article.id)
         )
 
-    // Focus Mode only. The size difference (1.25x vs 0.5x, see the fontSize shadowing above)
-    // is the main signal, but relying on relative size alone to answer "which row is
-    // focused" asks the eye to compare against neighbors instead of just recognizing the one
-    // row directly — a flat background tint answers that at a glance, independent of what's
-    // next to it.
-    val isFocused = BuildConfig.FOCUS_MODE && article.id == focusedArticleId
+    // isFocused itself is hoisted above isExpanded now (see that val's own comment). The size
+    // difference (1.25x vs 0.5x, see the fontSize shadowing above) is the main "which row is
+    // focused" signal, but relying on relative size alone asks the eye to compare against
+    // neighbors instead of just recognizing the one row directly — a flat background tint
+    // answers that at a glance, independent of what's next to it.
 
     Row(
         modifier = GlanceModifier

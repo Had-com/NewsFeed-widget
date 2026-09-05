@@ -221,7 +221,7 @@ class NewsFeedWidget : GlanceAppWidget() {
                     .cornerRadius(18.dp)
                     .padding(0.dp),
             ) {
-                WidgetHeader(unreadCount, availableArticles.size, focusedArticleId, focusedIndex, displayArticles.size)
+                WidgetHeader(unreadCount, displayArticles.size, focusedArticleId, focusedIndex, displayArticles.size)
                 Divider()
 
                 if (displayArticles.isEmpty()) {
@@ -449,14 +449,13 @@ class NewsFeedWidget : GlanceAppWidget() {
                 }
                 Spacer(GlanceModifier.width(6.dp))
             }
-            // Unread count alongside the total accumulated pool (up to 300) — e.g. "10(300)".
-            // Previously showed only unreadCount, scoped to displayArticles (what's actually
-            // on screen) rather than the full store, specifically to avoid the confusing "99+
-            // unread" the full-store count produced when most of it was capped out of view
-            // (see maxRowsAllowed/memoryCapReached). That reasoning still holds for the first
-            // number; the second number answers a different question — "how much is actually
-            // piled up behind the cap" — without resurrecting that original confusion, since
-            // it's now explicitly labeled as the total rather than presented as unread.
+            // Both numbers scoped to displayArticles (what's actually on screen right now),
+            // not the full accumulated store (which can hold up to 300) — showing the full
+            // store's total here read as a bug (reported directly): a badge claiming e.g.
+            // "10(300)" when only 30 articles are actually reachable by scrolling implies 300
+            // are available, not 30. The real total-vs-available accounting lives at the end
+            // of the list instead (canLoadMoreArticles/memoryCapReached's "Showing X of Y"
+            // message below), where "of Y" unambiguously means the full available count.
             Text(
                 text = "${if (unreadCount > 99) "99+" else "$unreadCount"}($totalCount)",
                 style = TextStyle(
