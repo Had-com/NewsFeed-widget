@@ -190,6 +190,8 @@ class WidgetConfigActivity : ComponentActivity() {
                 var searchError    by remember { mutableStateOf<String?>(null) }
                 var searchDone     by remember { mutableStateOf(false) }
 
+                var isCheckingForUpdate by remember { mutableStateOf(false) }
+
                 // Edit-feed dialog state
                 var editingFeed   by remember { mutableStateOf<FeedConfig?>(null) }
                 var editName      by remember { mutableStateOf("") }
@@ -896,7 +898,8 @@ class WidgetConfigActivity : ComponentActivity() {
                                         Text("Currently on build ${BuildConfig.VERSION_CODE}", fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
-                                    TextButton(onClick = {
+                                    if (isCheckingForUpdate) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                                    else TextButton(onClick = {
                                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                                             ContextCompat.checkSelfPermission(
                                                 this@WidgetConfigActivity, Manifest.permission.POST_NOTIFICATIONS
@@ -904,8 +907,10 @@ class WidgetConfigActivity : ComponentActivity() {
                                         ) {
                                             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                         }
+                                        isCheckingForUpdate = true
                                         scope.launch {
                                             UpdateManager.checkAndUpdate(this@WidgetConfigActivity, notifyOnly = false)
+                                            isCheckingForUpdate = false
                                         }
                                     }) { Text("Check now") }
                                 }
