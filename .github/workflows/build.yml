@@ -34,12 +34,15 @@ jobs:
         run: |
           VERSION=$(grep 'versionName' app/build.gradle.kts | head -1 | grep -oP '"\K[^"]+')
           BUILD=$(grep 'versionCode' app/build.gradle.kts | head -1 | grep -oP '\d+')
-          mv app/build/outputs/apk/debug/app-debug.apk \
-             app/build/outputs/apk/debug/NewsFeed-v${VERSION}-${BUILD}-run${{ github.run_number }}.apk
+          mkdir -p app/build/outputs/apk/renamed
+          for f in app/build/outputs/apk/*/debug/*.apk; do
+            flavor=$(echo "$f" | sed -E 's#app/build/outputs/apk/([^/]+)/debug/.*#\1#')
+            cp "$f" "app/build/outputs/apk/renamed/NewsFeed-${flavor}-v${VERSION}-${BUILD}-run${{ github.run_number }}.apk"
+          done
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: NewsFeed-v${{ github.run_number }}
-          path: app/build/outputs/apk/debug/NewsFeed-*.apk
+          path: app/build/outputs/apk/renamed/*.apk
           retention-days: 30
