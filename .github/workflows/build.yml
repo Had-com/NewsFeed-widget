@@ -7,6 +7,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,16 +31,15 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Build debug APK
-        run: gradle assembleDebug --stacktrace
+        run: gradle assembleDebug --stacktrace -PbuildVersionCode=${{ github.run_number }}
 
       - name: Rename APK
         run: |
           VERSION=$(grep 'versionName' app/build.gradle.kts | head -1 | grep -oP '"\K[^"]+')
-          BUILD=$(grep 'versionCode' app/build.gradle.kts | head -1 | grep -oP '\d+')
           mkdir -p app/build/outputs/apk/renamed
           for f in app/build/outputs/apk/*/debug/*.apk; do
             flavor=$(echo "$f" | sed -E 's#app/build/outputs/apk/([^/]+)/debug/.*#\1#')
-            cp "$f" "app/build/outputs/apk/renamed/NewsFeed-${flavor}-v${VERSION}-${BUILD}-run${{ github.run_number }}.apk"
+            cp "$f" "app/build/outputs/apk/renamed/NewsFeed-${flavor}-v${VERSION}-${{ github.run_number }}.apk"
           done
 
       - name: Upload debug APK
@@ -46,3 +48,23 @@ jobs:
           name: NewsFeed-v${{ github.run_number }}
           path: app/build/outputs/apk/renamed/*.apk
           retention-days: 30
+
+      - name: Prepare latest-release assets
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          mkdir -p app/build/outputs/apk/release-latest
+          cp app/build/outputs/apk/standard/debug/*.apk app/build/outputs/apk/release-latest/NewsFeed-standard-latest.apk
+          cp app/build/outputs/apk/focusMode/debug/*.apk app/build/outputs/apk/release-latest/NewsFeed-focusMode-latest.apk
+          echo "{\"versionCode\": ${{ github.run_number }}}" > app/build/outputs/apk/release-latest/version.json
+
+      - name: Publish latest release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: latest
+          name: Latest build
+          make_latest: true
+          body: "Automated rolling build from commit ${{ github.sha }} (CI run ${{ github.run_number }})."
+          files: app/build/outputs/apk/release-latest/*
