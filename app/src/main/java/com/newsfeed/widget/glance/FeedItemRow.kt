@@ -124,9 +124,14 @@ fun FeedItemRow(
     // (`false xor anything` is a no-op) — reported by the user only after testing on a
     // Hebrew-locale device, where justification (and alignment generally) came out backwards.
     val isRtl          = feedConfig.layoutDirection == "rtl"
-    val metaFontSize   = (9f * metaScaleFontSize).sp
+    // Bumped from 9f/10f — reported and confirmed too light/thin to read comfortably at the
+    // default font size, on top of already being the smallest, most muted text on the row
+    // (onSurfaceVariant, no bold). The size bump applies everywhere; the meta row also gets a
+    // slightly heavier weight below (still lighter than the headline's Bold) since size alone
+    // doesn't fix strokes that were also just thin.
+    val metaFontSize   = (10f * metaScaleFontSize).sp
     val headlineSize   = (13f * fontSize).sp
-    val articleSize    = (10f * articleFontSize).sp
+    val articleSize    = (11f * articleFontSize).sp
     // Thumbnail width: square based on font scale (independent of row height). Capped —
     // uncapped, this scales linearly with fontSize with no ceiling: already a latent risk on
     // the standard flavor at the Font size slider's own top end (52 * 3.0 = 156dp), and made
@@ -257,11 +262,13 @@ fun FeedItemRow(
                 val tsStyle = TextStyle(
                     fontSize    = metaFontSize,
                     fontFamily  = FontFamily.SansSerif,
+                    fontWeight  = FontWeight.Medium,
                     color       = GlanceTheme.colors.onSurfaceVariant,
                 )
                 val nameStyle = TextStyle(
                     fontSize   = metaFontSize,
                     fontFamily = FontFamily.SansSerif,
+                    fontWeight = FontWeight.Medium,
                     color      = accentProvider,
                     // RTL's name box is a fixed width (nameMaxWidth) so it can't push the
                     // circle off the row — without End alignment, a short name sits flush at
@@ -531,6 +538,11 @@ fun FeedItemRow(
                 val descStyle = TextStyle(
                     fontSize   = articleSize,
                     fontFamily = feedFontFamily,
+                    // Medium, not the default Normal — reported and confirmed too thin/light
+                    // to read comfortably at the default article font size. Still visibly
+                    // lighter than the headline's Bold, just no longer the thinnest weight
+                    // available.
+                    fontWeight = FontWeight.Medium,
                     color      = if (article.isRead) GlanceTheme.colors.onSurfaceVariant
                                  else nonGlamerHeadlineColor,
                     textAlign  = if (isRtl) androidx.glance.text.TextAlign.End
@@ -597,7 +609,11 @@ fun FeedItemRow(
                         // doesn't get silently ellipsis-truncated mid-chunk — see the "full"
                         // block's own comment for why that was actually the dominant cause of
                         // "Load more" seeming to stop short of the article's real end.
-                        val lineHeightPx  = 10f * articleFontSize * scaledDensity * 1.2f
+                        // 11f, not 10f — matches articleSize's own bump above (reported too
+                        // thin/light to read comfortably); kept in sync with the textSizePx
+                        // passed to TextBitmapHelper.paragraph() below, or safeMaxLines would
+                        // be sized for a different line height than what's actually rendered.
+                        val lineHeightPx  = 11f * articleFontSize * scaledDensity * 1.2f
                         val safeMaxLines  = (heightBudgetPx / lineHeightPx).toInt().coerceIn(4, maxLines)
                         // Same color as the headline (glamerHeadlineColorArgb, hoisted above)
                         // — only size differs, per explicit request. Previously body text
@@ -606,7 +622,7 @@ fun FeedItemRow(
                         val bmp = if (widthPx >= 120) TextBitmapHelper.paragraph(
                             context    = context,
                             text       = safeText,
-                            textSizePx = 10f * articleFontSize * scaledDensity,
+                            textSizePx = 11f * articleFontSize * scaledDensity,
                             widthPx    = widthPx,
                             isRtl      = isRtl,
                             maxLines   = safeMaxLines,
@@ -638,7 +654,8 @@ fun FeedItemRow(
                             val scaledDensity2 = context.resources.displayMetrics.scaledDensity
                             val widthPx2       = ((LocalSize.current.width.value.coerceAtMost(350f) - 9f) * density2)
                                                     .toInt().coerceAtLeast(50)
-                            val textSizePx2    = 10f * articleFontSize * scaledDensity2
+                            // 11f, matching the short/medium-mode paragraph size bump above.
+                            val textSizePx2    = 11f * articleFontSize * scaledDensity2
                             val lineHeightPx2  = textSizePx2 * 1.2f
                             // Each chunk must render ALL of its CHUNK_CHARS, or the "shown"
                             // character count (which the button advances by a flat

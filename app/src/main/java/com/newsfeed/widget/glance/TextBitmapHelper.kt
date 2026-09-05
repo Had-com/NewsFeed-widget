@@ -158,7 +158,16 @@ object TextBitmapHelper {
                 isAntiAlias = true
                 // Playpen Sans Hebrew ships real regular/bold weights (unlike Dana Yad, a
                 // single-weight font that needed fake-bold synthesis) — getTypeface(bold)
-                // already loaded the correct weight's own file, so no fake-bold stroke needed.
+                // already loaded the correct weight's own file, so no fake-bold stroke needed
+                // to tell headline from body. The regular weight alone was still reported as
+                // too thin/light to read comfortably at body-text size, though — a small
+                // FILL_AND_STROKE outline thickens its strokes a little without pushing it all
+                // the way to the bold file's weight (which would erase the headline/body
+                // distinction this project deliberately kept, see the callers' own comments).
+                if (!bold) {
+                    style       = Paint.Style.FILL_AND_STROKE
+                    strokeWidth = safeTextSizePx * 0.02f
+                }
             }
 
             // Force the paragraph direction explicitly instead of relying on StaticLayout's
