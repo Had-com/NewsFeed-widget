@@ -220,7 +220,7 @@ just leave it as a known limitation and document it. Needs a product decision.
 
 ## BUG-011 — Rapid repeat taps on the on-widget refresh button enqueue redundant work
 
-**Status:** Fixed, not yet verified on-device.
+**Status:** Fixed and verified on-device (commit `87e46cb`).
 
 `WidgetWorker.refreshNow()` (called by `RefreshNowCallback` on every refresh-control tap,
 and by `WidgetConfigActivity`'s Save handler) used a plain `WorkManager.enqueue(...)` with no
@@ -234,6 +234,12 @@ double-tap guard for this same class of problem; the on-widget refresh never did
 switching to `enqueueUniqueWork(..., ExistingWorkPolicy.KEEP, ...)` under its own work name,
 separate from the periodic job's — a tap while a manual refresh is already
 pending/running is now silently absorbed instead of stacking another one.
+
+**Verified:** 5 taps fired within 723ms collapsed to exactly 1 `WidgetWorker` execution
+(confirmed by unique WorkManager Work id in logcat), which updated both widget instances
+correctly with no errors. A follow-up single tap issued after that run completed triggered a
+new, separate execution as expected — confirming the dedup only blocks *concurrent* repeat
+taps, not all future refreshes.
 
 ## BUG-012 — Focus widget's last visible article row can be clipped mid-glyph
 
@@ -253,7 +259,9 @@ a small padding/sizing tweak — not yet confirmed either way.
 
 ## BUG-013 — Some article titles show raw HTML entity text instead of the real character
 
-**Status:** Fixed, not yet verified on-device.
+**Status:** Partially fixed (commit `88ea007`) — majority of cases confirmed working, but a
+genuine, unexplained residual inconsistency remains. Root cause of the residual not yet
+found; needs a programmatic diagnostic, not another guess.
 
 Found during the same visual QA sweep: some titles displayed literal text like
 `&amp;#128308;` or `&amp;#8207;` instead of the intended emoji/RTL-mark character. Confirmed
@@ -263,8 +271,36 @@ only unescapes one level (`&amp;` → `&`), leaving the resulting `&#128308;` as
 content rather than decoding it further. `description` already runs `Html.fromHtml()` for
 exactly this reason (see its own comment in `parseItem()`); `title` never got the same
 treatment. Fixed by applying the identical `Html.fromHtml(..., FROM_HTML_MODE_COMPACT)` step
-to the parsed title in `NewsFeedRepository.kt` — a safe no-op for titles with no
-entities/tags to begin with.
+to the parsed title in `NewsFeedRepository.kt`.
+
+**On-device verification found the fix works for most cases but not all.** Cross-referencing
+stored titles against the live feed by article guid/link, confirmed across 3 separate
+refreshes over several minutes (ruling out simple staleness):
+- `962753.shtml`: `&amp;#128308;&amp;#128308;&amp;#128308;...` → correctly decoded to 🔴🔴🔴.
+- `962752`, `962749`, `962745`: `&amp;#8207;...` (RTL mark, at string start or after "word: ")
+  → correctly decoded in all three.
+- `962739.shtml`: `ג&amp;#1523;...ארד קושנר: &amp;#1524;...` (geresh/gershayim, one mid-word,
+  two after "word: ") → **all three occurrences stayed literal, undecoded**, unchanged
+  across repeated refreshes.
+- `962703.shtml`: `...: &amp;#8207;...` — **same entity, same "word: &#N;" structural shape
+  as the successful 962745 above, yet failed** to decode.
+
+That last comparison rules out the two most obvious hypotheses: this isn't about *which*
+entity value it is (`&#8207;` succeeds elsewhere), and it isn't about *where* in the string
+it sits (identical "colon-space-entity" shape succeeds in one title, fails in another).
+Also checked and ruled out: stray ASCII punctuation elsewhere in a title confusing
+`Html.fromHtml`'s tag-soup parser (962752 has a literal `''` mid-string and still decoded
+correctly); simple re-fetch staleness (the broken examples are well within the per-feed
+50-item fetch cap, so they're being freshly re-parsed every refresh and still coming out
+wrong every time). `description` fields show zero leftover raw entities anywhere — the
+regression is specific to the title path.
+
+This looks like a genuine, content-dependent quirk in `Html.fromHtml()`'s own parsing
+against these specific raw strings, not a caching/environment artifact. Since text-level
+comparison has been exhausted without finding the differentiator, the next step is a direct
+programmatic test — e.g. an instrumented on-device test (or a temporary diagnostic build)
+that calls `Html.fromHtml()` against these exact raw strings in isolation and inspects the
+result — rather than a second guess-based patch.
 
 ---
 
