@@ -557,7 +557,13 @@ private fun WidgetFooter(lastRefreshTime: Long, lastRefreshFailed: Boolean, inte
         Text(
             text = countdownText,
             style = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.SansSerif, color = countdownColor),
-            modifier = GlanceModifier.clickable(actionRunCallback<RefreshNowCallback>()),
+            // Matches the gear button's own .padding(4.dp)-before-.clickable() pattern just
+            // below — without it, the tap target was exactly the tight wrap-content bounds of
+            // the glyph string (icon + text), noticeably smaller than what visually reads as
+            // "the refresh button" in the footer row. Reported and confirmed.
+            modifier = GlanceModifier
+                .padding(4.dp)
+                .clickable(actionRunCallback<RefreshNowCallback>()),
         )
         Spacer(GlanceModifier.defaultWeight())
         Text(

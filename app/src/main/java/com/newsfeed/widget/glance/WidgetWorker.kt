@@ -17,6 +17,7 @@ import com.newsfeed.widget.data.ReadStatusStore
 import com.newsfeed.widget.data.NewsFeedRepository
 import com.newsfeed.widget.data.WidgetConfigStore
 import com.newsfeed.widget.data.WidgetStateKey
+import com.newsfeed.widget.data.retainWithPerFeedGuarantee
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -68,10 +69,9 @@ class WidgetWorker(
                     ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
                     ?: emptyList()
                 val freshIds = fresh.map { it.id }.toSet()
-                merged = (fresh + existing.filter { it.id !in freshIds })
+                val candidates = (fresh + existing.filter { it.id !in freshIds })
                     .filter { retentionCutoff <= 0L || it.publishedAt >= retentionCutoff }
-                    .sortedByDescending { it.publishedAt }
-                    .take(300)
+                merged = retainWithPerFeedGuarantee(candidates, cap = 300, minPerFeed = 10)
                 prefs[WidgetStateKey.articles]        = Json.encodeToString(merged)
                 prefs[WidgetStateKey.configJson]      = Json.encodeToString(config)
                 prefs[WidgetStateKey.lastRefreshTime] = now

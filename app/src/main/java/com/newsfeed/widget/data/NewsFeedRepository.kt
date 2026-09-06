@@ -86,7 +86,7 @@ class NewsFeedRepository(private val context: Context) {
                 .url("https://cloud.feedly.com/v3/search/feeds?query=$encoded&count=15")
                 .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36")
                 .build()
-            client.newCall(req).execute().use { resp ->
+            val candidates = client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return@withContext emptyList()
                 val body = resp.body?.string() ?: return@withContext emptyList()
                 val json = org.json.JSONObject(body)
@@ -104,8 +104,33 @@ class NewsFeedRepository(private val context: Context) {
                     )
                 }
             }
+            // Feedly's own search index can list feeds that are dead, blocked, or otherwise
+            // unusable by this app's own fetcher (confirmed: a search result was added,
+            // looked fine in the list, but silently produced zero articles forever after —
+            // the feed returns HTTP 403 to this app's actual request headers). A result the
+            // user picks from Find Feeds should always be genuinely addable, so each
+            // candidate is validated (in parallel, since there can be up to 15) before being
+            // offered, rather than letting the user discover it's broken after adding it.
+            candidates
+                .map { candidate -> async { candidate to isFeedReachable(candidate.feedUrl) } }
+                .awaitAll()
+                .filter { (_, reachable) -> reachable }
+                .map { (candidate, _) -> candidate }
         } catch (_: Exception) { emptyList() }
     }
+
+    private fun isFeedReachable(url: String): Boolean = try {
+        var req = Request.Builder().url(url)
+        browserHeaders(url).forEach { (k, v) -> req = req.header(k, v) }
+        client.newCall(req.build()).execute().use { response ->
+            if (!response.isSuccessful) return@use false
+            val text = response.body?.string() ?: return@use false
+            val parser = Xml.newPullParser()
+            parser.setInput(text.reader())
+            parseFeed(parser, FeedConfig(feedId = url, displayName = "", feedUrl = url), maxItems = 1)
+                .isNotEmpty()
+        }
+    } catch (_: Exception) { false }
 
     suspend fun downloadFavicons(feeds: List<FeedConfig>) = withContext(Dispatchers.IO) {
         for (feed in feeds) {
