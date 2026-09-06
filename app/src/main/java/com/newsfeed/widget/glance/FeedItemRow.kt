@@ -331,6 +331,15 @@ fun FeedItemRow(
                 }
             }
 
+            // TEMPORARY DIAGNOSTIC for BUG-002 — remove once root cause is confirmed.
+            // Prints the literal computed booleans so on-device behavior can be checked
+            // directly instead of inferred from stripe position alone.
+            Text(
+                "DBG cfg=${feedConfig.layoutDirection} dev=$deviceIsRtl eff=$isRtl",
+                style = TextStyle(fontSize = 8.sp, color = ColorProvider(Color.Red)),
+                maxLines = 1,
+            )
+
             Spacer(GlanceModifier.height(3.dp))
 
             // Headline — Glamour theme uses a custom Hebrew handwriting font (Playpen Sans Hebrew, bold)
