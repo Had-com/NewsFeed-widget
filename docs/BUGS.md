@@ -302,6 +302,36 @@ programmatic test — e.g. an instrumented on-device test (or a temporary diagno
 that calls `Html.fromHtml()` against these exact raw strings in isolation and inspects the
 result — rather than a second guess-based patch.
 
+## BUG-014 — Occasional "refresh failed" affecting every configured feed at once
+
+**Status:** Seen twice this session, self-resolves on retry, root cause not confirmed —
+logcat evidence was lost both times before it could be captured.
+
+Reported live twice in one session: the widget footer briefly shows "⚠ refresh failed — tap
+to retry". `lastRefreshFailed` is only set `true` when `allFailed` is true in
+`NewsFeedRepository.getArticles()` — i.e. **every single enabled feed's fetch threw** on
+that attempt, not just one flaky feed — which rules out ordinary single-feed network
+flakiness as the cause; it points at something shared across all outbound requests at that
+moment (a brief DNS/connectivity blip, or Android's Doze/background-network execution
+restrictions activating between long stretches of heavy on-device testing today). Both
+times, a manual retry tap immediately succeeded cleanly (all DNS lookups OK, `WidgetWorker`
+returned `SUCCESS`) — but both times the *causing* attempt's own logcat output wasn't
+captured before it rotated out of the buffer (once because investigation started after the
+fact, once because logcat was mistakenly cleared right before the retry instead of before
+checking history). **Not yet root-caused.** Next occurrence: check `adb logcat -d` (without
+clearing first) immediately, and check `adb shell dumpsys deviceidle` / battery
+optimization state for the app, before retrying.
+
+## BUG-004 addendum — Walla "01:13" report investigated, not a bug
+
+A live report ("walla article time 01:13 while the time now is 22:57") was investigated in
+full: the live Walla feed's raw `<pubDate>` for that article is `22:13:00 GMT` — correctly
+22:13 UTC = 01:13 IDT (Israel is UTC+3 in September), rolling into the *next* calendar day.
+Confirmed on-screen the widget actually displays **"07/09 01:13"** (with the date prefix,
+via `formatDateTime()`'s cross-midnight branch) — parsing, timezone math, and display
+formatting are all correct. The report omitted the date prefix when describing what was
+seen; no fix needed.
+
 ---
 
 **Cleanup note:** the temporary `DBG cfg=... dev=... eff=...` diagnostic line added for the
