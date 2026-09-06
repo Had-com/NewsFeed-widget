@@ -10,7 +10,7 @@
       <outline xmlUrl="https://news.google.com/rss/search?q=site%3An12.co.il%2F%3F+OR+site%3An12.co.il+N12&amp;hl=he&amp;gl=IL&amp;ceid=IL%3Ahe" text="N12 - חדשות" title="N12 - חדשות" />
       <outline xmlUrl="https://news.google.com/rss/search?q=site%3Akan.org.il+%22%D7%9B%D7%90%D7%9F+%D7%97%D7%93%D7%A9%D7%95%D7%AA%22&amp;hl=he&amp;gl=IL&amp;ceid=IL%3Ahe" text="כאן חדשות - חדשות" title="כאן חדשות - חדשות" />
       <outline xmlUrl="https://www.ynet.co.il/Integration/StoryRss2.xml" text="ynet - חדשות" title="ynet - חדשות" />
-      <outline xmlUrl="https://rss.walla.co.il/feed/22?type=main" text="וואלה - מבזקים" title="וואלה - מבזקים" />
+      <outline xmlUrl="https://rss.walla.co.il/feed/1?type=main" text="וואלה - מבזקים" title="וואלה - מבזקים" />
       <outline xmlUrl="https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=2" text="גלובס - כל הכתבות" title="גלובס - כל הכתבות" />
       <outline xmlUrl="https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=9917" text="גלובס - בארץ" title="גלובס - בארץ" />
     </outline>
