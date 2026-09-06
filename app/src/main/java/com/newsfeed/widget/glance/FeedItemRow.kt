@@ -115,15 +115,29 @@ fun FeedItemRow(
         ColorProvider(Color(parsed))
     }
     // Each feed's direction is an explicit, absolute per-feed setting (the config screen's
-    // RTL/LTR toggle) — it must NOT depend on the device's system locale. This used to XOR
-    // against context.resources.configuration.layoutDirection, which silently inverted every
-    // feed's direction on a device with its OS language set to Hebrew (or any other RTL
-    // system locale): a feed explicitly configured as RTL would compute
-    // `true xor true = false` and render LTR, and vice versa for an LTR feed. Invisible in
-    // this project's testing since the dev AVD's system locale was always English
-    // (`false xor anything` is a no-op) — reported by the user only after testing on a
-    // Hebrew-locale device, where justification (and alignment generally) came out backwards.
-    val isRtl          = feedConfig.layoutDirection == "rtl"
+    // RTL/LTR toggle) — it must NOT visibly depend on the device's system locale. An earlier
+    // version of this project XOR'd feedConfig's setting against the device's real layout
+    // direction and treated that as the bug (a Hebrew-locale device flipped every feed's
+    // direction), "fixing" it by removing the XOR and instead locking Compose's
+    // LocalLayoutDirection to Ltr around the whole widget (see NewsFeedWidget.kt's
+    // provideGlance()). That fix was incomplete: decompiling the actual
+    // glance-appwidget:1.1.0 RemoteViewsTranslatorKt shows its translateComposition() derives
+    // its OWN internal isRtl directly from Context.resources.configuration.layoutDirection —
+    // the real device locale — not from Compose's LocalLayoutDirection at all; the only
+    // override hook (forceRtl) is marked both @Deprecated and @VisibleForTesting, i.e. not a
+    // supported way for app code to suppress this. So Compose's LocalLayoutDirection lock
+    // only stops COMPOSE's own composition-time auto-mirroring of Row/Column child order — it
+    // does nothing about Glance's SEPARATE, later translation-time mirroring, which still
+    // keys off the real device locale unconditionally. Confirmed on-device (Hebrew system
+    // locale): an RTL-flagged feed's accent stripe/timestamp rendered mirrored — visually
+    // indistinguishable from an LTR feed — reverting correctly the moment the locale was
+    // switched back to English. The XOR itself wasn't the wrong idea, it was compensating for
+    // exactly this; it needs to come back, just correctly targeted at Glance's translation-time
+    // mirroring specifically (verified with a truth table against all four
+    // feed-direction × device-locale combinations) rather than removed outright.
+    val deviceIsRtl    = context.resources.configuration.layoutDirection ==
+        android.view.View.LAYOUT_DIRECTION_RTL
+    val isRtl          = (feedConfig.layoutDirection == "rtl") xor deviceIsRtl
     // Bumped from 9f/10f — reported and confirmed too light/thin to read comfortably at the
     // default font size, on top of already being the smallest, most muted text on the row
     // (onSurfaceVariant, no bold). The size bump applies everywhere; the meta row also gets a
