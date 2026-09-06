@@ -52,6 +52,7 @@ import com.newsfeed.widget.config.WidgetConfigActivity
 import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetStateKey
+import com.newsfeed.widget.data.applyFilterAndSort
 import com.newsfeed.widget.update.UpdateCheckWorker
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -152,7 +153,11 @@ private fun WidgetContent(isFocusWidget: Boolean) {
 
     val feedMap         = config.feeds.associateBy { it.feedId }
     val visibleCount    = prefs[WidgetStateKey.visibleArticleCount] ?: LoadMoreArticlesCallback.ARTICLE_CHUNK_SIZE
-    val availableArticles = articles.filter { feedMap.containsKey(it.feedId) }
+    // Sort/filter applied here, not just at fetch time — WidgetWorker's merge step always
+    // re-sorts the accumulated store by publishedAt and never re-applies the filter to
+    // already-stored articles, so without this, config.sortOrder/config.filter had no
+    // effect on what actually got displayed once an article survived one refresh cycle.
+    val availableArticles = applyFilterAndSort(articles.filter { feedMap.containsKey(it.feedId) }, config)
 
     // Each row can carry a Glamour-theme headline bitmap and/or a thumbnail image, and
     // RemoteViews has a real total bitmap-memory budget for one widget update (this
