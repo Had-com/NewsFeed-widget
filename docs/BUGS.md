@@ -65,7 +65,18 @@ scope limit or a gap — flagged to the user, no action taken pending their inpu
 
 ## BUG-004 — Article time not in sync with the feed's actual article time
 
-**Status:** Did not reproduce — closing pending a fresh, specific report.
+**Status:** Did not reproduce on the Standard widget — closing pending a fresh, specific
+report. **Process note: every future check of this must cover BOTH the Standard and Focus
+widgets** — the original verification pass only checked one instance, and each widget
+instance (`appWidgetId` 15=Standard, 16=Focus, confirmed via `adb shell dumpsys appwidget`)
+keeps its own fully independent config and accumulated article store, fetched separately by
+`WidgetWorker.doWork()`'s per-`glanceId` loop. Re-checked both widgets directly on-device
+after this was raised again: at that moment both showed identical timestamps for identical
+articles (both had refreshed within 1 second of each other), so no live discrepancy was
+caught — but this doesn't rule out genuine drift having occurred earlier during the same
+day's heavy testing (rapid feed add/remove, refresh spam, locale switching), since the two
+stores are independent and nothing keeps them in lockstep between refreshes. If seen again,
+capture which widget (Standard/Focus) and the specific article/time.
 
 Reported: the timestamp shown on an article row doesn't match the real publish time from
 the source feed. On-device: cross-checked 6 articles across 4 feeds (rotter.net, ynet,
@@ -93,13 +104,20 @@ despite a comfortably-sized tap target, re-open with a specific feed/timing repr
 
 ## BUG-006 — Refresh button's tap target doesn't cover its own icon + text
 
-**Status:** Fixed (not yet pushed), needs on-device verification.
+**Status:** Fixed and verified on-device (commit `89db72e`).
 
 The countdown/refresh `Text` in `WidgetFooter()` (`NewsFeedWidget.kt`) had `.clickable()`
 applied directly with no padding, so its tap target was exactly the tight wrap-content
 bounds of the rendered glyph string. The adjacent gear (`⚙`) button in the same `Row`
 already used `.padding(4.dp)` before `.clickable()` for a comfortable hit area — the
 refresh text just never got the same treatment. Fixed by adding the matching padding.
+
+**Verified:** measured clickable bounds via `uiautomator` went from an estimated ~321×31px
+to a confirmed 343×53px (roughly matching the gear button's own proportional padding
+increase). A tap inside the new padded-but-previously-outside-bounds region reliably
+triggered a real refresh (confirmed via logcat: broadcast fired, `WM-WorkerWrapper` reported
+`SUCCESS` ~4.6s later); a tap just outside the new bounds correctly did nothing, confirming
+the measurement wasn't just a generous accessibility box.
 
 ## BUG-007 — Refresh doesn't insert new articles
 
@@ -159,7 +177,24 @@ Weekly) that genuinely never appeared. Two separate confirmed causes:
    `WidgetWorker.kt`'s merge step in place of the old flat `.sortedByDescending {
    }.take(300)`.
 
-**Status:** Both fixes implemented, not yet pushed/verified on-device.
+**Status:** Both fixes implemented and pushed (commit `89db72e`), verified on-device.
+
+**Verified — cause 1 (Find Feeds filtering):** searching "artificial intelligence news"
+returned 7 results and `artificialintelligence-news.com` was no longer among them.
+`isFeedReachable()` confirmed genuinely wired into the real fetch/parse path, not just
+present in source. Note: this only prevents the broken feed from being *offered again* — it
+does not retroactively remove the copy already added earlier in the same testing session
+(that instance still yields 0 articles, as expected, since the feed is still actually
+blocked; out of scope of this fix).
+
+**Verified — cause 2 (per-feed minimum guarantee):** before/after a manual refresh,
+TechCrunch AI reliably held exactly 10 stored articles with its oldest at rank **#267 of
+300** — comfortably clear of eviction, versus the pre-fix #297/300. Clean, direct
+confirmation the guarantee works.
+
+**New finding while verifying cause 2 — see BUG-010:** AI Weekly (`http://aiweekly.co/issues.rss`)
+still shows 0 stored articles even after the fix, for an unrelated reason: cleartext (plain
+HTTP) traffic is almost certainly being blocked by Android's platform default.
 
 ## BUG-009 — Feed row's "×" remove button opens Edit instead of removing
 
@@ -168,6 +203,44 @@ Weekly) that genuinely never appeared. Two separate confirmed causes:
 In the feed list (Settings), tapping a feed row's "×" remove control repeatedly opened the
 "Edit feed" dialog instead of removing the row — possibly the parent row's edit-tap region
 overlaps/intercepts the small "×" hit target (same general class of issue as BUG-006).
+
+## BUG-010 — HTTP (non-HTTPS) feed URLs silently never fetch
+
+**Status:** Found incidentally while verifying BUG-008, not yet fixed.
+
+`http://aiweekly.co/issues.rss` is a live, valid feed (confirmed via direct `curl` with the
+app's own headers — HTTP 200, valid RSS) but produces zero stored articles in the app.
+`app/build.gradle.kts` targets SDK 35 with no `networkSecurityConfig` override, so Android's
+default cleartext-traffic block almost certainly rejects the plain-HTTP request before it
+ever reaches the feed — silently, since `fetchFeedArticles()`'s `runCatching` swallows the
+exception with no logging. Not yet fixed: either add a `networkSecurityConfig` permitting
+cleartext for feeds that need it (weakens transport security for those requests), reject/flag
+`http://` feed URLs at add-time with a clear message instead of silently accepting them, or
+just leave it as a known limitation and document it. Needs a product decision.
+
+## BUG-011 — Rapid repeat taps on the on-widget refresh button enqueue redundant work
+
+**Status:** Fixed, not yet verified on-device.
+
+`WidgetWorker.refreshNow()` (called by `RefreshNowCallback` on every refresh-control tap,
+and by `WidgetConfigActivity`'s Save handler) used a plain `WorkManager.enqueue(...)` with no
+uniqueness constraint — unlike every other periodic-work call site in the same file
+(`schedule()`/`ensureScheduled()`), which explicitly use `enqueueUniquePeriodicWork` for
+exactly this reason. Rapid repeat taps enqueued that many fully independent WorkManager
+jobs, each running a complete fetch-all-configured-feeds cycle concurrently — wasteful of
+network/battery, with no user-facing "already refreshing" indicator to discourage the repeat
+taps in the first place (the analogous "Check for updates" self-update button already got a
+double-tap guard for this same class of problem; the on-widget refresh never did). Fixed by
+switching to `enqueueUniqueWork(..., ExistingWorkPolicy.KEEP, ...)` under its own work name,
+separate from the periodic job's — a tap while a manual refresh is already
+pending/running is now silently absorbed instead of stacking another one.
+
+---
+
+**Cleanup note:** the temporary `DBG cfg=... dev=... eff=...` diagnostic line added for the
+BUG-002 investigation was found still visibly rendering on every article row in production
+during a routine on-device check — removed in commit `c230520`. BUG-002 itself remains open;
+only the leftover visible debug output was removed.
 
 ---
 

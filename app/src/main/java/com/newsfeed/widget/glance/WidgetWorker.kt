@@ -8,6 +8,7 @@ import androidx.glance.appwidget.updateAll
 import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -89,6 +90,7 @@ class WidgetWorker(
 
     companion object {
         private const val WORK_NAME = "NewsFeedRefresh"
+        private const val MANUAL_REFRESH_WORK_NAME = "NewsFeedManualRefresh"
 
         fun schedule(context: Context, intervalMinutes: Long = 15) {
             val request = PeriodicWorkRequestBuilder<WidgetWorker>(
@@ -113,9 +115,17 @@ class WidgetWorker(
             )
         }
 
+        // Unlike schedule()/ensureScheduled() above, this had no uniqueness guard at all —
+        // every tap of the on-widget refresh control (or every Settings Save) enqueued a
+        // fully independent WorkManager job, so rapid repeat taps fired that many redundant
+        // full fetch-all-feeds runs concurrently. KEEP means a tap while one is already
+        // pending/running is silently absorbed instead of stacking another one; the next tap
+        // after the current run finishes will enqueue normally again.
         fun refreshNow(context: Context) {
-            WorkManager.getInstance(context)
-                .enqueue(OneTimeWorkRequestBuilder<WidgetWorker>().build())
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                MANUAL_REFRESH_WORK_NAME, ExistingWorkPolicy.KEEP,
+                OneTimeWorkRequestBuilder<WidgetWorker>().build(),
+            )
         }
 
         fun cancel(context: Context) {
