@@ -304,23 +304,41 @@ result — rather than a second guess-based patch.
 
 ## BUG-014 — Occasional "refresh failed" affecting every configured feed at once
 
-**Status:** Seen twice this session, self-resolves on retry, root cause not confirmed —
-logcat evidence was lost both times before it could be captured.
+**Status:** Root cause confirmed. Not a code bug — an OS/device battery-management policy
+interaction. Needs a product decision on whether to add an in-app mitigation.
 
-Reported live twice in one session: the widget footer briefly shows "⚠ refresh failed — tap
-to retry". `lastRefreshFailed` is only set `true` when `allFailed` is true in
-`NewsFeedRepository.getArticles()` — i.e. **every single enabled feed's fetch threw** on
-that attempt, not just one flaky feed — which rules out ordinary single-feed network
-flakiness as the cause; it points at something shared across all outbound requests at that
-moment (a brief DNS/connectivity blip, or Android's Doze/background-network execution
-restrictions activating between long stretches of heavy on-device testing today). Both
-times, a manual retry tap immediately succeeded cleanly (all DNS lookups OK, `WidgetWorker`
-returned `SUCCESS`) — but both times the *causing* attempt's own logcat output wasn't
-captured before it rotated out of the buffer (once because investigation started after the
-fact, once because logcat was mistakenly cleared right before the retry instead of before
-checking history). **Not yet root-caused.** Next occurrence: check `adb logcat -d` (without
-clearing first) immediately, and check `adb shell dumpsys deviceidle` / battery
-optimization state for the app, before retrying.
+Reported live three times in one session: the widget footer briefly shows "⚠ refresh failed
+— tap to retry". `lastRefreshFailed` is only set `true` when `allFailed` is true in
+`NewsFeedRepository.getArticles()` — every single enabled feed's fetch threw on that
+attempt, ruling out ordinary single-feed flakiness. First two occurrences resolved on retry
+before the cause could be captured (logcat rotated out / was accidentally cleared). On the
+third occurrence, caught directly in the raw system log at the exact failure timestamp:
+
+```
+DNS Requested by 106, 10323(com.newsfeed.widget), 4(FAIL), isBlocked=true, 0ms
+```
+
+— repeated once per feed host, every one instantly rejected (`0ms`, not a timeout) with
+`isBlocked=true`. That's Android's network-policy layer actively *blocking* the app's
+outbound DNS at that moment, not a real connectivity problem — confirmed separately via
+`adb shell dumpsys connectivity` showing WiFi fully connected and validated at the same
+time. A `FreecessController` "importance" transition (Samsung One UI's own aggressive
+background-app management layer, distinct from stock Android Doze) was logged for the app
+within the same second. Root cause: when the periodic/background refresh fires while the
+app is sitting in a low-priority background state, Samsung's battery management blocks its
+network access for that cycle — every feed fails at once, while
+`WidgetWorker.doWork()` still unconditionally returns `Result.success()` to WorkManager
+(it never crashes, it just silently gets zero data back), so this is invisible in
+WorkManager's own success/failure reporting and only shows up via the app's own
+`lastRefreshFailed` flag.
+
+**Not fixable as a simple code change** — this is standard, documented Android/OEM
+battery-management behavior for background work in low-priority apps, not a defect in this
+app's fetch/merge logic. The standard mitigation apps use is prompting the user to exempt
+the app from battery optimization (`ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` /
+"Unrestricted" data usage) so the OS stops deprioritizing its background network access —
+worth doing, but it's a visible, somewhat heavyweight ask to put in front of every user, so
+flagging for a product decision rather than adding it unilaterally.
 
 ## BUG-004 addendum — Walla "01:13" report investigated, not a bug
 
