@@ -235,12 +235,49 @@ switching to `enqueueUniqueWork(..., ExistingWorkPolicy.KEEP, ...)` under its ow
 separate from the periodic job's — a tap while a manual refresh is already
 pending/running is now silently absorbed instead of stacking another one.
 
+## BUG-012 — Focus widget's last visible article row can be clipped mid-glyph
+
+**Status:** Found during an 8-theme × 2-widget visual QA sweep, not yet investigated.
+
+On the Focus widget specifically (not seen on Standard), when the accumulated content
+doesn't divide evenly into the widget's fixed allocated height, the last visible row's final
+line of text can be sliced mid-character by the footer bar instead of either fully fitting
+or being hidden entirely. Confirmed theme-independent (same widget/content, clean clipping
+in most themes, glyph-cutting seen in the Aerospace-theme capture) — a layout/content-fit
+issue, not a per-theme rendering defect. Needs investigation into how Glance's `LazyColumn`
+interacts with a host-allocated fixed-height widget; possibly a known Glance/RemoteViews
+clipping limitation similar in spirit to the ones already found in BUG-002's investigation
+(see the `docs/superpowers/plans/2026-09-04-remoteviews-rewrite.md` plan for prior-session
+context on Glance's rendering limitations more broadly), rather than something fixable with
+a small padding/sizing tweak — not yet confirmed either way.
+
+## BUG-013 — Some article titles show raw HTML entity text instead of the real character
+
+**Status:** Fixed, not yet verified on-device.
+
+Found during the same visual QA sweep: some titles displayed literal text like
+`&amp;#128308;` or `&amp;#8207;` instead of the intended emoji/RTL-mark character. Confirmed
+against the live rotter.net feed — its `<title>` tags genuinely contain double-escaped HTML
+entities in the raw XML (e.g. `&amp;#128308;&amp;#128308;&amp;#128308;...`). The XML parser
+only unescapes one level (`&amp;` → `&`), leaving the resulting `&#128308;` as literal text
+content rather than decoding it further. `description` already runs `Html.fromHtml()` for
+exactly this reason (see its own comment in `parseItem()`); `title` never got the same
+treatment. Fixed by applying the identical `Html.fromHtml(..., FROM_HTML_MODE_COMPACT)` step
+to the parsed title in `NewsFeedRepository.kt` — a safe no-op for titles with no
+entities/tags to begin with.
+
 ---
 
 **Cleanup note:** the temporary `DBG cfg=... dev=... eff=...` diagnostic line added for the
 BUG-002 investigation was found still visibly rendering on every article row in production
-during a routine on-device check — removed in commit `c230520`. BUG-002 itself remains open;
-only the leftover visible debug output was removed.
+during a routine on-device check — removed in commit `c230520`. **That commit was pushed but
+never actually reinstalled on the test device** — a follow-up theme QA pass still saw the
+debug line because it was testing the stale, still-installed `89db72e` build, not `c230520`.
+Fixed by actually installing the CI build for the next commit after it (`87e46cb`), which
+includes both this removal and the BUG-011 fix. BUG-002 itself remains open; only the
+leftover visible debug output was removed. Lesson: pushing a commit doesn't put it on the
+test device — always explicitly rebuild+reinstall before the next verification pass, don't
+assume a prior "installed" state carried forward.
 
 ---
 

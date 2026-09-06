@@ -253,8 +253,18 @@ class NewsFeedRepository(private val context: Context) {
             if (parser.eventType == XmlPullParser.START_TAG) {
                 val tag = parser.name.lowercase()
                 when {
+                    // Some feeds double-escape HTML entities inside <title> (confirmed live,
+                    // e.g. rotter.net: "&amp;#128308;" — the XML parser only unescapes one
+                    // level, turning that into the literal text "&#128308;", not the intended
+                    // emoji). description already runs Html.fromHtml() for exactly this; title
+                    // never did, so these showed up as raw "&#N;" text instead of the real
+                    // character. fromHtml() is a safe no-op on titles with no entities/tags.
                     tag == "title" && title.isEmpty() ->
                         title = runCatching { parser.nextText() }.getOrDefault("").trim()
+                            .let {
+                                @Suppress("DEPRECATION")
+                                Html.fromHtml(it, Html.FROM_HTML_MODE_COMPACT).toString()
+                            }
 
                     tag == "guid" || tag == "id" -> if (guid.isEmpty())
                         guid = runCatching { parser.nextText() }.getOrDefault("").trim()
