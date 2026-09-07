@@ -454,3 +454,34 @@ having no theme override — resolved itself after a force-stop + reopen showed 
 persisted theme. Possibly a stale in-memory value bleeding between widget instances within
 the same app process/Settings ViewModel, but not reliably reproducible. Flagged for
 awareness, not filed as a confirmed bug.
+
+## BUG-017 — Focus Mode zoom fix, verified
+
+**Status:** Fixed and verified on-device (commit `e3afc5f`).
+
+See the fix description above (`articleFontSize` wasn't covered by the Focus-scale shadow
+that already applied to `fontSize`). Verified precisely by measuring rendered line-height
+pixels at two focus-scale extremes (1.25x default, 2.5x max) via direct pixel-row-band
+detection on real screenshots: headline lines grew 38.3px → 78.7px (2.05x) and description
+lines grew 33px → 67px (2.03x) — both within measurement noise of the expected exact 2.0x
+ratio (2.5 / 1.25), and tracking each other in lockstep. Confirms the description/body text
+now scales proportionally with focus zoom, matching the headline.
+
+## Black & White "white text isn't pure white" — pixel-checked, does not reproduce
+
+Direct pixel sampling (PIL, on a real un-scaled screenshot) of the Black & White Dark
+variant found both the headline text (`onSurface` role) and meta-row text
+(`onSurfaceVariant` role, timestamp/feed name) rendering as **exactly (255,255,255)** at
+every sample point checked — headline: 7,322 pixels at pure white out of a sampled region,
+next-closest shade only 366px; meta-row: same pattern; 5 separate interior glyph-stroke
+samples all landed at (255,255,255) with zero deviation. This does **not** reproduce the
+original "white text isn't pure white" report at the pixel level for the core text.
+
+The theme's genuine non-monochrome gaps remain (see above): per-feed favicon circles and
+the "refresh failed" banner keep their original colors. It's possible the original report
+was actually about one of those elements, or about a perceptual effect (small/thin
+anti-aliased glyph strokes can visually read as "not stark white" even when their solid
+core color is exactly 255,255,255, due to partial-coverage edge pixels blending toward the
+background). Not closing this out definitively — if it's seen again, a specific screenshot
+or the exact element being looked at would let this be pinned down precisely rather than
+inferred.
