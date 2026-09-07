@@ -79,15 +79,15 @@ fun FeedItemRow(
     val isExpanded     = article.id == expandedArticleId || isFocused
     // Focus widget only (isFocusWidget — see NewsFeedFocusWidget vs. NewsFeedWidget).
     // Shadows the fontSize parameter so every size derived from it below (headlineSize,
-    // articleSize, thumbWidth, metaFontSize, ...) picks up the adjustment automatically, with
-    // no further changes needed through the rest of this function. Inactive (focusedArticleId
-    // blank, or a standard widget instance where isFocusWidget is false) is a
-    // complete no-op — every row renders at the widget's normal configured font size, exactly
-    // as before this feature existed. focusScale (the focused row's own multiplier) is live,
-    // on-widget adjustable via the +/- buttons below; focusBackgroundScale (every other row)
-    // is a Settings-screen slider (WidgetConfigActivity.kt) — deliberately different controls
-    // for different reasons: focus size is a per-article, in-the-moment adjustment, background
-    // size is a standing preference.
+    // thumbWidth, metaFontSize, ...) picks up the adjustment automatically, with no further
+    // changes needed through the rest of this function. Inactive (focusedArticleId blank, or
+    // a standard widget instance where isFocusWidget is false) is a complete no-op — every
+    // row renders at the widget's normal configured font size, exactly as before this feature
+    // existed. focusScale (the focused row's own multiplier) is live, on-widget adjustable via
+    // the +/- buttons below; focusBackgroundScale (every other row) is a Settings-screen
+    // slider (WidgetConfigActivity.kt) — deliberately different controls for different
+    // reasons: focus size is a per-article, in-the-moment adjustment, background size is a
+    // standing preference.
     // Captured before the shadow below reassigns fontSize — needed so metaScaleFontSize (right
     // after) can still see the pre-focus-scale value.
     val baseFontSize = fontSize
@@ -95,6 +95,15 @@ fun FeedItemRow(
     val fontSize = if (isFocusWidget && focusedArticleId.isNotBlank()) {
         if (article.id == focusedArticleId) fontSize * focusScale else fontSize * focusBackgroundScale
     } else fontSize
+    // articleFontSize is deliberately its own independent setting from fontSize (see its own
+    // param doc) — meaning it was NOT covered by the fontSize shadow above, so the expanded
+    // article/description body text never grew or shrank with Focus Mode's zoom at all, only
+    // the headline did. Reported and confirmed. Mirrors the exact same focus/background scale
+    // logic as fontSize, just applied to this separate value too.
+    @Suppress("NAME_SHADOWING")
+    val articleFontSize = if (isFocusWidget && focusedArticleId.isNotBlank()) {
+        if (article.id == focusedArticleId) articleFontSize * focusScale else articleFontSize * focusBackgroundScale
+    } else articleFontSize
     // The meta row (timestamp/feed name/favicon circle) uses this instead of fontSize directly.
     // fontSize can grow up to 2.5x on the focused row (focusScale), but the row's physical
     // width does not grow with it — the widget's own width is fixed. Reported and confirmed:
