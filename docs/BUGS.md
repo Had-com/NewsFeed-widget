@@ -416,3 +416,41 @@ palette-rotation logic to all four creation sites.
 - **Theme spec compliance check**: verified all 7 pre-existing themes' colors (including
   Glassy's alpha-channel values) and font-family assignments against the "NewsFeed Widget
   Themes" artifact — full compliance, no discrepancies found.
+
+## On-device verification of the 2026-09-07 batch (commit `1f84ddd`)
+
+**BUG-015 (By Feed default) — confirmed.** Placed a brand-new third widget instance and
+opened its Settings without touching anything: "Sort by" already showed "By feed," and the
+persisted config has no `sortOrder` override (consistent with it being the true code
+default, not a UI-only default). Also confirmed the AI feeds win predicted by this fix:
+under By Feed sort, TechCrunch AI's article appeared at row 10 of 10 loaded — reachable
+within the normal "Load more" flow, where under "newest" sort it was buried past the render
+ceiling entirely.
+
+**BUG-016 (accentColor consistency) — confirmed fixed.** With "use theme colors" off, added
+one feed by typing a URL and one via Find Feeds search: they landed on `#D4A574` and
+`#C8956A` respectively — different from each other and neither the old default `#9B72E3`.
+
+**Black & White theme — mostly confirmed, one real gap found.** Persisted correctly to
+disk, and headline/body text render genuine pure black-and-white, starker than "Simple."
+**But it isn't fully monochrome**: per-feed favicon circles keep their original brand colors
+(red, gold, multicolor logos), and the "⚠ refresh failed" banner renders in orange rather
+than black/gray. Not a regression specific to this theme — "Simple" has the identical
+colored-icon behavior — but it does mean "Black & White" doesn't yet deliver on a literal
+reading of "no color anywhere." Not yet fixed; needs a decision on whether favicons/status
+banners should be forced to grayscale specifically for this theme (see also the still-open
+question of whether the original "white text isn't pure white" report is about this, or
+something more specific not yet isolated — pending a pixel-level check).
+
+**New, minor finding:** a widget's config entry in `newsfeed_config.preferences_pb` is not
+purged when the widget itself is deleted from the home screen — confirmed still present in
+the datastore several minutes after removal. Not investigated further; likely a missing
+`WidgetConfigStore.delete(widgetId)` call in whatever handles widget removal (`onDeleted`).
+Minor (stale data, not a functional or security issue), not yet triaged as a numbered bug.
+
+**Inconclusive, not reproduced a second time:** one observation of a widget's Settings
+screen briefly showing "Black & White" as selected despite that widget's on-disk config
+having no theme override — resolved itself after a force-stop + reopen showed the correct
+persisted theme. Possibly a stale in-memory value bleeding between widget instances within
+the same app process/Settings ViewModel, but not reliably reproducible. Flagged for
+awareness, not filed as a confirmed bug.
