@@ -18,7 +18,12 @@ data class FeedConfig(
 @Serializable
 data class WidgetConfig(
     val widgetId: Int,
-    val sortOrder: String = "newest",
+    // by_feed round-robins one article per feed per round, so a low-frequency feed's
+    // articles always surface within the widget's own render-row ceiling (maxRowsAllowed in
+    // NewsFeedWidget.kt) — under "newest", a handful of high-frequency feeds can otherwise
+    // fill every visible slot and make a quieter feed's articles unreachable even though
+    // they're safely retained in the accumulated store. Confirmed on-device.
+    val sortOrder: String = "by_feed",
     val filter: String = "all",
     val feedOrder: List<String> = emptyList(),
     val feeds: List<FeedConfig> = emptyList(),
@@ -27,7 +32,7 @@ data class WidgetConfig(
     val articleFontSize: Float = 1.0f,         // 0.5 – 3.0 — independent of fontSize, expanded-article body text only
     val externalApp: String = "browser",       // "browser" | "share"
     val articleLength: String = "medium",      // "short" | "medium" | "full"
-    val widgetTheme: String = "glamer",        // "auto" | "lavender" | "amethyst" | "glassy" | "simple" | "aerospace" | "silicon" | "glamer"
+    val widgetTheme: String = "glamer",        // "auto" | "lavender" | "amethyst" | "glassy" | "simple" | "aerospace" | "silicon" | "glamer" | "blackwhite"
     val themeVariant: String = "light",        // "light" | "dark"
     val useThemeColors: Boolean = true,        // when true, all feeds use the theme accent instead of per-feed colors
     val backgroundAlpha: Float = 1.0f,         // 0.0 (fully transparent) – 1.0 (fully opaque)

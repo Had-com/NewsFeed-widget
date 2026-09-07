@@ -33,6 +33,7 @@ object WidgetThemes {
             "aerospace"               -> if (dark) AEROSPACE_DARK  else AEROSPACE_LIGHT
             "silicon", "data_science" -> if (dark) SILICON_DARK    else SILICON_LIGHT
             "glamer"                  -> if (dark) GLAMER_DARK     else GLAMER_LIGHT
+            "blackwhite"              -> if (dark) BLACKWHITE_DARK else BLACKWHITE_LIGHT
             else                      -> if (dark) darkColorScheme() else lightColorScheme()
         }
     }
@@ -47,6 +48,7 @@ object WidgetThemes {
             "aerospace"               -> if (dark) AEROSPACE_DARK.surface  else AEROSPACE_LIGHT.surface
             "silicon", "data_science" -> if (dark) SILICON_DARK.surface    else SILICON_LIGHT.surface
             "glamer"                  -> if (dark) GLAMER_DARK.surface     else GLAMER_LIGHT.surface
+            "blackwhite"              -> if (dark) BLACKWHITE_DARK.surface else BLACKWHITE_LIGHT.surface
             else                      -> if (dark) Color(0xFF1C1B1F)       else Color(0xFFFFFFFF)
         }
     }
@@ -68,6 +70,8 @@ object WidgetThemes {
                                          else      buildColorProviders(light = SILICON_LIGHT,    dark = SILICON_LIGHT)
             "glamer"                  -> if (dark) buildColorProviders(light = GLAMER_DARK,      dark = GLAMER_DARK)
                                          else      buildColorProviders(light = GLAMER_LIGHT,     dark = GLAMER_LIGHT)
+            "blackwhite"              -> if (dark) buildColorProviders(light = BLACKWHITE_DARK,  dark = BLACKWHITE_DARK)
+                                         else      buildColorProviders(light = BLACKWHITE_LIGHT, dark = BLACKWHITE_LIGHT)
             else                      -> buildColorProviders(light = lightColorScheme(), dark = darkColorScheme()) // "auto"
         }
     }
@@ -255,5 +259,34 @@ object WidgetThemes {
         surfaceVariant      = Color(0xFF3A2818),
         background          = Color(0xFF1A0F08),
         onBackground        = Color(0xFFF2E8DC),
+    )
+
+    // ── Black & White ─────────────────────────────────────────────────────────
+    // Deliberately pure black/white only, no intermediate grays anywhere (unlike
+    // "Simple", which is grayscale but still uses light/dark gray for containers and
+    // muted text) — a starker, higher-contrast look distinct from Simple.
+    private val BLACKWHITE_LIGHT = lightColorScheme(
+        primary             = Color(0xFF000000),
+        onPrimary           = Color(0xFFFFFFFF),
+        primaryContainer    = Color(0xFFFFFFFF),
+        onPrimaryContainer  = Color(0xFF000000),
+        surface             = Color(0xFFFFFFFF),
+        onSurface           = Color(0xFF000000),
+        onSurfaceVariant    = Color(0xFF000000),
+        surfaceVariant      = Color(0xFFFFFFFF),
+        background          = Color(0xFFFFFFFF),
+        onBackground        = Color(0xFF000000),
+    )
+    private val BLACKWHITE_DARK = darkColorScheme(
+        primary             = Color(0xFFFFFFFF),
+        onPrimary           = Color(0xFF000000),
+        primaryContainer    = Color(0xFF000000),
+        onPrimaryContainer  = Color(0xFFFFFFFF),
+        surface             = Color(0xFF000000),
+        onSurface           = Color(0xFFFFFFFF),
+        onSurfaceVariant    = Color(0xFFFFFFFF),
+        surfaceVariant      = Color(0xFF000000),
+        background          = Color(0xFF000000),
+        onBackground        = Color(0xFFFFFFFF),
     )
 }

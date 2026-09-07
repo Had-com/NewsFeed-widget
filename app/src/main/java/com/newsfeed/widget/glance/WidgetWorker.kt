@@ -14,6 +14,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.newsfeed.widget.data.ArticleItem
+import com.newsfeed.widget.data.ConfigBackup
 import com.newsfeed.widget.data.ReadStatusStore
 import com.newsfeed.widget.data.NewsFeedRepository
 import com.newsfeed.widget.data.WidgetConfigStore
@@ -43,7 +44,10 @@ class WidgetWorker(
 
         for (glanceId in widgetIds) {
             val appWidgetId = manager.getAppWidgetId(glanceId)
-            val config      = store.configFlow(appWidgetId).first()
+            // restoreIfEmpty is a no-op whenever feeds are already present — this only ever
+            // does anything on the refresh right after something (an update, a corrupted
+            // DataStore write) unexpectedly wiped this widget's feed list. See ConfigBackup.
+            val config      = ConfigBackup.restoreIfEmpty(context, appWidgetId, store.configFlow(appWidgetId).first())
             // Read prior state before fetching (not just inside updateAppWidgetState below)
             // so getArticles() knows which feeds are being fetched for the very first time —
             // a feed with no accumulated articles yet gets its full available backlog instead

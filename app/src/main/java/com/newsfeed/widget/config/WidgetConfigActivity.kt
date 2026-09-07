@@ -287,9 +287,14 @@ class WidgetConfigActivity : ComponentActivity() {
                         } ?: run { statusMessage = "Could not read file"; return@launch }
                         val parsed   = OpmlManager.parse(xml)
                         val existing = config.feeds.map { it.feedId }.toSet()
+                        val palette  = feedAccentColors(config.widgetTheme)
+                        val baseIdx  = config.feeds.size
                         val toAdd    = parsed
                             .filter { (_, url) -> url !in existing }
-                            .map { (title, url) -> FeedConfig(feedId = url, displayName = title, feedUrl = url) }
+                            .mapIndexed { i, (title, url) ->
+                                FeedConfig(feedId = url, displayName = title, feedUrl = url,
+                                    accentColor = palette[(baseIdx + i) % palette.size])
+                            }
                         if (toAdd.isNotEmpty()) {
                             config = config.copy(feeds = config.feeds + toAdd)
                             toAdd.forEach { feedOrder.add(it.feedId) }
@@ -307,7 +312,9 @@ class WidgetConfigActivity : ComponentActivity() {
                         isAddingFeed = true; addFeedError = null; statusMessage = ""
                         val title = repo.fetchFeedTitle(url)
                         if (title != null) {
-                            config = config.copy(feeds = config.feeds + FeedConfig(feedId = url, displayName = title, feedUrl = url))
+                            val newFeed = FeedConfig(feedId = url, displayName = title, feedUrl = url,
+                                accentColor = feedAccentColors(config.widgetTheme)[config.feeds.size % feedAccentColors(config.widgetTheme).size])
+                            config = config.copy(feeds = config.feeds + newFeed)
                             feedOrder.add(url); addFeedUrl = ""
                         } else { addFeedError = "Could not load feed — check the URL" }
                         isAddingFeed = false
@@ -670,6 +677,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                     "aerospace"  to "Aerospace",
                                     "silicon"    to "Data Science",
                                     "glamer"     to "Glamour",
+                                    "blackwhite" to "Black & White",
                                 )
                                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                                     Text("Widget theme", style = MaterialTheme.typography.bodyMedium)
