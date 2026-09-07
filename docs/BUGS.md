@@ -369,3 +369,50 @@ assume a prior "installed" state carried forward.
 (`https://www.inn.co.il/Rss.aspx`) — was left configured on the device because BUG-009
 prevented removing it during that same session. Remove it manually from Settings, or once
 BUG-009 is fixed.
+
+## BUG-015 — Low-frequency feeds' articles unreachable even after BUG-008's retention fix
+
+**Status:** Fixed by changing the default sort order (commit `1f84ddd`).
+
+Follow-up to BUG-008: even with `retainWithPerFeedGuarantee()` correctly protecting a
+low-frequency feed's articles from eviction in the 300-article *store*, they still never
+appeared on screen. Root cause: `NewsFeedWidget.kt`'s render layer has its own, completely
+separate row-count ceiling (`maxRowsAllowed`, derived from a per-row memory budget) —
+`availableArticles.take(visibleCount.coerceAtMost(maxRowsAllowed))`. Under "newest" sort,
+`availableArticles` is sorted newest-first across every feed combined, so only the top
+~17-20 articles overall (observed on-device) are ever reachable via "Load more," no matter
+how many exist in storage. A widget mixing several high-frequency Hebrew feeds with a
+handful of low-frequency English ones would nearly always fill that entire window with the
+high-frequency feeds' content. Fixed by making "By feed" (round-robin, one article per feed
+per round) the new default sort order — under that mode a quiet feed's newest article always
+lands within the first round, well inside any reasonable row ceiling, regardless of how
+often its neighbors post. Verified conceptually (round-robin's guarantee is order-
+independent of posting frequency by construction); not yet re-verified on-device with the
+specific AI feeds that originally surfaced this.
+
+## BUG-016 — accentColor inconsistency between feed-add paths
+
+**Status:** Fixed (commit `1f84ddd`).
+
+Of the four places a `FeedConfig` gets created — the initial OPML-seeded defaults, a
+mid-session OPML import, manually typing a URL, and adding a Find-Feeds search result — only
+two (initial defaults, search-add) assigned a rotating `accentColor` from the theme's
+palette; manual URL add and mid-session OPML import left every new feed at the class default
+`#9B72E3`. Invisible whenever "use theme colors" is on (the default — all feeds render with
+the theme's own accent regardless of their stored per-feed color), but a real, visible
+inconsistency once a user turns that off: every manually-added feed would look identical
+while feeds added via search or initial setup varied. Fixed by applying the same
+palette-rotation logic to all four creation sites.
+
+## Feature additions (2026-09-07)
+
+- **Black & White theme** added — pure black/white only, no intermediate grays, distinct
+  from the existing grayscale "Simple" theme.
+- **Feed config backup/restore around app updates** — `ConfigBackup.kt` backs up every
+  widget's feed list right before the self-update flow hands off to the installer, and
+  transparently restores it if a widget's feeds are ever found empty on a subsequent
+  refresh. A safety net alongside (not a replacement for) Android's own automatic data
+  preservation across a normal same-signature app update.
+- **Theme spec compliance check**: verified all 7 pre-existing themes' colors (including
+  Glassy's alpha-channel values) and font-family assignments against the "NewsFeed Widget
+  Themes" artifact — full compliance, no discrepancies found.
