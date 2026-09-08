@@ -88,4 +88,7 @@ dependencies {
     // regex-based tag stripper that had no way to distinguish an ad/related-content block sitting
     // inside <article> from real body text, only whole noise *tags* like <nav>/<script>.
     implementation("org.jsoup:jsoup:1.17.2")
+
+    // Unit testing
+    testImplementation("junit:junit:4.13.2")
 }
