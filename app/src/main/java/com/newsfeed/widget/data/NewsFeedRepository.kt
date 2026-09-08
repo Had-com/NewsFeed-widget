@@ -79,6 +79,20 @@ class NewsFeedRepository(private val context: Context) {
         } catch (_: Exception) { null }
     }
 
+    // Mirrors fetchFeedTitle()'s role but for a Telegram channel's own display name,
+    // instead of an RSS <title> - used when a channel is first added in Settings.
+    suspend fun fetchTelegramChannelTitle(canonicalUrl: String): String? = withContext(Dispatchers.IO) {
+        try {
+            var req = Request.Builder().url(canonicalUrl)
+            browserHeaders(canonicalUrl).forEach { (k, v) -> req = req.header(k, v) }
+            client.newCall(req.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val text = response.body?.string() ?: return@withContext null
+                TelegramFeedParser.extractChannelTitle(text)
+            }
+        } catch (_: Exception) { null }
+    }
+
     suspend fun searchFeeds(query: String): List<FeedSearchResult> = withContext(Dispatchers.IO) {
         try {
             val encoded = java.net.URLEncoder.encode(query.trim(), "UTF-8")
@@ -201,6 +215,9 @@ class NewsFeedRepository(private val context: Context) {
             if (!response.isSuccessful) return emptyList()
             // Use string() so OkHttp honours the charset in Content-Type (fixes Windows-1255 Hebrew feeds)
             val text = response.body?.string() ?: return emptyList()
+            if (feed.feedUrl.startsWith("https://t.me/s/")) {
+                return TelegramFeedParser.parseArticles(feed.feedId, feed.displayName, text, maxItems)
+            }
             val parser = Xml.newPullParser()
             parser.setInput(text.reader())
             parseFeed(parser, feed, maxItems)
