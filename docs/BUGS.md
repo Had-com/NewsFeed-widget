@@ -558,3 +558,27 @@ overridden by system locale) — no incremental fix was found to exist, so the c
 in its simplest correct-when-locale-matches-config form rather than carrying dead
 compensation logic. Needs a product decision: commit to the rewrite, or accept as a known
 limitation for now.
+
+## BUG-014 addendum — revised root cause: device-wide network flap, not per-app throttling
+
+Seen live again. This time, caught the causing window directly in logcat (not cleared
+first) rather than just the retry: `isBlocked=true` DNS failures hit **`com.newsfeed.widget`,
+`com.microsoft.skydrive` (OneDrive), and `com.android.chrome` simultaneously**, over a
+sustained ~5-minute window (22:45-22:50). OneDrive alone was blocked continuously, roughly
+every 6-8 seconds, for the entire window.
+
+This revises the earlier theory. A per-app Samsung Freecess/background-priority
+restriction (the original BUG-014 hypothesis) would not explain three unrelated apps —
+one of them the actively-used foreground browser — all failing at once. The pattern (many
+apps, sustained multi-minute window, then a full recovery with `dumpsys connectivity`
+showing WiFi fully `VALIDATED` and a clean `ping 8.8.8.8` immediately after) instead points
+to a genuine device-wide WiFi instability/reconnect event — likely a brief drop-and-reconnect
+cycle (sleep/wake, AP handoff, DHCP renewal) during which `netd` has no valid default route
+for any app's sockets for a few minutes, rejecting DNS instantly (`0ms`, not a timeout) for
+whoever happens to ask during that window.
+
+**Still not something the app can prevent** — this is environmental, not a code defect —
+but the earlier "battery management" framing was likely wrong. The app's own behavior
+(reporting the failure honestly via `lastRefreshFailed`, recovering cleanly on the next
+attempt) is correct either way. Confirmed again: retrying immediately after network
+recovers succeeds cleanly (new WorkManager job, `SUCCESS`).
