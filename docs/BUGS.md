@@ -485,3 +485,32 @@ core color is exactly 255,255,255, due to partial-coverage edge pixels blending 
 background). Not closing this out definitively — if it's seen again, a specific screenshot
 or the exact element being looked at would let this be pinned down precisely rather than
 inferred.
+
+## BUG-002 — isolation experiment: per-app locale override does NOT reproduce the mirror
+
+Continuing the root-cause investigation (Glance confirmed to have no supported API for
+this — checked the current AndroidX source, full changelog across all versions, and found
+no documented community workaround either). Ran a clean, single-variable experiment:
+removed the XOR entirely so `isRtl` is a pure, locale-independent function of the feed's own
+`layoutDirection` setting (commit `1bb3afa`), then checked via direct pixel sampling
+(`Bitmap.GetPixel` on real 1080×2400 screenshots, not visual impression) whether the
+rendered accent stripe's physical position changes when only the locale changes.
+
+**Result: no change.** Stripe bounds and color were byte-for-byte identical (x=1001-1007,
+RGB 168,120,64) between English and a Hebrew **per-app locale override**
+(`cmd locale set-app-locales com.newsfeed.widget --locales he-IL`), confirmed via the DBG2
+label that the override was genuinely detected (`dev=true`) while `isRtl(fixed)` correctly
+stayed unchanged.
+
+**This does not settle the question** — it likely tests the wrong mechanism. The ambient-
+mirroring theory (from decompiling `glance-appwidget:1.1.0`) specifically depends on the
+*host launcher process's own* `Configuration.layoutDirection` at RemoteViews inflation
+time. A **per-app** locale override (Android 13+ `LocaleManager`) only changes what
+`com.newsfeed.widget`'s own process sees — it does not touch the launcher process that
+actually inflates and renders the widget's RemoteViews. All of this session's earlier
+confirmations of the actual bug (stripe/timestamp mirroring, feed indistinguishable from
+its opposite direction) used a real **system-wide** locale change (Settings > Language),
+which reconfigures every process including the launcher — a meaningfully different test.
+Next step: repeat this exact isolated experiment with a genuine system-locale switch
+instead of a per-app override, before concluding anything about whether ambient mirroring
+is real.
