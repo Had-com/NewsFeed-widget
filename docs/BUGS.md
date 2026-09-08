@@ -514,3 +514,47 @@ which reconfigures every process including the launcher — a meaningfully diffe
 Next step: repeat this exact isolated experiment with a genuine system-locale switch
 instead of a per-app override, before concluding anything about whether ambient mirroring
 is real.
+
+## BUG-002 — ROOT CAUSE CONFIRMED (retest with real system-locale change)
+
+Repeated the identical isolated experiment, this time with a genuine system-wide locale
+change (Settings > System > Languages, not a per-app override) — the mechanism every
+earlier confirmation of this bug actually used.
+
+**Result: the physical rendered position changed.** With `isRtl` held provably constant at
+`true` throughout (no XOR, a pure function of the feed's own setting), the accent stripe
+moved from x=1001-1006 (physical right edge) under English to x=71-76 (physical left edge)
+under real system-wide Hebrew — a full mirror of the entire row, confirmed via exact pixel
+sampling (not visual impression) on both sides. The diagnostic label confirmed `dev` — the
+device's own detected locale — correctly flipped to `true`, while `isRtl(fixed)` never
+changed. Reverting the system locale restored the stripe to the exact original pixel bounds.
+
+**This conclusively confirms the root cause**: Glance's `translateComposition()` mirrors
+the entire finished row as a single opaque unit, keyed off the real ambient
+`Configuration.layoutDirection` of whatever process actually renders the RemoteViews (the
+home-screen launcher, not this app's own process) — completely independent of any value
+computed in `FeedItemRow.kt`. This also retroactively explains why the original XOR fix
+attempt showed "zero measurable effect": no compose-time compensation (reordering
+children, flipping which `Alignment`/`TextAlign` branch runs) can counteract a mirror
+applied to the *whole finished layout* after the fact — it doesn't matter which branch
+produced the row, the ambient mirror flips whatever comes out the same way regardless.
+
+Combined with the earlier research confirming Glance exposes no public API in any version
+to pin an absolute, non-mirroring layout direction (no `AbsoluteAlignment`-style
+`Alignment.Horizontal` variant, no modifier, no CompositionLocal — checked the current
+AndroidX source and full changelog), **this is a confirmed, structural limitation of the
+Glance library itself, not fixable from this app's Composable code at all.** The only real
+fix requires raw `RemoteViews.setViewLayoutDirection()`, which is only reachable by
+replacing Glance's rendering with hand-written RemoteViews (see
+`docs/superpowers/plans/2026-09-04-remoteviews-rewrite.md`, previously scoped for a
+different reason — the ~20-40 row render cap — and would fix both issues as one
+architectural change).
+
+**Code state:** `FeedItemRow.kt`'s `isRtl` is now the simple, XOR-free
+`feedConfig.layoutDirection == "rtl"` (commit after `1bb3afa`) — the XOR added complexity
+for zero measurable benefit, confirmed twice now. Diagnostic label removed. This is
+functionally identical to the original reported bug (per-feed direction still gets
+overridden by system locale) — no incremental fix was found to exist, so the code is left
+in its simplest correct-when-locale-matches-config form rather than carrying dead
+compensation logic. Needs a product decision: commit to the rewrite, or accept as a known
+limitation for now.

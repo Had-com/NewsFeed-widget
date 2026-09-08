@@ -124,33 +124,25 @@ fun FeedItemRow(
         ColorProvider(Color(parsed))
     }
     // Each feed's direction is an explicit, absolute per-feed setting (the config screen's
-    // RTL/LTR toggle) — it must NOT visibly depend on the device's system locale. An earlier
-    // version of this project XOR'd feedConfig's setting against the device's real layout
-    // direction and treated that as the bug (a Hebrew-locale device flipped every feed's
-    // direction), "fixing" it by removing the XOR and instead locking Compose's
-    // LocalLayoutDirection to Ltr around the whole widget (see NewsFeedWidget.kt's
-    // provideGlance()). That fix was incomplete: decompiling the actual
-    // glance-appwidget:1.1.0 RemoteViewsTranslatorKt shows its translateComposition() derives
-    // its OWN internal isRtl directly from Context.resources.configuration.layoutDirection —
-    // the real device locale — not from Compose's LocalLayoutDirection at all; the only
-    // override hook (forceRtl) is marked both @Deprecated and @VisibleForTesting, i.e. not a
-    // supported way for app code to suppress this. So Compose's LocalLayoutDirection lock
-    // only stops COMPOSE's own composition-time auto-mirroring of Row/Column child order — it
-    // does nothing about Glance's SEPARATE, later translation-time mirroring, which still
-    // keys off the real device locale unconditionally. Confirmed on-device (Hebrew system
-    // locale): an RTL-flagged feed's accent stripe/timestamp rendered mirrored — visually
-    // indistinguishable from an LTR feed — reverting correctly the moment the locale was
-    // switched back to English. The XOR itself wasn't the wrong idea, it was compensating for
-    // exactly this; it needs to come back, just correctly targeted at Glance's translation-time
-    // mirroring specifically (verified with a truth table against all four
-    // feed-direction × device-locale combinations) rather than removed outright.
-    val deviceIsRtl    = context.resources.configuration.layoutDirection ==
-        android.view.View.LAYOUT_DIRECTION_RTL
-    // TEMPORARY for BUG-002 root-cause isolation: XOR removed. isRtl is now held
-    // LOCALE-INDEPENDENT (a pure function of feedConfig alone) so an on-device test can
-    // check, in isolation, whether the PHYSICAL rendered position changes when only the
-    // device locale changes and this value provably does not. Restore the XOR (or whatever
-    // the real fix turns out to be) once this diagnostic pass is done.
+    // RTL/LTR toggle) — it is SUPPOSED to render regardless of the device's system locale,
+    // but as of this writing it does not, and there is no known fix from app code (BUG-002,
+    // see docs/BUGS.md). Root cause, confirmed via decompiling glance-appwidget:1.1.0 plus a
+    // clean isolated on-device experiment (holding this isRtl value provably constant while
+    // switching only the device's real system locale): Glance's translateComposition()
+    // mirrors the ENTIRE finished row as one unit at translation time, keyed off the real
+    // ambient Context.resources.configuration.layoutDirection of whatever process renders
+    // the RemoteViews (the host launcher, not this app) — confirmed by the accent stripe
+    // physically moving from x=1001 to x=71 (a full mirror) with isRtl held fixed at `true`
+    // throughout. Because the mirror operates on the whole finished layout as a single
+    // opaque unit, no compose-time compensation (reordering children, flipping Alignment via
+    // XOR — tried and confirmed ineffective, see BUG-002 history) can counteract it: it
+    // doesn't matter which branch produces the "finished row," the ambient mirror flips
+    // whatever comes out the same way regardless. Glance also exposes no public API to pin
+    // an absolute, non-mirroring layout direction (checked the current AndroidX source and
+    // full changelog across every version — no such modifier, CompositionLocal, or
+    // Alignment.Horizontal.Left/Right-style variant exists, unlike regular Compose UI's
+    // AbsoluteAlignment). A real fix needs raw RemoteViews.setViewLayoutDirection(), which
+    // is unreachable through Glance's Composable API — see the RemoteViews rewrite plan.
     val isRtl          = feedConfig.layoutDirection == "rtl"
     // Bumped from 9f/10f — reported and confirmed too light/thin to read comfortably at the
     // default font size, on top of already being the smallest, most muted text on the row
@@ -344,13 +336,6 @@ fun FeedItemRow(
                         modifier = GlanceModifier.defaultWeight())
                 }
             }
-
-            // TEMPORARY diagnostic for BUG-002 root-cause isolation — remove once done.
-            Text(
-                "DBG2 cfg=${feedConfig.layoutDirection} dev=$deviceIsRtl isRtl(fixed)=$isRtl",
-                style = TextStyle(fontSize = 8.sp, color = ColorProvider(Color.Red)),
-                maxLines = 1,
-            )
 
             Spacer(GlanceModifier.height(3.dp))
 
