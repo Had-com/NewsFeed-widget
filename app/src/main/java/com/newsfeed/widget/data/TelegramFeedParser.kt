@@ -163,4 +163,44 @@ object TelegramFeedParser {
         }
         return decoded.trim()
     }
+
+    private val CHANNEL_TITLE_REGEX = Regex(
+        """(?s)tgme_channel_info_header_title[^>]*>\s*<span[^>]*>([^<]+)</span>"""
+    )
+
+    /**
+     * Turns a fetched t.me/s/<channel> page into the same ArticleItem shape every other
+     * feed type produces. A post's message text's first line becomes the title, the rest
+     * becomes the description; a photo-only post with no caption text falls back to
+     * [feedDisplayName] as its title instead of being silently dropped (an empty title
+     * would otherwise be treated the same as a blank RSS <title> and skipped downstream).
+     */
+    fun parseArticles(
+        feedId: String,
+        feedDisplayName: String,
+        html: String,
+        maxItems: Int,
+    ): List<ArticleItem> {
+        return extractRawMessages(html).take(maxItems).map { raw ->
+            val cleanText = stripTelegramHtml(raw.rawText)
+            val lines = cleanText.lines().map { it.trim() }.filter { it.isNotBlank() }
+            val title = lines.firstOrNull() ?: feedDisplayName
+            val description = lines.drop(1).joinToString("\n").take(2000)
+            ArticleItem(
+                id = raw.id,
+                feedId = feedId,
+                feedName = feedDisplayName,
+                title = title.take(200),
+                articleUrl = raw.articleUrl,
+                description = description,
+                imageUrl = raw.imageUrl,
+                publishedAt = raw.publishedAt,
+                isRead = false,
+            )
+        }
+    }
+
+    /** The channel's own display name, shown as its header on the t.me/s/ page itself. */
+    fun extractChannelTitle(html: String): String? =
+        CHANNEL_TITLE_REGEX.find(html)?.groupValues?.get(1)?.let { stripTelegramHtml(it) }
 }

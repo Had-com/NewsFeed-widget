@@ -249,4 +249,84 @@ class TelegramFeedParserTest {
         // Character.toChars() would throw IllegalArgumentException for it uncaught.
         assertEquals("&#9999999;", TelegramFeedParser.stripTelegramHtml("&#9999999;"))
     }
+
+    @Test
+    fun `parseArticles splits first line as title and rest as description`() {
+        val articles = TelegramFeedParser.parseArticles(
+            feedId = "https://t.me/s/testchannel",
+            feedDisplayName = "Test Channel",
+            html = sampleHtml,
+            maxItems = 10,
+        )
+        assertEquals("First line of post 101", articles[0].title)
+        assertEquals("Second line with more detail.", articles[0].description)
+    }
+
+    @Test
+    fun `parseArticles carries feedId, feedName, articleUrl, imageUrl, publishedAt through`() {
+        val articles = TelegramFeedParser.parseArticles(
+            feedId = "https://t.me/s/testchannel",
+            feedDisplayName = "Test Channel",
+            html = sampleHtml,
+            maxItems = 10,
+        )
+        assertEquals("https://t.me/s/testchannel", articles[0].feedId)
+        assertEquals("Test Channel", articles[0].feedName)
+        assertEquals("https://t.me/testchannel/101", articles[0].articleUrl)
+        assertEquals("https://cdn.example.com/photo101.jpg", articles[0].imageUrl)
+        assertEquals(false, articles[0].isRead)
+    }
+
+    @Test
+    fun `parseArticles falls back to the channel name as title for a photo-only post`() {
+        val articles = TelegramFeedParser.parseArticles(
+            feedId = "https://t.me/s/testchannel",
+            feedDisplayName = "Test Channel",
+            html = sampleHtml,
+            maxItems = 10,
+        )
+        val photoOnly = articles.first { it.articleUrl.endsWith("/103") }
+        assertEquals("Test Channel", photoOnly.title)
+        assertEquals("", photoOnly.description)
+    }
+
+    @Test
+    fun `parseArticles respects maxItems`() {
+        val articles = TelegramFeedParser.parseArticles(
+            feedId = "https://t.me/s/testchannel",
+            feedDisplayName = "Test Channel",
+            html = sampleHtml,
+            maxItems = 2,
+        )
+        assertEquals(2, articles.size)
+    }
+
+    @Test
+    fun `parseArticles returns empty list for a page with no messages`() {
+        val articles = TelegramFeedParser.parseArticles(
+            feedId = "https://t.me/s/testchannel",
+            feedDisplayName = "Test Channel",
+            html = "<html><body>channel is private</body></html>",
+            maxItems = 10,
+        )
+        assertEquals(0, articles.size)
+    }
+
+    @Test
+    fun `extractChannelTitle finds the channel display name`() {
+        val html = """
+            <div class="tgme_channel_info_header_title">
+                <span dir="auto">Test Channel Display Name</span>
+            </div>
+        """.trimIndent()
+        assertEquals("Test Channel Display Name", TelegramFeedParser.extractChannelTitle(html))
+    }
+
+    @Test
+    fun `extractChannelTitle returns null when the page has no channel header`() {
+        assertEquals(
+            null,
+            TelegramFeedParser.extractChannelTitle("<html><body>channel is private</body></html>"),
+        )
+    }
 }
