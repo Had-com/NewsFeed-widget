@@ -235,4 +235,18 @@ class TelegramFeedParserTest {
     fun `stripTelegramHtml trims surrounding whitespace`() {
         assertEquals("hello", TelegramFeedParser.stripTelegramHtml("  hello  \n"))
     }
+
+    @Test
+    fun `stripTelegramHtml does not over-decode a correctly-escaped named entity`() {
+        // "&amp;lt;" means "display the literal text &lt;" - decoding &amp; first would
+        // wrongly turn this into "<", which is a different (and wrong) result.
+        assertEquals("&lt;", TelegramFeedParser.stripTelegramHtml("&amp;lt;"))
+    }
+
+    @Test
+    fun `stripTelegramHtml falls back to literal text for a numeric entity outside valid Unicode range`() {
+        // 9999999 fits in Int but exceeds the real Unicode ceiling (0x10FFFF = 1114111) -
+        // Character.toChars() would throw IllegalArgumentException for it uncaught.
+        assertEquals("&#9999999;", TelegramFeedParser.stripTelegramHtml("&#9999999;"))
+    }
 }

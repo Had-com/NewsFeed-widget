@@ -135,25 +135,31 @@ object TelegramFeedParser {
     /**
      * Strips Telegram's own inline HTML (only ever <br>, <b>, <i>, <a> in practice) and
      * decodes HTML entities, without pulling in android.text.Html - this keeps the whole
-     * parser Android-framework-free and unit-testable in a plain JVM test. Order matters:
-     * the &amp; replacement runs before the numeric-entity regex, so a double-escaped
-     * entity like "&amp;#128308;" correctly becomes "&#128308;" after the first pass and
-     * then the real emoji after the second - the same double-escaping already confirmed in
-     * real feeds (BUG-013, commit 88ea007).
+     * parser Android-framework-free and unit-testable in a plain JVM test.
      */
     fun stripTelegramHtml(rawText: String): String {
         val withoutTags = rawText
             .replace(BR_TAG_REGEX, "\n")
             .replace(ANY_TAG_REGEX, "")
+        // &amp; decodes LAST among the named entities (right before the numeric pass),
+        // not first - decoding it first would wrongly over-decode a correctly-escaped
+        // "&amp;lt;" (meaning: display the literal text "&lt;") all the way to "<", since
+        // the resulting "&lt;" would then match the &lt; replacement below. Only numeric
+        // entities are known to need double-escape handling in practice (BUG-013) - named
+        // entities like &lt;/&gt;/&quot; have no such real-world case here, so they should
+        // only ever decode once.
         var decoded = withoutTags
-            .replace("&amp;", "&")
             .replace("&lt;", "<")
             .replace("&gt;", ">")
             .replace("&quot;", "\"")
             .replace("&#39;", "'")
             .replace("&nbsp;", " ")
+            .replace("&amp;", "&")
         decoded = NUMERIC_ENTITY_REGEX.replace(decoded) { match ->
-            match.groupValues[1].toIntOrNull()?.let { String(Character.toChars(it)) } ?: match.value
+            match.groupValues[1].toIntOrNull()
+                ?.takeIf { it in 0..0x10FFFF }
+                ?.let { String(Character.toChars(it)) }
+                ?: match.value
         }
         return decoded.trim()
     }
