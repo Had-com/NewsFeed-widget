@@ -184,4 +184,55 @@ class TelegramFeedParserTest {
             messages[0].rawText,
         )
     }
+
+    @Test
+    fun `stripTelegramHtml converts br tags to newlines`() {
+        assertEquals(
+            "Line one\nLine two",
+            TelegramFeedParser.stripTelegramHtml("Line one<br/>Line two"),
+        )
+    }
+
+    @Test
+    fun `stripTelegramHtml removes bold and italic tags but keeps their text`() {
+        assertEquals(
+            "Some bold and italic text",
+            TelegramFeedParser.stripTelegramHtml("Some <b>bold</b> and <i>italic</i> text"),
+        )
+    }
+
+    @Test
+    fun `stripTelegramHtml removes link tags but keeps their text`() {
+        assertEquals(
+            "See this article",
+            TelegramFeedParser.stripTelegramHtml("""See <a href="https://example.com">this article</a>"""),
+        )
+    }
+
+    @Test
+    fun `stripTelegramHtml decodes basic HTML entities`() {
+        assertEquals(
+            """Tom & Jerry said "hi" <ok>""",
+            TelegramFeedParser.stripTelegramHtml("Tom &amp; Jerry said &quot;hi&quot; &lt;ok&gt;"),
+        )
+    }
+
+    @Test
+    fun `stripTelegramHtml decodes a numeric entity to the real emoji`() {
+        assertEquals("🔴 breaking", TelegramFeedParser.stripTelegramHtml("&#128308; breaking"))
+    }
+
+    @Test
+    fun `stripTelegramHtml decodes a double-escaped numeric entity`() {
+        // Confirmed live on rotter.net's RSS feed (BUG-013, commit 88ea007): some sources
+        // double-escape numeric entities. The tag-strip pass doesn't touch & at all, so
+        // decodeHtmlEntities's own sequential &amp;-then-numeric replacement handles this
+        // the same way already fixed for RSS titles.
+        assertEquals("🔴🔴", TelegramFeedParser.stripTelegramHtml("&amp;#128308;&amp;#128308;"))
+    }
+
+    @Test
+    fun `stripTelegramHtml trims surrounding whitespace`() {
+        assertEquals("hello", TelegramFeedParser.stripTelegramHtml("  hello  \n"))
+    }
 }

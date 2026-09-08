@@ -127,4 +127,34 @@ object TelegramFeedParser {
     private fun parseIsoDate(text: String): Long? = runCatching {
         java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.US).parse(text)?.time
     }.getOrNull()
+
+    private val BR_TAG_REGEX = Regex("(?i)<br\\s*/?>")
+    private val ANY_TAG_REGEX = Regex("<[^>]+>")
+    private val NUMERIC_ENTITY_REGEX = Regex("&#(\\d+);")
+
+    /**
+     * Strips Telegram's own inline HTML (only ever <br>, <b>, <i>, <a> in practice) and
+     * decodes HTML entities, without pulling in android.text.Html - this keeps the whole
+     * parser Android-framework-free and unit-testable in a plain JVM test. Order matters:
+     * the &amp; replacement runs before the numeric-entity regex, so a double-escaped
+     * entity like "&amp;#128308;" correctly becomes "&#128308;" after the first pass and
+     * then the real emoji after the second - the same double-escaping already confirmed in
+     * real feeds (BUG-013, commit 88ea007).
+     */
+    fun stripTelegramHtml(rawText: String): String {
+        val withoutTags = rawText
+            .replace(BR_TAG_REGEX, "\n")
+            .replace(ANY_TAG_REGEX, "")
+        var decoded = withoutTags
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&nbsp;", " ")
+        decoded = NUMERIC_ENTITY_REGEX.replace(decoded) { match ->
+            match.groupValues[1].toIntOrNull()?.let { String(Character.toChars(it)) } ?: match.value
+        }
+        return decoded.trim()
+    }
 }
