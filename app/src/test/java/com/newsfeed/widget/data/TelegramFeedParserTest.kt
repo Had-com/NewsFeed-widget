@@ -329,4 +329,12 @@ class TelegramFeedParserTest {
             TelegramFeedParser.extractChannelTitle("<html><body>channel is private</body></html>"),
         )
     }
+
+    @Test
+    fun `extractChannelTitle skips an empty verified-badge span to find the real title span`() {
+        val html = """
+            <div class="tgme_channel_info_header_title" dir="auto"><span class="verified-icon"></span><span dir="auto">Test Channel</span></div>
+        """.trimIndent()
+        assertEquals("Test Channel", TelegramFeedParser.extractChannelTitle(html))
+    }
 }

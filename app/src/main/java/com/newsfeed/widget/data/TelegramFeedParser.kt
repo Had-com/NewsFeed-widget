@@ -164,8 +164,11 @@ object TelegramFeedParser {
         return decoded.trim()
     }
 
+    // [\s\S]*? (not \s*) because the header div can carry a verified/scam/fake badge
+    // <span> before the title's own <span> - the lazy skip plus find()'s backtracking lets
+    // an empty badge span (no [^<]+ text) be passed over to reach the real title span.
     private val CHANNEL_TITLE_REGEX = Regex(
-        """(?s)tgme_channel_info_header_title[^>]*>\s*<span[^>]*>([^<]+)</span>"""
+        """tgme_channel_info_header_title[^>]*>[\s\S]*?<span[^>]*>([^<]+)</span>"""
     )
 
     /**
