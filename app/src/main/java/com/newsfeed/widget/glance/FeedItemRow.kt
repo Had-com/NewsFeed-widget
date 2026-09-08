@@ -146,7 +146,12 @@ fun FeedItemRow(
     // feed-direction × device-locale combinations) rather than removed outright.
     val deviceIsRtl    = context.resources.configuration.layoutDirection ==
         android.view.View.LAYOUT_DIRECTION_RTL
-    val isRtl          = (feedConfig.layoutDirection == "rtl") xor deviceIsRtl
+    // TEMPORARY for BUG-002 root-cause isolation: XOR removed. isRtl is now held
+    // LOCALE-INDEPENDENT (a pure function of feedConfig alone) so an on-device test can
+    // check, in isolation, whether the PHYSICAL rendered position changes when only the
+    // device locale changes and this value provably does not. Restore the XOR (or whatever
+    // the real fix turns out to be) once this diagnostic pass is done.
+    val isRtl          = feedConfig.layoutDirection == "rtl"
     // Bumped from 9f/10f — reported and confirmed too light/thin to read comfortably at the
     // default font size, on top of already being the smallest, most muted text on the row
     // (onSurfaceVariant, no bold). The size bump applies everywhere; the meta row also gets a
@@ -339,6 +344,13 @@ fun FeedItemRow(
                         modifier = GlanceModifier.defaultWeight())
                 }
             }
+
+            // TEMPORARY diagnostic for BUG-002 root-cause isolation — remove once done.
+            Text(
+                "DBG2 cfg=${feedConfig.layoutDirection} dev=$deviceIsRtl isRtl(fixed)=$isRtl",
+                style = TextStyle(fontSize = 8.sp, color = ColorProvider(Color.Red)),
+                maxLines = 1,
+            )
 
             Spacer(GlanceModifier.height(3.dp))
 
