@@ -91,4 +91,15 @@ dependencies {
 
     // Unit testing
     testImplementation("junit:junit:4.13.2")
+
+    // Real org.json implementation for local unit tests. CrashLogStoreTest exercises
+    // CrashLogStore.recordsToJson()/recordsFromJson(), which use org.json.JSONObject/JSONArray.
+    // Those classes ship inside android.jar, and testDebugUnitTest runs against the "mockable
+    // android.jar" whose method bodies are stubbed to throw RuntimeException("... not mocked")
+    // - true for every android.jar class, org.json included, not just the usual Log/Color
+    // examples. This pulls in the original json.org reference implementation (source/binary
+    // compatible with org.json's JSONObject/JSONArray API) so the unit test classpath has a
+    // real, working implementation instead of the throwing stub. testImplementation only, so
+    // it never ships in the release APK.
+    testImplementation("org.json:json:20231013")
 }
