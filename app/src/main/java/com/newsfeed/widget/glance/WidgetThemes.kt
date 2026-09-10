@@ -23,7 +23,13 @@ object WidgetThemes {
         else                      -> "sans"      // Roboto (exact) / Hebrew: Roboto Hebrew
     }
 
-    fun rawColorSchemeFor(theme: String, variant: String = "dark"): ColorScheme {
+    fun rawColorSchemeFor(
+        theme: String,
+        variant: String = "dark",
+        customFont: String = "#1B1F27",
+        customBackground: String = "#FFFFFF",
+    ): ColorScheme {
+        if (theme == "custom") return customColorScheme(variant, customFont, customBackground)
         val dark = variant == "dark"
         return when (theme) {
             "lavender", "light"       -> if (dark) LAVENDER_DARK   else LAVENDER_LIGHT
@@ -38,7 +44,13 @@ object WidgetThemes {
         }
     }
 
-    fun surfaceColorFor(theme: String, variant: String = "dark"): Color {
+    fun surfaceColorFor(
+        theme: String,
+        variant: String = "dark",
+        customFont: String = "#1B1F27",
+        customBackground: String = "#FFFFFF",
+    ): Color {
+        if (theme == "custom") return customColorScheme(variant, customFont, customBackground).surface
         val dark = variant == "dark"
         return when (theme) {
             "lavender", "light"       -> if (dark) LAVENDER_DARK.surface   else LAVENDER_LIGHT.surface
@@ -53,7 +65,16 @@ object WidgetThemes {
         }
     }
 
-    fun colorProvidersFor(theme: String, variant: String = "dark"): ColorProviders {
+    fun colorProvidersFor(
+        theme: String,
+        variant: String = "dark",
+        customFont: String = "#1B1F27",
+        customBackground: String = "#FFFFFF",
+    ): ColorProviders {
+        if (theme == "custom") {
+            val scheme = customColorScheme(variant, customFont, customBackground)
+            return buildColorProviders(light = scheme, dark = scheme)
+        }
         val dark = variant == "dark"
         return when (theme) {
             "lavender", "light"       -> if (dark) buildColorProviders(light = LAVENDER_DARK,    dark = LAVENDER_DARK)
@@ -74,6 +95,40 @@ object WidgetThemes {
                                          else      buildColorProviders(light = BLACKWHITE_LIGHT, dark = BLACKWHITE_LIGHT)
             else                      -> buildColorProviders(light = lightColorScheme(), dark = darkColorScheme()) // "auto"
         }
+    }
+
+    // Android-framework-free hex parser - android.graphics.Color.parseColor() throws
+    // "not mocked" in this project's plain JUnit tests (no Robolectric), so this hand-written
+    // version keeps the "custom" theme's color logic unit-testable. Accepts "#RRGGBB" or
+    // "#AARRGGBB" (leading '#' optional); returns null for anything else rather than
+    // throwing, same tolerant contract android.graphics.Color.parseColor() would have had.
+    internal fun parseHexColor(hex: String): Color? {
+        val cleaned = hex.trim().removePrefix("#")
+        if (cleaned.length != 6 && cleaned.length != 8) return null
+        return runCatching {
+            val argb = if (cleaned.length == 6) "FF$cleaned" else cleaned
+            Color(argb.toLong(16).toInt())
+        }.getOrNull()
+    }
+
+    // Builds a full ColorScheme from just two user-picked colors. Dark variant swaps them
+    // (background becomes the font color, font becomes the background) rather than asking
+    // for a second pair of colors - see the design doc's "invert" decision. Secondary colors
+    // (muted text, dividers) are derived by opacity rather than separately configurable.
+    private fun customColorScheme(variant: String, fontHex: String, backgroundHex: String): ColorScheme {
+        val font = parseHexColor(fontHex) ?: Color(0xFF1B1F27)
+        val background = parseHexColor(backgroundHex) ?: Color(0xFFFFFFFF)
+        val resolvedBackground = if (variant == "dark") font else background
+        val resolvedText       = if (variant == "dark") background else font
+        val scheme = if (variant == "dark") darkColorScheme() else lightColorScheme()
+        return scheme.copy(
+            background       = resolvedBackground,
+            surface          = resolvedBackground,
+            onBackground     = resolvedText,
+            onSurface        = resolvedText,
+            onSurfaceVariant = resolvedText.copy(alpha = 0.6f),
+            outline          = resolvedText.copy(alpha = 0.25f),
+        )
     }
 
     // ── Lavender ──────────────────────────────────────────────────────────────
