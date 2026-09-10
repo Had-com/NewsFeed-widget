@@ -263,8 +263,10 @@ private fun WidgetContent(isFocusWidget: Boolean) {
     val focusedIndex    = if (focusedArticleId.isNotBlank())
         displayArticles.indexOfFirst { it.id == focusedArticleId } else -1
 
-    val themeColors = WidgetThemes.colorProvidersFor(config.widgetTheme, config.themeVariant)
-    val surfaceColor = WidgetThemes.surfaceColorFor(config.widgetTheme, config.themeVariant)
+    val themeColors = WidgetThemes.colorProvidersFor(
+        config.widgetTheme, config.themeVariant, config.customFontColor, config.customBackgroundColor)
+    val surfaceColor = WidgetThemes.surfaceColorFor(
+        config.widgetTheme, config.themeVariant, config.customFontColor, config.customBackgroundColor)
     val bgColor = ColorProvider(surfaceColor.copy(alpha = config.backgroundAlpha))
 
     GlanceTheme(colors = themeColors) {
