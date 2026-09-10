@@ -671,6 +671,48 @@ dragged a middle feed to the top — the exact feed touched moved, no neighborin
 incorrectly; repeated dragging a different feed down two positions with the same correct
 result.
 
+## BUG-002 addendum — non-Glamour themes have no forced RTL text direction at all
+
+Investigated 2026-09-10 after a live report questioning whether Focus Mode's feeds are
+"really RTL, or just aligned to the right." Confirmed by decompiling
+`androidx.glance:glance-appwidget:1.1.0` and `glance:1.1.0` directly (javap on the
+extracted AAR classes, not assumed from memory):
+
+**Glamour theme is fine.** `TextBitmapHelper.kt` renders headline/body as bitmaps via
+`android.text.StaticLayout`, explicitly calling `.setTextDirection(TextDirectionHeuristics.RTL)`
+when `isRtl` is true — genuine forced bidi paragraph direction, already correctly
+implemented (with its own documented past-bug fix, see the comment above that call site).
+
+**Every other theme (Simple, Black & White, Lavender, Amethyst, Glassy, Aerospace, Silicon,
+Auto) has no equivalent mechanism, and this isn't a gap in this app's code — Glance's public
+API has no way to provide one.** `androidx.glance.text.TextStyle` (decompiled: exactly 7
+constructor fields — `color`, `fontSize`, `fontWeight`, `fontStyle`, `textAlign`,
+`textDecoration`, `fontFamily`) exposes only `textAlign` (Start/End), never a text-direction
+or bidi override. `Text()`'s own composable signature has no direction parameter either.
+Grepping every extracted class in both AARs for "Direction"/"RTL"/"Bidi"/"TextDirection"
+found exactly one relevant internal symbol,
+`RemoteViewsTranslatorKt`'s non-public `forceRtl`/`isRtl(Context)` — which reads the
+**ambient system-locale layout direction** (not any per-widget or per-feed value) and uses
+it only to resolve `TextAlign.Start/End` into `Gravity` constants. No `setTextDirection`
+call, no `TextDirectionHeuristic` usage, anywhere in either module.
+
+Net effect for non-Glamour themes (including Focus Mode combined with any of them, since
+Focus Mode isn't restricted to Glamour):
+1. "RTL" is really just right-alignment (`textAlign = End`) — there is no forced paragraph
+   bidi direction at all. Actual character-order correctness for mixed content (a headline
+   starting with a digit, Latin word, or quote mark) depends entirely on the platform
+   TextView's own implicit Unicode-bidi auto-detection, not anything this app controls.
+2. Even that alignment doesn't reliably follow the feed's own per-feed RTL toggle — it's
+   resolved against the device's ambient system locale, the same root cause already
+   confirmed and documented for BUG-002's accent-stripe mirroring.
+
+Same ceiling as BUG-002 itself: not fixable from Glance's Composable API. The only real fix
+is raw `RemoteViews.setViewLayoutDirection()`/`TextView.setTextDirection()`, reachable only
+via the already-scoped RemoteViews rewrite
+(`docs/superpowers/plans/2026-09-04-remoteviews-rewrite.md`). No code change made — this is
+a confirmed-scope documentation update, filed alongside BUG-002 rather than as a new number
+since the root cause and resolution path are identical.
+
 ## Queued, not yet brainstormed or scoped
 
 - **Share button on the widget** — send the widget's/article's link via WhatsApp, Telegram,
