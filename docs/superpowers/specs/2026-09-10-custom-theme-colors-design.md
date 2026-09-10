@@ -32,6 +32,18 @@ among presets.
   with a live color-swatch preview next to it needs no new dependency and matches this
   screen's existing plain-Material3-input style (e.g. the Add Feed URL field).
 
+## Design note on testability (found during planning, same pattern the Telegram feature
+already established for this exact class of problem)
+
+`android.graphics.Color.parseColor()` throws `RuntimeException: Method parseColor not
+mocked` when called from a plain JUnit test in this project (no Robolectric — deliberately
+never added, for the same reason the Telegram feature avoided `Html.fromHtml()`). The hex
+parsing in `customColorScheme()` below therefore uses a small hand-written, Android-framework-
+free parser (`parseHexColor()`) instead of the platform method, so the color-swap/derivation
+logic stays unit-testable with plain JUnit. `androidx.compose.ui.graphics.Color`'s own
+`Color(Int)` constructor is pure Kotlin (bit arithmetic over a packed ARGB value, no
+`android.graphics.*` call inside it) and is safe to use directly in unit tests.
+
 ## Architecture
 
 Two new `WidgetConfig` fields carry the user's picks. `WidgetThemes.kt`'s three existing
@@ -105,11 +117,22 @@ fun colorProvidersFor(
 // this project) and builds a full ColorScheme from just those two colors, swapping them for
 // the dark variant per the "invert" decision above. onSurfaceVariant/outline are derived by
 // alpha-blending the font color, not separately configurable.
+// Android-framework-free hex parser - see "Design note on testability" above for why this
+// isn't android.graphics.Color.parseColor(). Accepts "#RRGGBB" or "#AARRGGBB" (leading '#'
+// optional); returns null for anything else rather than throwing, same tolerant contract
+// android.graphics.Color.parseColor() would have had.
+internal fun parseHexColor(hex: String): Color? {
+    val cleaned = hex.trim().removePrefix("#")
+    if (cleaned.length != 6 && cleaned.length != 8) return null
+    return runCatching {
+        val argb = if (cleaned.length == 6) "FF$cleaned" else cleaned
+        Color(argb.toLong(16).toInt())
+    }.getOrNull()
+}
+
 private fun customColorScheme(variant: String, fontHex: String, backgroundHex: String): ColorScheme {
-    val font = runCatching { Color(android.graphics.Color.parseColor(fontHex)) }
-        .getOrDefault(Color(0xFF1B1F27))
-    val background = runCatching { Color(android.graphics.Color.parseColor(backgroundHex)) }
-        .getOrDefault(Color(0xFFFFFFFF))
+    val font = parseHexColor(fontHex) ?: Color(0xFF1B1F27)
+    val background = parseHexColor(backgroundHex) ?: Color(0xFFFFFFFF)
     // Dark variant swaps the two colors (the "invert" decision above) - no separate
     // dark-mode colors are ever picked.
     val resolvedBackground = if (variant == "dark") font else background
@@ -160,8 +183,7 @@ if (config.widgetTheme == "custom") {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text(label, style = MaterialTheme.typography.bodyMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val parsed = runCatching { androidx.compose.ui.graphics.Color(android.graphics.Color.parseColor(value)) }
-                    .getOrNull()
+                val parsed = WidgetThemes.parseHexColor(value)
                 Box(
                     Modifier.size(20.dp).clip(CircleShape)
                         .background(parsed ?: androidx.compose.ui.graphics.Color.Gray)
