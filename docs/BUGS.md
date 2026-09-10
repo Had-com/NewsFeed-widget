@@ -713,14 +713,54 @@ via the already-scoped RemoteViews rewrite
 a confirmed-scope documentation update, filed alongside BUG-002 rather than as a new number
 since the root cause and resolution path are identical.
 
+## Feature additions (2026-09-10/11) — Bug logger Phase 1: local crash detection
+
+A new `NewsFeedApplication` installs a global `Thread.UncaughtExceptionHandler` that logs
+any uncaught crash (exception type, message, truncated stack trace, app version, timestamp)
+to a local JSON file (`CrashLogStore.kt`) before always re-throwing to the platform's
+original handler — purely additive observation, never suppresses or changes real crash
+behavior. A new "BUG REPORTS" section in Settings lists logged crashes grouped by
+(exception type, message) with a derived Solved/Unsolved badge (Solved = the signature's
+most recent occurrence was on an older build than the one currently installed) and a "Share
+crash report" button (shares via `FileProvider` as a text file, not inline text, to stay
+safely under Android's Binder transaction size limit). See
+`docs/superpowers/specs/2026-09-10-bug-logger-design.md` for the full design.
+
+**Deliberately not in this phase**: no network transport, no GitHub interaction of any
+kind — sending crash data automatically to GitHub would require embedding a GitHub
+credential in the shipped APK, a real security risk given this repo's self-update mechanism
+(see the design doc's "Transport" decision). A serverless-relay-based Phase 2 for automatic
+GitHub reporting is explicitly queued below, not built.
+
+**On-device verification (commit `c77eb31`, device `RFCR91J237W`, versionCode 117):**
+confirmed the empty state before any crash; confirmed `adb shell am crash` still genuinely
+crashes the app (not suppressed); confirmed the crash was logged correctly (exception type,
+message, and full stack trace matched logcat's `FATAL EXCEPTION` block exactly, correct
+`versionCode`); confirmed the Settings UI shows it as "Unsolved" with correct occurrence
+count and build number; confirmed "Share crash report" opens the OS share sheet with a real
+`crash_report.txt` file that a real recipient app (Google Messages) successfully resolved
+and read via `FileProvider` (no `IllegalArgumentException`, no unregistered-path error); no
+regression to the surrounding Settings sections.
+
+This shipped after 3 rounds of code-quality review during implementation, catching and
+fixing: a truncate-before-write bug in `CrashLogStore` that could have silently erased all
+crash history on a single write failure (fixed with atomic temp-file-then-rename writes); a
+`org.json`-in-`android.jar` unit-testing gotcha (Android's mockable test jar stubs
+`org.json.JSONObject` to throw, same class of issue as `android.graphics.Color.parseColor()`
+— fixed by adding the real `org.json:json` reference implementation as a test-only
+dependency); synchronous file I/O inside a Compose `remember{}` block on the main thread
+(moved to `LaunchedEffect`/`Dispatchers.IO`, matching this file's own established
+convention); and the unbounded-`Intent.EXTRA_TEXT`-size risk mentioned above.
+
 ## Queued, not yet brainstormed or scoped
 
 - **Share button on the widget** — send the widget's/article's link via WhatsApp, Telegram,
   SMS, or the system share sheet. Requested 2026-09-10; not yet designed.
 - **Release notes on self-update** — show the user what changed and why when the app
   self-updates. Requested during the Telegram feature's implementation; not yet designed.
-- **Bug logger** — detect specific bugs on users' devices, report to a central GitHub-based
-  collector (on detection or weekly), and on detection show the user a list of all bugs
-  found so far with solved/unsolved status. Requested alongside the bug logger's own design
-  work being deferred until after the Telegram feature and this bug logger are scoped
-  together. Not yet designed.
+- **Bug logger Phase 2** — automatic reporting to a central GitHub-based collector (on
+  detection or weekly) via a serverless relay holding the real GitHub token server-side (see
+  the design doc's "Phase 2" decision) — explicitly deferred, not part of Phase 1 above.
+- **Custom font/background color theme** — spec approved
+  (`docs/superpowers/specs/2026-09-10-custom-theme-colors-design.md`) and plan written
+  (`docs/superpowers/plans/2026-09-10-custom-theme-colors.md`); implementation in progress.
