@@ -315,6 +315,13 @@ class WidgetConfigActivity : ComponentActivity() {
                     // a literal (wrong) RSS-fetch target.
                     val telegramUrl = TelegramFeedParser.canonicalize(raw)
                     val url = telegramUrl ?: if (raw.startsWith("http")) raw else "https://$raw"
+                    // Telegram channels canonicalize identically from @channel, t.me/channel,
+                    // and telegram.me/channel, so the same channel typed differently would
+                    // otherwise slip in as a second feed with the same feedId — crashing the
+                    // feed list below, which keys its LazyColumn items on feedId.
+                    if (config.feeds.any { it.feedId == url }) {
+                        addFeedError = "This feed is already added"; return
+                    }
                     scope.launch {
                         isAddingFeed = true; addFeedError = null; statusMessage = ""
                         val title = if (telegramUrl != null) repo.fetchTelegramChannelTitle(url) else repo.fetchFeedTitle(url)
