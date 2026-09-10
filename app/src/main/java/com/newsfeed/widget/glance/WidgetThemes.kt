@@ -128,6 +128,24 @@ object WidgetThemes {
             onSurface        = resolvedText,
             onSurfaceVariant = resolvedText.copy(alpha = 0.6f),
             outline          = resolvedText.copy(alpha = 0.25f),
+            // Without these five, they'd fall through to Material3's stock lightColorScheme()/
+            // darkColorScheme() purple defaults - visibly wrong on a widget whose whole point is
+            // showing only the user's two picked colors. primary drives the settings-gear icon,
+            // footer refresh/countdown text, and (via FeedItemRow's accentProvider) the per-row
+            // accent dot - all rendered directly on resolvedBackground, so the font color reads
+            // as the natural "accent" here. onPrimary is its counterpart for anything drawn on a
+            // primary-colored fill.
+            primary            = resolvedText,
+            onPrimary          = resolvedBackground,
+            // primaryContainer fills the unread-count badge and the "Load more articles" pill -
+            // a solid resolvedText block would be too heavy, so a light tint keeps it a
+            // deliberate accent surface distinguishable from the plain background. 0.15f (vs.
+            // outline's 0.25f) keeps it clearly softer than a stroke.
+            primaryContainer   = resolvedText.copy(alpha = 0.15f),
+            onPrimaryContainer = resolvedText,
+            // surfaceVariant paints every article-separator divider - needs to be visible but
+            // must not compete with text, so it's lighter still than primaryContainer's tint.
+            surfaceVariant     = resolvedText.copy(alpha = 0.12f),
         )
     }
 

@@ -1,5 +1,6 @@
 package com.newsfeed.widget.glance
 
+import androidx.glance.material3.ColorProviders as buildColorProviders
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -73,6 +74,68 @@ class WidgetThemesTest {
             customFont = "#111111", customBackground = "#EEEEEE",
         )
         assertEquals(WidgetThemes.parseHexColor("#EEEEEE"), surface)
+    }
+
+    @Test
+    fun `rawColorSchemeFor custom light derives primary, primaryContainer and surfaceVariant from the two picked colors`() {
+        val scheme = WidgetThemes.rawColorSchemeFor(
+            theme = "custom", variant = "light",
+            customFont = "#111111", customBackground = "#EEEEEE",
+        )
+        // Light variant: resolvedText is the font color, resolvedBackground is the background color.
+        val resolvedText = WidgetThemes.parseHexColor("#111111")!!
+        val resolvedBackground = WidgetThemes.parseHexColor("#EEEEEE")!!
+        assertEquals(resolvedText, scheme.primary)
+        assertEquals(resolvedBackground, scheme.onPrimary)
+        assertEquals(resolvedText.copy(alpha = 0.15f), scheme.primaryContainer)
+        assertEquals(resolvedText, scheme.onPrimaryContainer)
+        assertEquals(resolvedText.copy(alpha = 0.12f), scheme.surfaceVariant)
+    }
+
+    @Test
+    fun `rawColorSchemeFor custom dark derives primary, primaryContainer and surfaceVariant from the swapped colors`() {
+        val scheme = WidgetThemes.rawColorSchemeFor(
+            theme = "custom", variant = "dark",
+            customFont = "#111111", customBackground = "#EEEEEE",
+        )
+        // Dark variant swaps background/font, so resolvedText is the background color here.
+        val resolvedText = WidgetThemes.parseHexColor("#EEEEEE")!!
+        val resolvedBackground = WidgetThemes.parseHexColor("#111111")!!
+        assertEquals(resolvedText, scheme.primary)
+        assertEquals(resolvedBackground, scheme.onPrimary)
+        assertEquals(resolvedText.copy(alpha = 0.15f), scheme.primaryContainer)
+        assertEquals(resolvedText, scheme.onPrimaryContainer)
+        assertEquals(resolvedText.copy(alpha = 0.12f), scheme.surfaceVariant)
+    }
+
+    @Test
+    fun `colorProvidersFor custom wraps the same scheme rawColorSchemeFor produces`() {
+        // ColorProvider.getColor() needs a real Context (no Robolectric in this project - see
+        // parseHexColor's comment), so we can't call it here. Instead compare the ColorProviders
+        // objects directly: androidx.glance.color.ColorProviders overrides equals() to compare
+        // every field, and androidx.glance.material3.ColorProviders(light, dark) turns each
+        // ColorScheme slot into a plain data-class ColorProvider wrapping that slot's color long
+        // - so two calls built from equal-valued schemes compare equal without touching Android.
+        val actual = WidgetThemes.colorProvidersFor(
+            theme = "custom", variant = "light",
+            customFont = "#111111", customBackground = "#EEEEEE",
+        )
+        val expectedScheme = WidgetThemes.rawColorSchemeFor(
+            theme = "custom", variant = "light",
+            customFont = "#111111", customBackground = "#EEEEEE",
+        )
+        val expected = buildColorProviders(light = expectedScheme, dark = expectedScheme)
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `surfaceColorFor custom dark matches rawColorSchemeFor's surface after the swap`() {
+        val surface = WidgetThemes.surfaceColorFor(
+            theme = "custom", variant = "dark",
+            customFont = "#111111", customBackground = "#EEEEEE",
+        )
+        // Dark variant swaps background/font, so surface becomes the font color.
+        assertEquals(WidgetThemes.parseHexColor("#111111"), surface)
     }
 
     @Test
