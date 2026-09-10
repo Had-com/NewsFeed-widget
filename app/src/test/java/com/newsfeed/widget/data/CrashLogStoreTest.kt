@@ -94,11 +94,45 @@ class CrashLogStoreTest {
     }
 
     @Test
-    fun `readAll returns empty list when no log file exists yet`() {
-        // No Context available in a plain JUnit test - this specific case (missing file)
-        // is exercised on-device in Task 4. This test documents the expected contract only
-        // by checking summarize() handles an empty input the same way readAll() would return
-        // it, so the two are known to compose correctly.
+    fun `summarize returns empty list for empty input, matching readAll's empty-file contract`() {
+        // No Context available in a plain JUnit test, so readAll() itself (missing file case)
+        // is exercised on-device in Task 4. This just documents that summarize() handles an
+        // empty input the same way readAll() would return it, so the two compose correctly.
         assertTrue(CrashLogStore.summarize(emptyList(), currentVersionCode = 1).isEmpty())
+    }
+
+    @Test
+    fun `recordsToJson then recordsFromJson round-trips an empty list`() {
+        val json = CrashLogStore.recordsToJson(emptyList())
+        assertEquals("[]", json)
+        assertEquals(emptyList<CrashLogStore.CrashRecord>(), CrashLogStore.recordsFromJson(json))
+    }
+
+    @Test
+    fun `recordsToJson then recordsFromJson round-trips a single record with all fields intact`() {
+        val original = record(timestamp = 1234567890L, versionCode = 42)
+        val json = CrashLogStore.recordsToJson(listOf(original))
+        val roundTripped = CrashLogStore.recordsFromJson(json)
+        assertEquals(listOf(original), roundTripped)
+    }
+
+    @Test
+    fun `recordsToJson then recordsFromJson preserves quotes, newlines, and unicode in message and stackTrace`() {
+        val original = CrashLogStore.CrashRecord(
+            timestamp = 1000L,
+            versionCode = 1,
+            exceptionType = "java.lang.RuntimeException",
+            message = "Failed to parse \"config.json\": unexpected token éà中文 👾",
+            stackTrace = "java.lang.RuntimeException: \"quoted\"\n\tat Foo.bar(Foo.java:1)\n" +
+                "Caused by: java.io.IOException: disk full ☃\n\tat Baz.qux(Baz.java:2)",
+        )
+        val json = CrashLogStore.recordsToJson(listOf(original))
+        val roundTripped = CrashLogStore.recordsFromJson(json)
+        assertEquals(listOf(original), roundTripped)
+    }
+
+    @Test
+    fun `recordsFromJson returns empty list for malformed json instead of throwing`() {
+        assertEquals(emptyList<CrashLogStore.CrashRecord>(), CrashLogStore.recordsFromJson("not valid json{{{"))
     }
 }
