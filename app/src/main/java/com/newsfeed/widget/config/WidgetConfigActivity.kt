@@ -159,9 +159,13 @@ class WidgetConfigActivity : ComponentActivity() {
                 }
                 val lazyListState = rememberLazyListState()
                 val reorderState  = rememberReorderableLazyListState(lazyListState) { from, to ->
-                    // The LazyColumn has 3 non-reorderable header items before the feed rows,
-                    // so subtract that offset to get feed-relative indices.
-                    val offset = 3
+                    // The LazyColumn has 4 non-reorderable header items before the feed rows
+                    // (Sort & Filter, Add Feed, Find Feeds, Feed Order & Style), so subtract
+                    // that offset to get feed-relative indices. This was previously 3 (BUG:
+                    // every drag operation targeted the row one position below the one
+                    // actually touched, making an "up" drag appear to move a different feed
+                    // down).
+                    val offset = 4
                     val fromIdx = from.index - offset
                     val toIdx   = to.index - offset
                     if (fromIdx >= 0 && toIdx >= 0 && fromIdx < feedOrder.size && toIdx < feedOrder.size) {
@@ -315,6 +319,12 @@ class WidgetConfigActivity : ComponentActivity() {
                     // a literal (wrong) RSS-fetch target.
                     val telegramUrl = TelegramFeedParser.canonicalize(raw)
                     val url = telegramUrl ?: if (raw.startsWith("http")) raw else "https://$raw"
+                    // canonicalize() deliberately returns null for an already-canonical
+                    // https://t.me/s/<channel> URL (it's a preview URL, not a channel
+                    // reference to re-canonicalize) - but a user can still paste that exact
+                    // URL directly (e.g. copied from a browser), so it must still be routed
+                    // to the Telegram fetch path rather than treated as a broken RSS feed.
+                    val isTelegramFeed = telegramUrl != null || url.startsWith("https://t.me/s/")
                     // Telegram channels canonicalize identically from @channel, t.me/channel,
                     // and telegram.me/channel, so the same channel typed differently would
                     // otherwise slip in as a second feed with the same feedId — crashing the
@@ -324,7 +334,7 @@ class WidgetConfigActivity : ComponentActivity() {
                     }
                     scope.launch {
                         isAddingFeed = true; addFeedError = null; statusMessage = ""
-                        val title = if (telegramUrl != null) repo.fetchTelegramChannelTitle(url) else repo.fetchFeedTitle(url)
+                        val title = if (isTelegramFeed) repo.fetchTelegramChannelTitle(url) else repo.fetchFeedTitle(url)
                         if (!title.isNullOrBlank()) {
                             val newFeed = FeedConfig(feedId = url, displayName = title, feedUrl = url,
                                 accentColor = feedAccentColors(config.widgetTheme)[config.feeds.size % feedAccentColors(config.widgetTheme).size])
