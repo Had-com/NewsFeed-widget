@@ -32,7 +32,10 @@ data class WidgetConfig(
     val articleFontSize: Float = 1.0f,         // 0.5 – 3.0 — independent of fontSize, expanded-article body text only
     val externalApp: String = "browser",       // "browser" | "share"
     val articleLength: String = "medium",      // "short" | "medium" | "full"
-    val widgetTheme: String = "glamer",        // "auto" | "lavender" | "amethyst" | "glassy" | "simple" | "aerospace" | "silicon" | "glamer" | "blackwhite"
+    val widgetTheme: String = "glamer",        // "auto" | "lavender" | "amethyst" | "glassy" | "simple" | "aerospace" | "silicon" | "glamer" | "blackwhite" | "custom"
+    val customFontColor: String = "#1B1F27",       // used only when widgetTheme == "custom"
+    val customBackgroundColor: String = "#FFFFFF", // dark-on-light default so it looks
+                                                    // reasonable before the user changes it
     val themeVariant: String = "light",        // "light" | "dark"
     val useThemeColors: Boolean = true,        // when true, all feeds use the theme accent instead of per-feed colors
     val backgroundAlpha: Float = 1.0f,         // 0.0 (fully transparent) – 1.0 (fully opaque)
