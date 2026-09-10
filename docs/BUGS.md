@@ -761,6 +761,41 @@ convention); and the unbounded-`Intent.EXTRA_TEXT`-size risk mentioned above.
 - **Bug logger Phase 2** — automatic reporting to a central GitHub-based collector (on
   detection or weekly) via a serverless relay holding the real GitHub token server-side (see
   the design doc's "Phase 2" decision) — explicitly deferred, not part of Phase 1 above.
-- **Custom font/background color theme** — spec approved
-  (`docs/superpowers/specs/2026-09-10-custom-theme-colors-design.md`) and plan written
-  (`docs/superpowers/plans/2026-09-10-custom-theme-colors.md`); implementation in progress.
+
+## Feature additions (2026-09-11) — Custom font/background color theme
+
+A 10th theme option, "Custom," lets a user pick just two colors — a font color and a
+background color — for the whole widget, instead of choosing among the 9 fixed presets.
+Two new hex-input fields (with a live circular swatch preview) appear in Settings only when
+"Custom" is selected. The existing "Theme variant" Light/Dark toggle is reused rather than
+adding new UI: Light uses the two colors exactly as picked; Dark automatically swaps them
+(background becomes the font color, font becomes the background) — no second pair of colors
+to pick. Every other visible color (muted/secondary text, dividers, the gear icon, footer
+refresh/countdown text, the unread-count badge, per-row accent dots) is derived from the same
+two picks by alpha-blending, so nothing shows Material3's stock default purple. See
+`docs/superpowers/specs/2026-09-10-custom-theme-colors-design.md` for the full design.
+
+A code-quality review during implementation caught a real gap the design itself had missed:
+the initial implementation only derived `background`/`surface`/`onBackground`/`onSurface`/
+`onSurfaceVariant`/`outline`, leaving `primary`/`onPrimary`/`primaryContainer`/
+`onPrimaryContainer`/`surfaceVariant` at Material3 defaults — which control the gear icon,
+footer text, unread badge, dividers, and per-row accent dots (the last of these under
+`useThemeColors == true`, this app's default). Fixed by extending the same derivation to
+cover all 11 slots the app actually reads, verified against the real `GlanceTheme.colors.*`
+consumption sites in `NewsFeedWidget.kt`/`FeedItemRow.kt` (not just the design doc's own,
+incomplete accounting) and independently confirmed via bytecode inspection of the actual
+`androidx.glance`/`androidx.glance.material3` library classes that comparing two
+independently-built `ColorProviders` instances in a unit test is valid without a real
+Android `Context` (both classes have genuine structural `equals()`, confirmed by decompiling
+the AARs directly — not assumed).
+
+**On-device verification (commit `eefa414`, device `RFCR91J237W`, versionCode 119):**
+confirmed "Custom" appears as a 10th theme option with the two color rows shown only when
+selected; confirmed the live swatch preview and the on-screen article preview both update as
+colors are typed; confirmed the saved widget's actual background/text match the typed colors
+exactly (not any preset palette) for Light variant; confirmed switching to Dark swaps the two
+colors on the real widget (not a third color, and the two hex fields themselves stay
+unchanged); confirmed the gear icon, footer text, and unread badge all use the derived
+colors, not stock purple; confirmed switching back to a preset theme renders normally with
+zero regression. Also confirmed via the real on-disk DataStore config (not just the UI) that
+the picked colors persist correctly.
