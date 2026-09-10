@@ -582,3 +582,103 @@ but the earlier "battery management" framing was likely wrong. The app's own beh
 (reporting the failure honestly via `lastRefreshFailed`, recovering cleanly on the next
 attempt) is correct either way. Confirmed again: retrying immediately after network
 recovers succeeds cleanly (new WorkManager job, `SUCCESS`).
+
+## Feature additions (2026-09-08) — Telegram channel as a feed source
+
+Public Telegram channels can now be added through the existing Add Feed field, alongside
+RSS/Atom URLs — no new UI element. Typing `@channel`, `t.me/channel`, `telegram.me/channel`,
+or a full `https://t.me/s/channel` preview URL is recognized and converted into an ordinary
+`FeedConfig` whose `feedUrl` is the channel's public, no-login `https://t.me/s/<channel>`
+HTML preview page. Nothing downstream (storage, retention, sort/filter, per-feed accent
+color, per-feed RTL/LTR, rendering) needs to know a feed originated from Telegram.
+
+- New `TelegramFeedParser.kt` (`data/`) — pure-Kotlin, Android-framework-free HTML scraping:
+  channel-reference detection/canonicalization, per-post extraction (permalink, timestamp,
+  raw text, photo URL), a hand-written tag-stripper + entity-decoder (swapped in for
+  `Html.fromHtml()` specifically so this file could be unit-tested with plain JUnit — see
+  `docs/superpowers/specs/2026-09-08-telegram-rss-converter-design.md`), and article/title
+  construction. **This is this project's first unit-tested code** (36 JUnit 4 tests) —
+  everything else in the app remains verified on-device only, per its established pattern.
+- `NewsFeedRepository.fetchFeedArticles()` gained one new branch recognizing
+  `https://t.me/s/` feed URLs and routing to the parser instead of the XML pull-parser path;
+  a new `fetchTelegramChannelTitle()` mirrors `fetchFeedTitle()`'s role at add-time.
+- Add Feed field placeholder updated to "RSS, Telegram or Atom feed URL".
+- A duplicate-feed guard was added to `doAddFeed()` during code review: the same channel
+  can now canonicalize identically from three different typed forms (`@channel`,
+  `t.me/channel`, `telegram.me/channel`), which made an existing, pre-Telegram gap (no
+  duplicate check on manual Add Feed, unlike the Find Feeds and OPML import paths) newly
+  reachable — a duplicate `feedId` crashes the settings screen's `LazyColumn` on its key
+  uniqueness contract. Now shows "This feed is already added" instead.
+
+**On-device verification (commit `85ba850`, device `RFCR91J237W`):** added `@telegram`,
+confirmed the real fetched channel title ("Telegram News", not the raw handle) via both the
+UI and on-disk DataStore, confirmed real article content (headlines, Telegram CDN images,
+timestamps) in the widget's rendered cache, confirmed the duplicate guard blocks
+`t.me/telegram` after `@telegram` is already added, confirmed a manual refresh doesn't
+duplicate already-fetched articles, confirmed the invalid-channel error path shows the
+existing "Could not load feed — check the URL" message with no crash, and confirmed the 8
+pre-existing RSS/Hebrew feeds kept rendering normally throughout (no regression).
+
+Two follow-up hardening items were flagged during review as non-blocking, not yet acted on:
+`TelegramFeedParser`'s `extractBalancedDivContent()` scan isn't bounded to the enclosing
+`<div>` the way it should be for full robustness against pathological markup, and
+Telegram-sourced image thumbnails are fetched host-unrestricted (matching the pre-existing,
+unchanged behavior for RSS `media:thumbnail`/`enclosure` images — not a new risk class, but
+worth a shared fix across both).
+
+## BUG-018 — Telegram Add Feed: a directly-pasted canonical `t.me/s/<channel>` URL failed
+
+Reported live right after the Telegram feature above shipped: pasting the channel's own
+canonical preview URL (`t.me/s/<channel>` or `https://t.me/s/<channel>`) directly into Add
+Feed — rather than `@channel` or `t.me/channel`, the two forms exercised during that
+feature's own on-device verification — showed "Could not load feed — check the URL"
+instead of adding the feed.
+
+**Root cause:** `TelegramFeedParser.canonicalize()` deliberately returns `null` for a
+`t.me/s/...` input by design (it's already a preview URL, not a channel reference to
+re-canonicalize — its regex only matches `t.me/<channel>` or `telegram.me/<channel>`).
+`WidgetConfigActivity.doAddFeed()` used that `null` as its *only* signal for whether to
+route the title-fetch through the Telegram parser vs. the XML/RSS parser, so a directly
+pasted `t.me/s/...` URL fell through to the XML parser, which fails on HTML input.
+
+**Fix (commit `ed5b330`):** added `isTelegramFeed = telegramUrl != null ||
+url.startsWith("https://t.me/s/")`, so an already-canonical preview URL is now also
+recognized. Verified on-device (build 109): `t.me/s/cnnbrk` now adds correctly as "CNN";
+`https://t.me/s/telegram` (the already-added Telegram feed's canonical form) correctly
+shows "This feed is already added" rather than "Could not load feed."
+
+Known non-blocking gap (not the reported bug, not yet fixed): the added check is a literal,
+case-sensitive `https://t.me/s/` prefix match, so `http://` (non-`https`), an uppercase host,
+or the `telegram.me/s/...` alternate domain would still hit the original failure. Worth a
+follow-up using the same case-insensitive matching `TelegramFeedParser`'s own regexes
+already use.
+
+## BUG-019 — Feed drag-reorder moved a different row than the one dragged
+
+Reported live: dragging a feed row up in the settings screen's feed list sometimes moved a
+*different* feed down instead of moving the touched feed up.
+
+**Root cause:** the feed-order `LazyColumn` has 4 non-reorderable header `item {}` blocks
+before the feed rows (Sort & Filter, Add Feed, Find Feeds, Feed Order & Style), but the
+`reorderState`'s `onMove` callback subtracted a hardcoded `offset = 3` to convert the
+library-reported list-wide `from`/`to` indices into `feedOrder`-relative indices — one too
+few. Every reorder therefore operated on the row one position below the one actually
+touched (traced concretely: with 5 feeds, dragging the 2nd feed to the top moved the *3rd*
+feed instead).
+
+**Fix (commit `ed5b330`):** `offset` corrected to `4`. Verified on-device (build 109):
+dragged a middle feed to the top — the exact feed touched moved, no neighboring row shifted
+incorrectly; repeated dragging a different feed down two positions with the same correct
+result.
+
+## Queued, not yet brainstormed or scoped
+
+- **Share button on the widget** — send the widget's/article's link via WhatsApp, Telegram,
+  SMS, or the system share sheet. Requested 2026-09-10; not yet designed.
+- **Release notes on self-update** — show the user what changed and why when the app
+  self-updates. Requested during the Telegram feature's implementation; not yet designed.
+- **Bug logger** — detect specific bugs on users' devices, report to a central GitHub-based
+  collector (on detection or weekly), and on detection show the user a list of all bugs
+  found so far with solved/unsolved status. Requested alongside the bug logger's own design
+  work being deferred until after the Telegram feature and this bug logger are scoped
+  together. Not yet designed.
