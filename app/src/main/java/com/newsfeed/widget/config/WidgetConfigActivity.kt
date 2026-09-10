@@ -76,6 +76,7 @@ import com.newsfeed.widget.data.FilterMode
 import com.newsfeed.widget.data.OpmlManager
 import com.newsfeed.widget.data.NewsFeedRepository
 import com.newsfeed.widget.data.SortOrder
+import com.newsfeed.widget.data.TelegramFeedParser
 import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetConfigStore
 import com.newsfeed.widget.data.WidgetStateKey
@@ -307,11 +308,17 @@ class WidgetConfigActivity : ComponentActivity() {
 
                 fun doAddFeed() {
                     val raw = addFeedUrl.trim(); if (raw.isBlank()) return
-                    val url = if (raw.startsWith("http")) raw else "https://$raw"
+                    // Recognized Telegram references (t.me/channel, @channel, ...) are
+                    // canonicalized to their https://t.me/s/<channel> preview URL BEFORE the
+                    // generic https-prefix fallback below, which would otherwise mangle a
+                    // bare "@channel" into "https://@channel" or misread "t.me/channel" as
+                    // a literal (wrong) RSS-fetch target.
+                    val telegramUrl = TelegramFeedParser.canonicalize(raw)
+                    val url = telegramUrl ?: if (raw.startsWith("http")) raw else "https://$raw"
                     scope.launch {
                         isAddingFeed = true; addFeedError = null; statusMessage = ""
-                        val title = repo.fetchFeedTitle(url)
-                        if (title != null) {
+                        val title = if (telegramUrl != null) repo.fetchTelegramChannelTitle(url) else repo.fetchFeedTitle(url)
+                        if (!title.isNullOrBlank()) {
                             val newFeed = FeedConfig(feedId = url, displayName = title, feedUrl = url,
                                 accentColor = feedAccentColors(config.widgetTheme)[config.feeds.size % feedAccentColors(config.widgetTheme).size])
                             config = config.copy(feeds = config.feeds + newFeed)
@@ -753,7 +760,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                     OutlinedTextField(
                                         value = addFeedUrl,
                                         onValueChange = { addFeedUrl = it; addFeedError = null },
-                                        label = { Text("RSS or Atom feed URL") },
+                                        label = { Text("RSS, Telegram or Atom feed URL") },
                                         modifier = Modifier.weight(1f),
                                         singleLine = true,
                                         isError = addFeedError != null,
