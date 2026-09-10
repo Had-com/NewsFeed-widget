@@ -14,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,6 +29,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -594,7 +596,10 @@ class WidgetConfigActivity : ComponentActivity() {
                                     "full"  -> sampleDesc
                                     else    -> sampleDesc.take(400).trimEnd()
                                 }
-                                val previewScheme = WidgetThemes.rawColorSchemeFor(config.widgetTheme, config.themeVariant)
+                                val previewScheme = WidgetThemes.rawColorSchemeFor(
+                                    config.widgetTheme, config.themeVariant,
+                                    config.customFontColor, config.customBackgroundColor,
+                                )
                                 // Glamour gets its actual bitmap-rendered font (Playpen Sans Hebrew) here
                                 // too — this Activity isn't RemoteViews-constrained like the real widget,
                                 // so the real Font resources can be used directly instead of a
@@ -742,6 +747,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                     "silicon"    to "Data Science",
                                     "glamer"     to "Glamour",
                                     "blackwhite" to "Black & White",
+                                    "custom"     to "Custom",
                                 )
                                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                                     Text("Widget theme", style = MaterialTheme.typography.bodyMedium)
@@ -773,6 +779,33 @@ class WidgetConfigActivity : ComponentActivity() {
                                                 Text(lbl, fontSize = 13.sp,
                                                     color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
                                                             else MaterialTheme.colorScheme.onSurface)
+                                            }
+                                        }
+                                    }
+                                }
+                                if (config.widgetTheme == "custom") {
+                                    listOf(
+                                        Triple("Font color", config.customFontColor) { v: String -> config = config.copy(customFontColor = v) },
+                                        Triple("Background color", config.customBackgroundColor) { v: String -> config = config.copy(customBackgroundColor = v) },
+                                    ).forEach { (label, value, onChange) ->
+                                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                                            Text(label, style = MaterialTheme.typography.bodyMedium)
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                val parsed = WidgetThemes.parseHexColor(value)
+                                                Box(
+                                                    Modifier.size(20.dp)
+                                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                                        .background(parsed ?: androidx.compose.ui.graphics.Color.Gray)
+                                                        .border(1.dp, MaterialTheme.colorScheme.outline, androidx.compose.foundation.shape.CircleShape)
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                OutlinedTextField(
+                                                    value = value,
+                                                    onValueChange = onChange,
+                                                    singleLine = true,
+                                                    modifier = Modifier.width(110.dp),
+                                                    textStyle = MaterialTheme.typography.bodySmall,
+                                                )
                                             }
                                         }
                                     }
