@@ -209,6 +209,19 @@ class WidgetConfigActivity : ComponentActivity() {
 
                 var isCheckingForUpdate by remember { mutableStateOf(false) }
 
+                // Bug reports — loaded once here via LaunchedEffect, not via remember{} inside
+                // the "BUG REPORTS" item{} block below: that block lives in a LazyColumn, which
+                // can discard and re-run a remember{} on scroll, re-triggering a synchronous
+                // file read + JSON parse repeatedly during scrolling. Matches this file's own
+                // convention for every other disk/content read (see the config LaunchedEffect
+                // above and the OPML import below).
+                var crashRecords by remember { mutableStateOf<List<CrashLogStore.CrashRecord>>(emptyList()) }
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    crashRecords = withContext(Dispatchers.IO) {
+                        CrashLogStore.readAll(this@WidgetConfigActivity)
+                    }
+                }
+
                 // Edit-feed dialog state
                 var editingFeed   by remember { mutableStateOf<FeedConfig?>(null) }
                 var editName      by remember { mutableStateOf("") }
@@ -358,6 +371,32 @@ class WidgetConfigActivity : ComponentActivity() {
                                 type = "text/xml"; putExtra(Intent.EXTRA_STREAM, uri)
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }, "Export OPML",
+                        ))
+                    }
+                }
+
+                fun doShareCrashReport() {
+                    scope.launch {
+                        // Written to a cache file and shared via FileProvider + EXTRA_STREAM,
+                        // not inlined into EXTRA_TEXT (mirrors doExport() above): up to 50
+                        // records at ~4000 chars of stack trace each can reach ~430KB, uncomfortably
+                        // close to Binder's ~1MB per-process transaction ceiling.
+                        val file = withContext(Dispatchers.IO) {
+                            val dir = File(cacheDir, "crashreports").also { it.mkdirs() }
+                            val body = crashRecords.joinToString("\n\n---\n\n") { r ->
+                                "Build ${r.versionCode} · ${java.util.Date(r.timestamp)}\n" +
+                                    "${r.exceptionType}: ${r.message}\n${r.stackTrace}"
+                            }
+                            File(dir, "crash_report.txt").also { it.writeText(body) }
+                        }
+                        val uri = FileProvider.getUriForFile(this@WidgetConfigActivity, "${packageName}.fileprovider", file)
+                        startActivity(Intent.createChooser(
+                            Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "NewsFeed crash report")
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }, "Share crash report",
                         ))
                     }
                 }
@@ -978,7 +1017,6 @@ class WidgetConfigActivity : ComponentActivity() {
                                 Text("BUG REPORTS", fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.05.sp)
                                 Spacer(Modifier.height(8.dp))
-                                val crashRecords = remember { CrashLogStore.readAll(this@WidgetConfigActivity) }
                                 val bugSummaries = remember(crashRecords) {
                                     CrashLogStore.summarize(crashRecords, BuildConfig.VERSION_CODE)
                                 }
@@ -1013,18 +1051,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                         HorizontalDivider(thickness = 0.5.dp)
                                     }
                                     Spacer(Modifier.height(8.dp))
-                                    TextButton(onClick = {
-                                        val body = crashRecords.joinToString("\n\n---\n\n") { r ->
-                                            "Build ${r.versionCode} · ${java.util.Date(r.timestamp)}\n" +
-                                                "${r.exceptionType}: ${r.message}\n${r.stackTrace}"
-                                        }
-                                        val intent = Intent(Intent.ACTION_SEND).apply {
-                                            type = "text/plain"
-                                            putExtra(Intent.EXTRA_SUBJECT, "NewsFeed crash report")
-                                            putExtra(Intent.EXTRA_TEXT, body)
-                                        }
-                                        startActivity(Intent.createChooser(intent, "Share crash report"))
-                                    }) { Text("Share crash report") }
+                                    TextButton(onClick = { doShareCrashReport() }) { Text("Share crash report") }
                                 }
                             }
                         }
