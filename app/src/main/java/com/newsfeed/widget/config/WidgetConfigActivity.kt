@@ -71,6 +71,7 @@ import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.appwidget.updateAll
 import com.newsfeed.widget.R
+import com.newsfeed.widget.data.CrashLogStore
 import com.newsfeed.widget.data.FeedConfig
 import com.newsfeed.widget.data.FilterMode
 import com.newsfeed.widget.data.OpmlManager
@@ -968,6 +969,63 @@ class WidgetConfigActivity : ComponentActivity() {
                                     fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 )
+                            }
+                        }
+
+                        // ── Bug reports ──
+                        item {
+                            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                Text("BUG REPORTS", fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.05.sp)
+                                Spacer(Modifier.height(8.dp))
+                                val crashRecords = remember { CrashLogStore.readAll(this@WidgetConfigActivity) }
+                                val bugSummaries = remember(crashRecords) {
+                                    CrashLogStore.summarize(crashRecords, BuildConfig.VERSION_CODE)
+                                }
+                                if (bugSummaries.isEmpty()) {
+                                    Text("No crashes detected on this device.", fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                } else {
+                                    bugSummaries.forEach { bug ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text(bug.exceptionType.substringAfterLast('.'),
+                                                    style = MaterialTheme.typography.bodyMedium)
+                                                Text(bug.message.ifBlank { "(no message)" }, fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(
+                                                    "${bug.occurrenceCount}× · last seen build ${bug.lastSeenVersionCode} · " +
+                                                        java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault())
+                                                            .format(java.util.Date(bug.lastSeenAt)),
+                                                    fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                            Text(
+                                                text = if (bug.isSolved) "Solved" else "Unsolved",
+                                                fontSize = 11.sp,
+                                                color = if (bug.isSolved) androidx.compose.ui.graphics.Color(0xFF2E7D32)
+                                                         else MaterialTheme.colorScheme.error,
+                                            )
+                                        }
+                                        HorizontalDivider(thickness = 0.5.dp)
+                                    }
+                                    Spacer(Modifier.height(8.dp))
+                                    TextButton(onClick = {
+                                        val body = crashRecords.joinToString("\n\n---\n\n") { r ->
+                                            "Build ${r.versionCode} · ${java.util.Date(r.timestamp)}\n" +
+                                                "${r.exceptionType}: ${r.message}\n${r.stackTrace}"
+                                        }
+                                        val intent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_SUBJECT, "NewsFeed crash report")
+                                            putExtra(Intent.EXTRA_TEXT, body)
+                                        }
+                                        startActivity(Intent.createChooser(intent, "Share crash report"))
+                                    }) { Text("Share crash report") }
+                                }
                             }
                         }
                     }
