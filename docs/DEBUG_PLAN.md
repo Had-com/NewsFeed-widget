@@ -22,20 +22,27 @@ Derived directly from `README.md` — every checklist item below maps to a featu
 
 ## 1. Sort & Filter section
 
-For each control, change it, tap **Save**, and confirm the *widget itself* reflects the change — not just the Settings screen's own state.
+Settings is now split into three sections (Sort & Filter / Display / Appearance) rather than one mega-section — the checks below are grouped to match the real screen order. For each control, change it, tap **Save**, and confirm the *widget itself* reflects the change — not just the Settings screen's own state.
 
 - [ ] **Sort by** — Newest first, Oldest first, By feed (verify true round-robin interleave, not just grouped-by-feed), Unread first (verify unread articles float above read ones regardless of date).
 - [ ] **Show** — All, Unread only (read articles genuinely absent, not just dimmed), Read only.
 - [ ] **Refresh every** — cycle all 7 options (15m/30m/1h/2h/4h/6h/12h); confirm via `adb shell dumpsys jobscheduler | grep -A5 NewsFeedRefresh` that the scheduled interval actually changed each time (waiting out the real interval isn't practical for the longer options — the job-scheduler period is the verifiable proxy).
 - [ ] **Keep articles for** — set to "1 day", let the widget accumulate articles older than that, refresh, and confirm they're pruned while the 300-article cap still applies independently (test "Forever" too — confirm no pruning happens regardless of article age).
 - [ ] **Open article in** — Browser (opens default browser) vs Share sheet (opens Android's share chooser); confirm both mark the article read and trigger a refresh.
+
+### Display
+
 - [ ] **Font size slider** — drag to each labeled tier (Tiny/Small/Medium/Large/Huge); confirm headline/meta/header/footer text visibly scales.
 - [ ] **Article font size slider** — same tiers, confirm it scales *only* expanded body text and does **not** move the headline size (the two sliders must be provably independent — change one, confirm the other's rendered size doesn't shift).
 - [ ] **Background rows size slider** — confirm this row is **present** on the Focus widget's Settings and **absent** on the standard widget's Settings for the exact same underlying setting.
 - [ ] **Live preview card** — confirm it visibly updates in real time as you touch the theme, font size, article font size, and article-length controls above it, without needing to Save first.
 - [ ] **Expanded article** (length mode) — Subtitle only (~100 chars), First paragraph (~400 chars), Full article (fetches the real page, see §2).
-- [ ] **Widget theme** — cycle all 8 (Auto, Lavender, Amethyst, Glassy, Simple, Aerospace, Data Science, Glamour); confirm each renders its own documented palette/character, and confirm only Glamour shows the handwriting-font bitmap headlines (every other theme should show plain, crisp system-font text — if any non-Glamour theme shows the handwriting font, that's a real regression).
+
+### Appearance
+
+- [ ] **Widget theme** — cycle all 10 (Auto, Lavender, Amethyst, Glassy, Simple, Aerospace, Data Science, Glamour, Black & White, Custom); confirm each renders its own documented palette/character, and confirm only Glamour shows the handwriting-font bitmap headlines (every other theme should show plain, crisp system-font text — if any non-Glamour theme shows the handwriting font, that's a real regression).
 - [ ] **Theme variant** (Light/Dark) — confirm independent of the device's system dark-mode setting.
+- [ ] **Custom theme colors** (Widget theme = Custom) — drag the font-color and background-color RGB sliders; confirm the live swatch and the widget itself pick up the resulting hex color, confirm Light/Dark variant swaps which color is text vs. background, and confirm all 11 consumed color slots update (not just background/text but also the gear icon, footer text, unread badge, dividers, and per-row accent dots — a prior bug left 5 of these stuck at stock Material3 purple).
 - [ ] **Use theme accent colors** switch — on: every feed's accent collapses to one theme color; off: each feed's own chosen color reappears.
 - [ ] **Background opacity slider** — 0% (fully see-through to wallpaper) through 100% (fully opaque); confirm smooth scaling, not just endpoints.
 
@@ -64,6 +71,7 @@ For each control, change it, tap **Save**, and confirm the *widget itself* refle
 - [ ] Add a valid Atom URL — same.
 - [ ] Add an invalid/unreachable URL — confirm the inline error message, not a silent failure.
 - [ ] Add a URL already in your list — confirm sensible handling (no silent duplicate).
+- [ ] Add a public Telegram channel URL (`t.me/s/<channel>` or `t.me/<channel>` without `/s/`) — confirm it's recognized as a Telegram source (not treated as a broken RSS URL), auto-fetches the channel's display name, and articles later show at least two lines of headline text (a single-line-only headline was a live-reported bug, fixed by joining the post's first two lines).
 - [ ] Import an OPML file exported from a real reader (Feedly/Reeder) — confirm feeds import with correct names/URLs, both flat and grouped/nested OPML structures.
 - [ ] Export OPML — confirm the exported file opens correctly in another RSS reader.
 
@@ -155,6 +163,16 @@ Quick confirmations that specific, previously-reported-and-fixed bugs haven't re
 - [ ] The header's unread/total badge reflects only what's currently visible/scrollable, not the full up-to-300 accumulated store.
 - [ ] Meta-row (feed name/timestamp) and article preview text are comfortably legible at default settings — not the thin/small rendering from before the readability fix.
 - [ ] Non-Glamour headline text never renders in the Playpen Sans Hebrew handwriting font under any theme selection.
+
+---
+
+## 13. Bug Reports section (crash detection)
+
+- [ ] With no crashes ever recorded, open Settings → **BUG REPORTS** → confirm "No crashes detected on this device." shows, not an error or blank section.
+- [ ] Force a crash (e.g. temporarily throw from a callback, or use any reliable repro) → relaunch the app → open Settings → **BUG REPORTS** → confirm the crash is summarized (exception type/message, first/last seen) rather than showing a raw stack trace inline.
+- [ ] Tap **Share crash report** → confirm Android's share sheet opens with a file attachment (not inline text) — this exists specifically to avoid a `TransactionTooLargeException` on large crash histories.
+- [ ] Trigger the same crash signature again on an older build, then update to a newer build without hitting it again → confirm it's shown as solved (hasn't recurred since the update) rather than perpetually "open."
+- [ ] Confirm this section's data is local-only — no network call happens when viewing or sharing it (there is no server component yet; this is Phase 1 only).
 
 ---
 
