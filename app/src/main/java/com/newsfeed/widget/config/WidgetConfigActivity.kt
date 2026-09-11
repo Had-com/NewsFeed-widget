@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -99,6 +100,7 @@ import kotlinx.coroutines.withContext
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import java.io.File
+import kotlin.math.roundToInt
 
 class WidgetConfigActivity : ComponentActivity() {
 
@@ -788,26 +790,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                         Triple("Font color", config.customFontColor) { v: String -> config = config.copy(customFontColor = v) },
                                         Triple("Background color", config.customBackgroundColor) { v: String -> config = config.copy(customBackgroundColor = v) },
                                     ).forEach { (label, value, onChange) ->
-                                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                                            Text(label, style = MaterialTheme.typography.bodyMedium)
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                val parsed = WidgetThemes.parseHexColor(value)
-                                                Box(
-                                                    Modifier.size(20.dp)
-                                                        .clip(androidx.compose.foundation.shape.CircleShape)
-                                                        .background(parsed ?: androidx.compose.ui.graphics.Color.Gray)
-                                                        .border(1.dp, MaterialTheme.colorScheme.outline, androidx.compose.foundation.shape.CircleShape)
-                                                )
-                                                Spacer(Modifier.width(8.dp))
-                                                OutlinedTextField(
-                                                    value = value,
-                                                    onValueChange = onChange,
-                                                    singleLine = true,
-                                                    modifier = Modifier.width(110.dp),
-                                                    textStyle = MaterialTheme.typography.bodySmall,
-                                                )
-                                            }
-                                        }
+                                        RgbSliderRow(label = label, hex = value, onChange = onChange)
                                     }
                                 }
                                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
@@ -1090,6 +1073,65 @@ class WidgetConfigActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+// Replaces the old hex-text-field custom color input with 3 RGB sliders (0-255 each), per
+// explicit user request to drop free-text hex entry entirely. Reuses the same circular swatch
+// preview construction the old hex field had, so the visual result stays consistent with what
+// shipped — only the input mechanism changed.
+@Composable
+private fun RgbSliderRow(
+    label: String,
+    hex: String,
+    onChange: (String) -> Unit,
+) {
+    // Defensive fallback only — this UI only ever writes back hex strings it just generated
+    // itself (see update() below), so parseHexColor() failing here shouldn't normally happen.
+    // Falls back to WidgetConfig's own customFontColor default (see FeedConfig.kt) rather than
+    // an arbitrary color.
+    val color = WidgetThemes.parseHexColor(hex) ?: androidx.compose.ui.graphics.Color(0xFF1B1F27)
+    // .roundToInt() on the 0f..1f channel float rather than bit-shifting a packed color Int:
+    // Color's internal packing isn't guaranteed to be simple 8-bit-per-channel ARGB (e.g. wide
+    // gamut / HDR color spaces), so going through the public red/green/blue Float properties
+    // is the only representation-independent way to get 0-255 channel values.
+    val r = (color.red * 255f).roundToInt().coerceIn(0, 255)
+    val g = (color.green * 255f).roundToInt().coerceIn(0, 255)
+    val b = (color.blue * 255f).roundToInt().coerceIn(0, 255)
+
+    // Recomputes the full hex string from all three current channels, changing only the one
+    // whose slider just moved — matches the app's existing uppercase "#RRGGBB" convention.
+    fun update(newR: Int, newG: Int, newB: Int) {
+        onChange("#%02X%02X%02X".format(newR, newG, newB))
+    }
+
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Box(
+                Modifier.size(20.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(color)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, androidx.compose.foundation.shape.CircleShape)
+            )
+        }
+        listOf(
+            Triple("R", r) { v: Int -> update(v, g, b) },
+            Triple("G", g) { v: Int -> update(r, v, b) },
+            Triple("B", b) { v: Int -> update(r, g, v) },
+        ).forEach { (channelLabel, channelValue, onChannelChange) ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("$channelLabel $channelValue", fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(44.dp))
+                Slider(
+                    value = channelValue.toFloat(),
+                    onValueChange = { onChannelChange(it.roundToInt().coerceIn(0, 255)) },
+                    valueRange = 0f..255f,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }
