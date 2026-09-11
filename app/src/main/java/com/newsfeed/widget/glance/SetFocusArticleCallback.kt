@@ -13,12 +13,16 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 // Focus Mode only (BuildConfig.FOCUS_MODE build flavor — see FeedItemRow.kt's fontSize
-// shadowing and FocusStepCallback). Tapping a row sets it as the focused article, shrinking
-// every other displayed row; tapping the already-focused row again clears focus, returning
-// all rows to the normal configured size — mirrors ToggleExpandCallback's toggle behavior in
-// the standard flavor. That toggle-off tap only works when it lands on the focused row's
-// current (post-reflow) bounds, which the ClearFocusCallback header button exists to make
-// unnecessary — see its own comment for why.
+// shadowing). Tapping a row sets it as the focused article, shrinking every other displayed
+// row; tapping the already-focused row again clears focus, returning all rows to the normal
+// configured size.
+//
+// Read is flagged on the article LOSING focus, once the user has actually moved on to
+// another one — not the moment an article is tapped, which was too early (reported live: the
+// user hasn't read the enlarged text yet at that instant). There's no separate "step to
+// another article" path anymore (the ▲/▼ FocusStepCallback buttons were removed alongside
+// this change, since every row is directly tappable), so this is the only place Focus Mode
+// marks anything read.
 class SetFocusArticleCallback : ActionCallback {
     companion object {
         val ARTICLE_ID_KEY = ActionParameters.Key<String>("articleId")
@@ -26,33 +30,36 @@ class SetFocusArticleCallback : ActionCallback {
 
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val articleId = parameters[ARTICLE_ID_KEY] ?: return
-        var didFocus = false
-        var wasUnread = false
+        // Only set when the article losing focus was actually unread — re-tapping through
+        // already-read articles shouldn't reset their readAt and restart a grace period that
+        // doesn't apply to them.
+        var articleLosingFocusId: String? = null
         updateAppWidgetState(context, glanceId) { prefs ->
             val current = prefs[WidgetStateKey.focusedArticleId] ?: ""
-            didFocus = current != articleId
-            prefs[WidgetStateKey.focusedArticleId] = if (didFocus) articleId else ""
+            val movingToAnotherArticle = current.isNotBlank() && current != articleId
+            prefs[WidgetStateKey.focusedArticleId] = if (current == articleId) "" else articleId
             // Each newly-focused article starts at AdjustFocusScaleCallback's default size —
             // an earlier +/- adjustment made while looking at a different article isn't a
             // choice about this one, so it shouldn't carry over silently.
-            if (didFocus) prefs.remove(WidgetStateKey.focusScale)
+            if (current != articleId) prefs.remove(WidgetStateKey.focusScale)
 
-            // Focusing an article counts as having seen it — same reasoning as
-            // ToggleExpandCallback marking read on expand in the standard flavor.
-            if (didFocus) {
+            if (movingToAnotherArticle) {
                 val articles = prefs[WidgetStateKey.articles]
                     ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
                 if (articles != null) {
-                    wasUnread = articles.any { it.id == articleId && !it.isRead }
-                    if (wasUnread) {
+                    val target = articles.firstOrNull { it.id == current }
+                    if (target != null && !target.isRead) {
+                        val now = System.currentTimeMillis()
                         prefs[WidgetStateKey.articles] = Json.encodeToString(
-                            articles.map { if (it.id == articleId) it.copy(isRead = true) else it }
+                            articles.map { if (it.id == current) it.copy(isRead = true, readAt = now) else it }
                         )
+                        articleLosingFocusId = current
                     }
                 }
             }
         }
-        if (wasUnread) ReadStatusStore(context).markRead(articleId)
+        articleLosingFocusId?.let { ReadStatusStore(context).markRead(it) }
         NewsFeedFocusWidget().update(context, glanceId)
+        UnreadGracePeriod.scheduleRefresh(articleLosingFocusId) { NewsFeedFocusWidget().update(context, glanceId) }
     }
 }
