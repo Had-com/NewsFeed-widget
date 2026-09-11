@@ -1,4 +1,4 @@
-﻿package com.newsfeed.widget.glance
+package com.newsfeed.widget.glance
 
 import android.content.Context
 import androidx.glance.GlanceId
@@ -24,6 +24,11 @@ class ToggleExpandCallback : ActionCallback {
     ) {
         val articleId = parameters[ARTICLE_ID_KEY] ?: return
         var didExpand = false
+        // Only set when this action is what actually flips isRead false -> true (not when
+        // collapsing, and not when the article was already read) - this is both what
+        // ReadStatusStore should be told about and what should get a grace-period refresh
+        // scheduled; re-marking an already-read article isn't a new "just read" moment.
+        var markedReadId: String? = null
         updateAppWidgetState(context, glanceId) { prefs ->
             val current = prefs[WidgetStateKey.expandedArticleId] ?: ""
             didExpand = current != articleId
@@ -36,13 +41,19 @@ class ToggleExpandCallback : ActionCallback {
                 val articles = prefs[WidgetStateKey.articles]
                     ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
                 if (articles != null) {
-                    prefs[WidgetStateKey.articles] = Json.encodeToString(
-                        articles.map { if (it.id == articleId) it.copy(isRead = true) else it }
-                    )
+                    val target = articles.firstOrNull { it.id == articleId }
+                    if (target != null && !target.isRead) {
+                        val now = System.currentTimeMillis()
+                        prefs[WidgetStateKey.articles] = Json.encodeToString(
+                            articles.map { if (it.id == articleId) it.copy(isRead = true, readAt = now) else it }
+                        )
+                        markedReadId = articleId
+                    }
                 }
             }
         }
-        if (didExpand) ReadStatusStore(context).markRead(articleId)
+        markedReadId?.let { ReadStatusStore(context).markRead(it) }
         NewsFeedWidget().update(context, glanceId)
+        UnreadGracePeriod.scheduleRefresh(markedReadId) { NewsFeedWidget().update(context, glanceId) }
     }
 }
