@@ -383,10 +383,9 @@ app/src/main/
 │   │   ├── BootReceiver.kt            # Reschedules WorkManager, update-check, and clock ticks after device reboot
 │   │   ├── RefreshNowCallback.kt      # ActionCallback — immediate refresh on footer tap
 │   │   ├── ToggleExpandCallback.kt    # ActionCallback — expand/collapse article (standard widget)
-│   │   ├── SetFocusArticleCallback.kt # ActionCallback — tap-to-focus an article (Focus widget)
-│   │   ├── FocusStepCallback.kt       # ActionCallback — ▲/▼ header buttons (Focus widget)
-│   │   ├── ClearFocusCallback.kt      # ActionCallback — ✕ header button (Focus widget)
+│   │   ├── SetFocusArticleCallback.kt # ActionCallback — tap-to-focus an article; marks the previously-focused article read (Focus widget)
 │   │   ├── AdjustFocusScaleCallback.kt # ActionCallback — −/+ header buttons (Focus widget)
+│   │   ├── UnreadGracePeriod.kt        # Delayed re-render so a just-read article's grace period actually elapses on-widget
 │   │   ├── FetchFullArticleCallback.kt # ActionCallback — two-phase loading (description → full web content via Jsoup, charset-sniffed)
 │   │   ├── LoadMoreArticleCallback.kt  # ActionCallback — reveal next chunk of one article's full text
 │   │   ├── LoadMoreArticlesCallback.kt # ActionCallback — reveal next chunk of the article list
