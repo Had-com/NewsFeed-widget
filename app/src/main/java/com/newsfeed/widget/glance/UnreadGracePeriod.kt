@@ -25,7 +25,11 @@ object UnreadGracePeriod {
             // shares the same constant rather than a second hardcoded number, so the two can
             // never silently drift out of sync.
             delay(UNREAD_GRACE_PERIOD_MS + 100L)
-            update()
+            // A widget removed during the delay (or any other transient failure updating
+            // stale state) shouldn't crash this detached, fire-and-forget coroutine - it
+            // runs outside Glance's own ActionCallback exception handling, unlike every
+            // other update() call site in this codebase.
+            runCatching { update() }
         }
     }
 }
