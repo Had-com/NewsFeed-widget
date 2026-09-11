@@ -458,7 +458,7 @@ class WidgetConfigActivity : ComponentActivity() {
                         state = lazyListState,
                         modifier = Modifier.fillMaxSize().padding(paddingValues),
                     ) {
-                        // ── Sort, Filter, Refresh, External App, Font Size ──
+                        // ── Sort & Filter ──
                         item {
                             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                                 Text("SORT & FILTER", fontSize = 10.sp,
@@ -544,6 +544,16 @@ class WidgetConfigActivity : ComponentActivity() {
                                         }
                                     }
                                 }
+                            }
+                            HorizontalDivider()
+                        }
+
+                        // ── Display ──
+                        item {
+                            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                Text("DISPLAY", fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.05.sp)
+                                Spacer(Modifier.height(8.dp))
 
                                 // Font size slider
                                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
@@ -737,6 +747,16 @@ class WidgetConfigActivity : ComponentActivity() {
                                         }
                                     }
                                 }
+                            }
+                            HorizontalDivider()
+                        }
+
+                        // ── Appearance ──
+                        item {
+                            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                Text("APPEARANCE", fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.05.sp)
+                                Spacer(Modifier.height(8.dp))
 
                                 // Widget theme
                                 val themeOptions = listOf(
