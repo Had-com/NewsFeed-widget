@@ -20,9 +20,9 @@ import kotlinx.serialization.json.Json
 // Read is flagged on the article LOSING focus, once the user has actually moved on to
 // another one — not the moment an article is tapped, which was too early (reported live: the
 // user hasn't read the enlarged text yet at that instant). There's no separate "step to
-// another article" path anymore (the ▲/▼ FocusStepCallback buttons were removed alongside
-// this change, since every row is directly tappable), so this is the only place Focus Mode
-// marks anything read.
+// another article" path anymore (the ▲/▼ step buttons were removed alongside this change,
+// since every row is directly tappable), so this is the only place Focus Mode marks anything
+// read.
 class SetFocusArticleCallback : ActionCallback {
     companion object {
         val ARTICLE_ID_KEY = ActionParameters.Key<String>("articleId")

@@ -26,9 +26,10 @@ object WidgetStateKey {
     // real bitmap memory (headline/thumbnail bitmaps), not a flat guess.
     val visibleArticleCount = intPreferencesKey("visible_article_count")
     // Focus Mode only (BuildConfig.FOCUS_MODE build flavor — see FeedItemRow's fontSize
-    // shadowing and FocusStepCallback): which article, if any, is currently shown at full
-    // size while every other displayed row shrinks. Empty string = focus mode inactive, all
-    // rows render at the normal configured font size, same as the standard flavor always does.
+    // shadowing and SetFocusArticleCallback): which article, if any, is currently shown at
+    // full size while every other displayed row shrinks. Empty string = focus mode inactive,
+    // all rows render at the normal configured font size, same as the standard flavor always
+    // does.
     val focusedArticleId = stringPreferencesKey("focused_article_id")
     // Focus Mode only. How large the focused row renders, as a multiple of fontSize — live,
     // on-widget adjustable via +/- buttons on the focused row itself (AdjustFocusScaleCallback),

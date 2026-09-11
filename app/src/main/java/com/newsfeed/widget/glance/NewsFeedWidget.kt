@@ -134,8 +134,8 @@ private fun WidgetContent(isFocusWidget: Boolean) {
     val fullArticleShown  = prefs[WidgetStateKey.fullArticleShownChars] ?: FetchFullArticleCallback.CHUNK_CHARS
     // Focus widget only (isFocusWidget) — see FeedItemRow.kt's fontSize shadowing.
     // Reading it unconditionally here is harmless for a standard widget instance: the key is
-    // simply never written to (SetFocusArticleCallback/FocusStepCallback are only ever
-    // wired up when isFocusWidget is true), so it stays blank forever there.
+    // simply never written to (SetFocusArticleCallback is only ever wired up when
+    // isFocusWidget is true), so it stays blank forever there.
     val focusedArticleId  = prefs[WidgetStateKey.focusedArticleId] ?: ""
     // Focus Mode only — live, on-widget-adjustable via +/- buttons on the focused row
     // itself (AdjustFocusScaleCallback), not a Settings-screen slider. Absent means
@@ -256,10 +256,8 @@ private fun WidgetContent(isFocusWidget: Boolean) {
     // a fraction of articles were ever reachable by scrolling, which read as a bug (and
     // was reported as one) rather than the accumulation feature it actually was.
     val unreadCount     = displayArticles.count { !it.isRead }
-    // Focus widget only (isFocusWidget) — position within what's actually
-    // rendered (displayArticles, not FocusStepCallback's own visibleCount-only
-    // approximation of it) so the "N / M" indicator always matches what's really on
-    // screen, even in the rare case the two disagree because of the memory cap.
+    // Focus widget only (isFocusWidget) — position within what's actually rendered
+    // (displayArticles), so the "N / M" indicator always matches what's really on screen.
     val focusedIndex    = if (focusedArticleId.isNotBlank())
         displayArticles.indexOfFirst { it.id == focusedArticleId } else -1
 
@@ -419,25 +417,26 @@ private fun WidgetHeader(
             style = TextStyle(fontSize = 13.sp, fontFamily = FontFamily.SansSerif, color = GlanceTheme.colors.onSurfaceVariant),
         )
         Spacer(GlanceModifier.defaultWeight())
-        // Focus widget only (isFocusWidget — see FeedItemRow.kt's
-        // fontSize shadowing). Steps focus to the previous/next article via
-        // FocusStepCallback rather than requiring a precise tap on a row that may currently
-        // be shrunk to half size — that's the actual point of stepping instead of tapping.
-        // Always shown on this widget type (not conditioned on a focus target already being
-        // set): pressing either one from the normal, nothing-focused state starts focus
-        // mode at the first article, same as tapping a row directly would.
+        // Focus widget only (isFocusWidget — see FeedItemRow.kt's fontSize shadowing). Focus
+        // is set/cleared purely by tapping a row directly (SetFocusArticleCallback) — the
+        // ▲/▼ step and ✕ clear buttons that used to live here were removed (explicit user
+        // request: "remove the button, it's not needed" / "remove the step down or up
+        // buttons they are not nedded too"). What's left is the "N/M" position indicator and
+        // the focus-scale +/- buttons, both only shown once something is actually focused.
         if (isFocusWidget) {
-            val stepStyle = TextStyle(
-                fontSize   = 13.sp,
+            // Bigger than before (explicit user request, alongside removing the step/clear
+            // buttons above: "make the magnifing buttons bigger") — these are now the only
+            // on-widget controls left in the header, so they get a more generous tap target
+            // and font size than the old shared stepStyle (13.sp / 6.dp-2.dp padding).
+            val scaleButtonStyle = TextStyle(
+                fontSize   = 20.sp,
                 fontFamily = FontFamily.SansSerif,
                 fontWeight = FontWeight.Bold,
                 color      = GlanceTheme.colors.primary,
             )
             // Position indicator ("N / M") — only meaningful once something is focused;
             // otherwise every row is the same size and "position" doesn't mean anything.
-            // Answers "where am I in the list" without counting rows by eye, and confirms
-            // ▲/▼ actually moved (there was previously no feedback beyond the row sizes
-            // themselves changing, which is easy to miss at a glance).
+            // Answers "where am I in the list" without counting rows by eye.
             if (focusedArticleId.isNotBlank() && focusedIndex >= 0) {
                 Text(
                     text = "${focusedIndex + 1}/$displayCount",
@@ -449,57 +448,23 @@ private fun WidgetHeader(
                     modifier = GlanceModifier.padding(horizontal = 4.dp),
                 )
             }
-            Text(
-                text = "▲",
-                style = stepStyle,
-                modifier = GlanceModifier
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                    .clickable(actionRunCallback<FocusStepCallback>(
-                        actionParametersOf(FocusStepCallback.DIRECTION_KEY to "prev")
-                    )),
-            )
-            Text(
-                text = "▼",
-                style = stepStyle,
-                modifier = GlanceModifier
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                    .clickable(actionRunCallback<FocusStepCallback>(
-                        actionParametersOf(FocusStepCallback.DIRECTION_KEY to "next")
-                    )),
-            )
-            // Clear-focus button — only shown once something is actually focused (nothing
-            // to clear otherwise). Exists because the alternative way to clear focus —
-            // tapping the already-focused row again — only works if that tap lands on the
-            // row's current bounds, and focusing a row reflows the whole list (every other
-            // row shrinks), so the row the user thinks they're re-tapping may no longer be
-            // there. This button's position never moves, so it doesn't have that problem.
+            // Focus-area size — only meaningful once something is focused (nothing to scale
+            // otherwise).
             if (focusedArticleId.isNotBlank()) {
                 Text(
-                    text = "✕",
-                    style = stepStyle,
-                    modifier = GlanceModifier
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                        .clickable(actionRunCallback<ClearFocusCallback>()),
-                )
-                // Focus-area size, moved here from the focused row itself (was FeedItemRow's
-                // problem to render before) — a fixed header position that never moves as
-                // the list reflows, same reasoning as the ✕ button beside it, and keeps
-                // every other on-widget control (▲▼✕) in one place instead of split between
-                // the header and whichever row happens to be focused.
-                Text(
                     text = "−",
-                    style = stepStyle,
+                    style = scaleButtonStyle,
                     modifier = GlanceModifier
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                         .clickable(actionRunCallback<AdjustFocusScaleCallback>(
                             actionParametersOf(AdjustFocusScaleCallback.DELTA_KEY to -AdjustFocusScaleCallback.STEP)
                         )),
                 )
                 Text(
                     text = "+",
-                    style = stepStyle,
+                    style = scaleButtonStyle,
                     modifier = GlanceModifier
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                         .clickable(actionRunCallback<AdjustFocusScaleCallback>(
                             actionParametersOf(AdjustFocusScaleCallback.DELTA_KEY to AdjustFocusScaleCallback.STEP)
                         )),
