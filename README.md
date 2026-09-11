@@ -91,6 +91,17 @@ Tapping Open also **marks the article as read** and triggers a widget refresh.
 ### Find feeds by topic
 A search box in Settings looks up feeds by topic, site name, or keyword (via Feedly's public feed-search index) and lists title, description, and subscriber count for each result — tap **+ Add** to add one directly, no need to already know its URL.
 
+### Telegram channels as a feed source
+Public Telegram channels can be added through the same **Add Feed** field used for RSS/Atom URLs — just type one of:
+- `@channelname`
+- `t.me/channelname` or `https://t.me/channelname`
+- `telegram.me/channelname`
+- a direct `t.me/s/channelname` preview URL (e.g. pasted straight from a browser)
+
+The app recognizes any of these, canonicalizes them to the channel's public `https://t.me/s/<channel>` preview page, and scrapes that page — a public, no-login HTML view every Telegram channel exposes. No Telegram account, bot token, or API key is involved. Once added, a Telegram channel behaves exactly like any other feed: it accumulates articles, refreshes on the normal schedule, and supports every per-feed customization (accent color, font, RTL/LTR, etc.).
+
+Each post's first two lines become the article's headline (joined into one line so it wraps naturally instead of hard-breaking); the rest becomes the description. A photo-only post with no caption falls back to the channel's name as its title instead of being dropped. There's no pagination — the first add pulls whatever's on the channel's preview page (its most recent posts), and the accumulated history grows over time through normal refreshes like any other feed. Private channels and invite links (`t.me/joinchat/...`, `t.me/+...`) aren't supported, since they aren't public pages.
+
 ### Per-feed customization
 Every feed can be configured independently:
 
@@ -118,7 +129,7 @@ In image mode, a thumbnail is pre-fetched from the RSS feed's image tags (`<medi
 - **Article font size** — scales the expanded article body text (description or full-article content) independently, also 50% to 300%. Kept separate because a comfortable headline size and a comfortable reading size for paragraphs of body text aren't usually the same number.
 
 ### Widget themes
-Eight built-in options, each with a distinct light and dark variant selectable independently of the system theme:
+Ten built-in options, each with a distinct light and dark variant selectable independently of the system theme:
 
 | Theme | Character | Default |
 |---|---|---|
@@ -130,6 +141,8 @@ Eight built-in options, each with a distinct light and dark variant selectable i
 | Aerospace | Amber on near-black charcoal — mission-control feel | |
 | Data Science | Teal-mint on deep navy — silicon-lab precision | |
 | Glamour | Warm cream/beige with Playpen Sans Hebrew handwriting headlines | ★ |
+| Black & White | Pure black and white only, with no intermediate grays anywhere — starker and higher-contrast than Simple, which still uses gray for containers and muted text | |
+| Custom | Pick your own font and background colors (see [Custom theme colors](#custom-theme-colors) below) | |
 
 **Default on first install:** Glamour theme · Light variant · Accent colors on.
 
@@ -139,6 +152,11 @@ Only Glamour renders headlines and article text as custom bitmaps (see below) �
 Glamour uses **Playpen Sans Hebrew** (from [Google Fonts](https://fonts.google.com/specimen/Playpen+Sans+Hebrew), by TypeTogether, bundled in both `res/font/` and `assets/fonts/`) for article headlines and body text — a marker-style handwriting face with full native coverage of both Hebrew and Latin scripts in the same family, in real regular and bold weights. English text embedded mid-sentence (site names, abbreviations) renders in the exact same face and weight as the surrounding Hebrew — no fallback typeface needed.
 
 Because Jetpack Glance/RemoteViews cannot load `R.font` resources directly, headlines and body text are rendered to a `Bitmap` via Android Canvas (`StaticLayout` + `TextPaint`) and displayed as an `Image` composable inside the widget, tinted to the theme's ink color at display time rather than baked into the bitmap. Text direction is set explicitly via `TextDirectionHeuristics.RTL`/`LTR` with `Layout.Alignment.ALIGN_NORMAL`. The bitmap renderer uses a 40-entry LRU cache keyed on text + size + width + direction + weight.
+
+### Custom theme colors
+Selecting **Custom** as the widget theme reveals two color pickers in Settings — **Font color** and **Background color** — each controlled by three sliders (Red / Green / Blue, 0–255) with a live circular swatch preview next to the label. There's no hex-code typing involved; the sliders are the only input.
+
+The existing **Theme variant** (Light/Dark) toggle is reused for Custom instead of needing a second pair of colors: Light uses the two picked colors as-is (background = your background color, text = your font color), and Dark automatically swaps them — the picked background color becomes the text color and vice versa. Everything else that's normally theme-driven (the settings-gear icon, footer text, unread badge, dividers) is derived from the same two colors at different opacities rather than being separately configurable.
 
 ### Focus Mode
 
@@ -161,8 +179,19 @@ Both widgets can check for and install a newer build directly, without manually 
 - The very first time you install an update this way, Android will show its own "install unknown apps" permission screen (and possibly a Google Play Protect "app not recognized" prompt) — this is expected for an app outside the Play Store and only needs granting once per widget package.
 - On Android 13+, checking for updates also requests notification permission the first time (needed only for the daily check's notification) — declining it is fine, the manual "Check now" button still works either way.
 
+### Crash detection & bug reports
+The app detects its own crashes: an uncaught-exception handler installed at startup logs any crash locally before handing it back to Android's own handler — this is purely additive observation and never suppresses, intercepts, or changes how a real crash is handled or how the process restarts.
+
+Logged crashes show up in a **BUG REPORTS** section in Settings, grouped by exception type and message so repeated occurrences of the same crash count as one entry, not many. Each entry shows:
+- A **Solved** / **Unsolved** badge — "Solved" means that crash signature hasn't recurred since a newer build was installed (derived automatically from build numbers, not manually tracked — so a crash that simply hasn't happened again yet can show as "Solved" even if it wasn't actually fixed).
+- How many times it's occurred and when it was last seen.
+
+A **Share crash report** button shares the full details (every stored crash, with build number, timestamp, exception type/message, and stack trace) as a plain-text file via the OS share sheet (email, WhatsApp, etc.).
+
+This is entirely local and on-device — nothing is sent anywhere automatically. There is no background upload, no crash-reporting service, and no network request of any kind tied to this feature; sharing only happens if you explicitly tap Share and pick a destination yourself.
+
 ### Feed management
-- **Add by URL** — paste any RSS or Atom feed URL; the widget fetches and validates the feed title automatically
+- **Add by URL** — paste any RSS or Atom feed URL, or a Telegram channel reference (see [Telegram channels as a feed source](#telegram-channels-as-a-feed-source) above); the field's placeholder reads "RSS, Telegram or Atom feed URL". The widget fetches and validates the feed/channel title automatically
 - **Find feeds** — search by topic/keyword instead of already knowing a URL (see above)
 - **Import OPML** — import feeds from any OPML file (grouped and flat OPML supported)
 - **Export OPML** — share your current feed list as a standard OPML 2.0 file
@@ -198,7 +227,7 @@ Open Settings by long-pressing the widget → **Edit widget**, or by tapping the
 The screen is one scrolling list with these sections, top to bottom:
 
 ### 1. Sort & Filter
-The main app-wide preferences, all in one block:
+Core app-wide list preferences:
 
 | Control | Options | Notes |
 |---|---|---|
@@ -207,26 +236,39 @@ The main app-wide preferences, all in one block:
 | Refresh every | 15 min · 30 min · 1h · 2h · 4h · 6h · 12h | Background auto-refresh interval; 15 min is the floor (Android WorkManager's own minimum) |
 | Keep articles for | Forever · 1 day · 3 days · 1 week · 2 weeks · 1 month | Independent of the 300-article accumulation cap, which always applies |
 | Open article in | Browser · Share sheet | Where the "Open article →"/"Open in browser ↗" buttons send you |
+
+### 2. Display
+Text sizing and the article-length setting, plus a live preview of the result:
+
+| Control | Options | Notes |
+|---|---|---|
 | Font size (slider) | 50%–300% | Headlines, meta text, header/footer |
 | Article font size (slider) | 50%–300% | Expanded article body text only, independent of the slider above |
 | Background rows size (slider) | 25%–100% | **NewsFeed Focus only** — how small every non-focused row renders |
 | *(live preview card)* | — | Shows a sample headline + description rendered with your current theme/font choices, updating as you adjust settings above |
 | Expanded article | Subtitle only · First paragraph · Full article | See [Article length modes](#article-length-modes) |
-| Widget theme | Auto · Lavender · Amethyst · Glassy · Simple · Aerospace · Data Science · Glamour | See [Widget themes](#widget-themes) |
+
+### 3. Appearance
+Widget theme and color settings:
+
+| Control | Options | Notes |
+|---|---|---|
+| Widget theme | Auto · Lavender · Amethyst · Glassy · Simple · Aerospace · Data Science · Glamour · Black & White · Custom | See [Widget themes](#widget-themes) |
 | Theme variant | Light · Dark | Independent of the system theme |
+| Font color / Background color (Custom theme only) | RGB sliders (0–255) × 3 each | Only shown when Widget theme is set to Custom; see [Custom theme colors](#custom-theme-colors) |
 | Use theme accent colors (switch) | On/off | When on, hides every feed's own accent color in favor of one theme-wide accent |
 | Background opacity (slider) | 0%–100% | Widget card transparency |
 
-### 2. Add Feed
-- **RSS or Atom feed URL** field + **Add** button — validates and fetches the feed's title automatically.
+### 4. Add Feed
+- **RSS, Telegram or Atom feed URL** field + **Add** button — validates and fetches the feed/channel title automatically. See [Telegram channels as a feed source](#telegram-channels-as-a-feed-source).
 - **Import OPML** — pick an `.opml` file from your device.
 - **Export OPML** — share your current feed list as a file.
 
-### 3. Find Feeds
+### 5. Find Feeds
 - **Topic, site name, keyword…** search field + **Search** button.
 - Results list title, description, and subscriber count; tap **+ Add** on any result (already-added feeds show **Added** instead and can't be re-added).
 
-### 4. Feed order & style
+### 6. Feed order & style
 One row per feed, in your chosen display order:
 
 | Control | Effect |
@@ -240,9 +282,13 @@ One row per feed, in your chosen display order:
 | Font dropdown | Default · Serif · Mono, for this feed's headlines |
 | B / I / U | Toggle Bold / Italic / Underline on this feed's headlines, any combination |
 
-### 5. App Update
+### 7. App Update
 - Shows your currently installed build number.
 - **Check now** — checks immediately and, if a newer build exists, downloads it and hands it to Android's install screen (see [Self-updating](#self-updating)).
+
+### 8. Bug Reports
+- Crashes detected on this device, grouped by exception type and message, each with a **Solved**/**Unsolved** badge and occurrence count. Shows "No crashes detected on this device" when empty.
+- **Share crash report** — shares full crash details as a text file via the OS share sheet. See [Crash detection & bug reports](#crash-detection--bug-reports).
 
 ---
 
@@ -322,6 +368,9 @@ app/src/main/
 ├── assets/
 │   └── default_feeds.opml            # Default Hebrew news feeds loaded on first launch
 ├── java/com/newsfeed/widget/
+│   ├── NewsFeedApplication.kt        # Application subclass — installs the process-wide uncaught-exception
+│   │                                 #   handler that feeds CrashLogStore (see data/), then re-throws to
+│   │                                 #   Android's own handler unchanged
 │   ├── glance/
 │   │   ├── NewsFeedWidget.kt          # Both GlanceAppWidget classes (standard + Focus), both
 │   │   │                              #   GlanceAppWidgetReceivers, shared composables, and the
@@ -329,7 +378,8 @@ app/src/main/
 │   │   ├── FeedItemRow.kt             # Per-article row (circle icon, expand/collapse, focus scaling, thumbnail, bitmap headline)
 │   │   ├── TextBitmapHelper.kt        # Canvas bitmap renderer for Glamour Hebrew headlines/body (Playpen Sans Hebrew)
 │   │   ├── WidgetWorker.kt            # WorkManager refresh job (both widget types) + article merge + thumbnail download
-│   │   ├── WidgetThemes.kt            # 8 colour schemes + rawColorSchemeFor() + fontFamilyFor()
+│   │   ├── WidgetThemes.kt            # 10 colour schemes (incl. the user-defined "custom" scheme built
+│   │   │                              #   from parseHexColor()) + rawColorSchemeFor() + fontFamilyFor()
 │   │   ├── BootReceiver.kt            # Reschedules WorkManager, update-check, and clock ticks after device reboot
 │   │   ├── RefreshNowCallback.kt      # ActionCallback — immediate refresh on footer tap
 │   │   ├── ToggleExpandCallback.kt    # ActionCallback — expand/collapse article (standard widget)
@@ -356,6 +406,8 @@ app/src/main/
 │   │   ├── WidgetStateKey.kt         # Glance DataStore preference keys
 │   │   ├── ReadStatusStore.kt        # DataStore — read article ID persistence
 │   │   ├── NewsFeedRepository.kt     # RSS/Atom fetching, feed search, charset fix, image extraction, thumbnails
+│   │   ├── TelegramFeedParser.kt     # Scrapes a public t.me/s/<channel> preview page into ArticleItems
+│   │   ├── CrashLogStore.kt          # Local-only crash log (JSON file) + Solved/Unsolved summarization
 │   │   ├── ThumbnailHelper.kt        # Shared cache file path helper for thumbnails
 │   │   ├── FaviconHelper.kt          # Shared cache file path helper for feed favicons
 │   │   └── OpmlManager.kt            # OPML 2.0 import/export
@@ -386,6 +438,8 @@ keystore/
 └── newsfeed-debug.keystore          # Committed debug-only signing key, shared by every CI build
                                       # so a self-updated APK can always install over the running one
 ```
+
+This project's first unit tests also live under `app/src/test/java/com/newsfeed/widget/` (not shown above, which only covers `app/src/main/`): `data/TelegramFeedParserTest.kt`, `data/CrashLogStoreTest.kt`, and `glance/WidgetThemesTest.kt` — plain JVM tests with no Android framework or emulator dependency.
 
 ---
 
