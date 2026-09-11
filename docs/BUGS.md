@@ -758,9 +758,19 @@ convention); and the unbounded-`Intent.EXTRA_TEXT`-size risk mentioned above.
   SMS, or the system share sheet. Requested 2026-09-10; not yet designed.
 - **Release notes on self-update** — show the user what changed and why when the app
   self-updates. Requested during the Telegram feature's implementation; not yet designed.
-- **Bug logger Phase 2** — automatic reporting to a central GitHub-based collector (on
-  detection or weekly) via a serverless relay holding the real GitHub token server-side (see
-  the design doc's "Phase 2" decision) — explicitly deferred, not part of Phase 1 above.
+- **Bug logger Phase 2** — automatic, per-user-deduplicated reporting to a shared GitHub
+  issue per crash signature, via a serverless relay holding the real GitHub token
+  server-side. On by default with an opt-out toggle (unlike push below). See
+  `docs/superpowers/specs/2026-09-11-server-backend-roadmap.md` for the shared-backend
+  architecture this and push below would run on — a future-planning document, not an
+  approved spec ready for implementation.
+- **"Instant updates" (true push)** — server polls a user's feeds on their behalf and pushes
+  a notification the moment a new article appears, instead of waiting for the next
+  ≥15-minute WorkManager cycle (a hard Android platform floor this app can't poll faster
+  than on its own). Explicitly opt-in/off-by-default given it requires the server to know
+  the user's feed list — a real privacy shift from today's fully-standalone, no-server-sees-
+  your-feeds model — plus a new Firebase/FCM dependency this app has never had before. See
+  the same roadmap doc referenced above; shares its backend with Bug logger Phase 2.
 
 ## Feature additions (2026-09-11) — Custom font/background color theme
 
