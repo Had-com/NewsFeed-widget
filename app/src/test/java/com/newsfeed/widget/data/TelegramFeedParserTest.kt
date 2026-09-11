@@ -251,15 +251,39 @@ class TelegramFeedParserTest {
     }
 
     @Test
-    fun `parseArticles splits first line as title and rest as description`() {
+    fun `parseArticles joins first two lines as title when the message has exactly two lines`() {
+        // Live bug report: a collapsed widget row built from only the first line looked
+        // too thin for a typical multi-line Telegram post. Message 101 has exactly two
+        // lines, so both are now consumed by the title and none are left for the
+        // description.
         val articles = TelegramFeedParser.parseArticles(
             feedId = "https://t.me/s/testchannel",
             feedDisplayName = "Test Channel",
             html = sampleHtml,
             maxItems = 10,
         )
-        assertEquals("First line of post 101", articles[0].title)
-        assertEquals("Second line with more detail.", articles[0].description)
+        assertEquals("First line of post 101 Second line with more detail.", articles[0].title)
+        assertEquals("", articles[0].description)
+    }
+
+    @Test
+    fun `parseArticles takes only the first two lines as title when more lines remain`() {
+        val html = """
+            <div class="tgme_widget_message_wrap">
+            <div class="tgme_widget_message" data-post="testchannel/301" data-view="abc">
+                <div class="tgme_widget_message_text js-message_text" dir="auto">Line one of post 301<br/>Line two of post 301<br/>Line three of post 301</div>
+                <time class="time" datetime="2026-09-07T12:00:00+00:00">12:00</time>
+            </div>
+            </div>
+        """.trimIndent()
+        val articles = TelegramFeedParser.parseArticles(
+            feedId = "https://t.me/s/testchannel",
+            feedDisplayName = "Test Channel",
+            html = html,
+            maxItems = 10,
+        )
+        assertEquals("Line one of post 301 Line two of post 301", articles[0].title)
+        assertEquals("Line three of post 301", articles[0].description)
     }
 
     @Test

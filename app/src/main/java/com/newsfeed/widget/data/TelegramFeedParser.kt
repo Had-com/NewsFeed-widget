@@ -173,8 +173,8 @@ object TelegramFeedParser {
 
     /**
      * Turns a fetched t.me/s/<channel> page into the same ArticleItem shape every other
-     * feed type produces. A post's message text's first line becomes the title, the rest
-     * becomes the description; a photo-only post with no caption text falls back to
+     * feed type produces. A post's message text's first two lines become the title, the
+     * rest becomes the description; a photo-only post with no caption text falls back to
      * [feedDisplayName] as its title instead of being silently dropped (an empty title
      * would otherwise be treated the same as a blank RSS <title> and skipped downstream).
      */
@@ -187,8 +187,16 @@ object TelegramFeedParser {
         return extractRawMessages(html).take(maxItems).map { raw ->
             val cleanText = stripTelegramHtml(raw.rawText)
             val lines = cleanText.lines().map { it.trim() }.filter { it.isNotBlank() }
-            val title = lines.firstOrNull() ?: feedDisplayName
-            val description = lines.drop(1).joinToString("\n").take(2000)
+            // Live bug report: with only the first line as the title, the collapsed widget
+            // row looked too thin for typical multi-line Telegram posts, since the rest of
+            // the message stayed hidden until the row was expanded. Taking the first TWO
+            // lines gives the collapsed row a fuller headline. Joined with a space (not a
+            // newline) since the title is rendered through a Text/TextBitmapHelper call
+            // that already wraps long text on its own - a literal "\n" here would force an
+            // extra hard break instead of a natural wrap.
+            val titleLineCount = minOf(lines.size, 2)
+            val title = if (lines.isEmpty()) feedDisplayName else lines.take(titleLineCount).joinToString(" ")
+            val description = lines.drop(titleLineCount).joinToString("\n").take(2000)
             ArticleItem(
                 id = raw.id,
                 feedId = feedId,
