@@ -1,0 +1,31 @@
+package com.newsfeed.widget.glance
+
+import com.newsfeed.widget.data.UNREAD_GRACE_PERIOD_MS
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+// Glance never re-renders on its own between explicit update() calls, so a callback that
+// marks an article read under "Unread only" also needs to trigger one delayed follow-up
+// update once the grace period elapses - otherwise the article would linger visible until
+// some unrelated future refresh instead of actually disappearing after 5 seconds.
+object UnreadGracePeriod {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    // No-op if nothing was actually marked read this action (markedArticleId is null) - e.g.
+    // a toggle-off in Focus Mode, or an already-expanded/already-focused article being
+    // re-tapped, or an article that was already read before this tap.
+    fun scheduleRefresh(markedArticleId: String?, update: suspend () -> Unit) {
+        if (markedArticleId == null) return
+        scope.launch {
+            // +100ms buffer past ArticleSorting.UNREAD_GRACE_PERIOD_MS's own window, so this
+            // fires strictly after the filter would exclude the article, never before it -
+            // shares the same constant rather than a second hardcoded number, so the two can
+            // never silently drift out of sync.
+            delay(UNREAD_GRACE_PERIOD_MS + 100L)
+            update()
+        }
+    }
+}
