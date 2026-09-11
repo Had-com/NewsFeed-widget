@@ -18,10 +18,21 @@ package com.newsfeed.widget.data
  * single refresh, not a display concern — capping the already-accumulated list here would
  * make "Load more" reveal fewer real articles than expected for no reason.
  */
+
+// Not private: UnreadGracePeriod (glance/UnreadGracePeriod.kt) reads this too, so the
+// delayed re-render's wait time and this filter's own window can never drift apart.
+const val UNREAD_GRACE_PERIOD_MS = 5_000L
+
 fun applyFilterAndSort(articles: List<ArticleItem>, config: WidgetConfig): List<ArticleItem> {
+    val now = System.currentTimeMillis()
     val filtered = articles.filter { article ->
         when (config.filter) {
-            FilterMode.UNREAD.key -> !article.isRead
+            // A just-read article stays visible for UNREAD_GRACE_PERIOD_MS past its readAt,
+            // shown dimmed via its existing "read" color (no new rendering code — a true
+            // fade/dissolve is impossible on this platform, see the design doc), before it's
+            // excluded outright on the next render.
+            FilterMode.UNREAD.key -> !article.isRead ||
+                (article.readAt != null && now - article.readAt < UNREAD_GRACE_PERIOD_MS)
             FilterMode.READ.key   -> article.isRead
             else                  -> true
         }

@@ -58,6 +58,9 @@ data class ArticleItem(
     val imageUrl: String = "",                 // first image from RSS enclosure/media tags
     val publishedAt: Long,
     val isRead: Boolean,
+    val readAt: Long? = null,                  // set when isRead transitions to true; null
+                                                // otherwise, including for articles that were
+                                                // already read before this field existed
 )
 
 data class FeedSearchResult(
