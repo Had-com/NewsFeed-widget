@@ -809,3 +809,62 @@ unchanged); confirmed the gear icon, footer text, and unread badge all use the d
 colors, not stock purple; confirmed switching back to a preset theme renders normally with
 zero regression. Also confirmed via the real on-disk DataStore config (not just the UI) that
 the picked colors persist correctly.
+
+## Feature additions (2026-09-12) — Unread-only 5-second grace period + Focus Mode header cleanup
+
+Under "Show: Unread only", an article marked read now stays visible — dimmed via its
+existing muted "read" color, no new rendering — for 5 seconds before disappearing, instead of
+vanishing the instant it's marked read with no warning. Applies to both the standard
+NewsFeed widget and NewsFeed Focus. A true fade/dissolve animation was confirmed impossible
+on this platform by decompiling Glance 1.1.0 directly: every widget update fully replaces the
+RemoteViews tree via `AppWidgetManager.updateAppWidget()`, which has no cross-update
+transition concept at any layer — not a Glance-specific gap, a genuine Android AppWidget
+platform ceiling. See `docs/superpowers/specs/2026-09-11-unread-grace-period-design.md`.
+
+Separately, Focus Mode's header lost its ▲/▼ step and ✕ clear-focus buttons entirely (both
+explicit, live user requests — "remove the button, it's not needed" / "remove the step down
+or up buttons they are not nedded too"), since every row is now directly tappable and both
+buttons existed only to work around the reflow problems that stepping was meant to avoid. The
+remaining −/+ focus-scale buttons got a visibly larger font size and tap target. Focus Mode's
+read-marking also moved from "the instant an article is tapped" to "once focus moves away to
+a *different* article" (`SetFocusArticleCallback` now marks the article *losing* focus, not
+the one gaining it) — the previous timing marked an article read before the user had any
+chance to actually read its enlarged text.
+
+**Three real bugs were found via on-device QA after the initial implementation passed code
+review, and are worth recording since none were reachable by unit tests alone:**
+
+1. **`WidgetWorker`'s refresh silently wiped `readAt`.** Every refresh cycle replaces any
+   article still present in its live RSS feed with a brand-new `ArticleItem` (fresh from the
+   parser, `readAt` always null) — the merge only ever carried over `isRead` from
+   `ReadStatusStore`'s permanent read-id set, never `readAt` from the previously-stored
+   article. Since `WidgetConfigActivity`'s Save button triggers an immediate
+   `WidgetWorker.refreshNow()`, marking an article read and then saving Settings (or any
+   refresh landing within the 5-second window) reset `readAt` to null, making the article
+   vanish within ~1-2 seconds with no dimming ever shown. Fixed by extracting a pure,
+   unit-tested `mergeFreshArticles()` (`data/ArticleMerge.kt`) that carries `readAt` over by
+   article id during the merge.
+2. **A third, previously-missed "mark read" path had no grace period at all.**
+   `NoOpTapFeedbackCallback` — used for articles with no `<description>` at all (rotter.net
+   forum items, ynet's flash ticker) — marks an article read on tap but was never updated
+   alongside `ToggleExpandCallback`/`SetFocusArticleCallback` to set `readAt`, confirmed via a
+   raw on-device DataStore pull showing `isRead` flip to `true` with `readAt` never appearing.
+   Fixed the same way as the other two callbacks.
+3. **The delayed grace-period re-render fired on schedule but had no visible effect.**
+   `UnreadGracePeriod`'s ~5.1-second delayed `update()` call was confirmed via logcat to fire
+   exactly on time, yet the expired article stayed visible for 70-180+ seconds regardless,
+   only actually disappearing once some unrelated later event (a periodic `CLOCK_TICK` tick)
+   forced a real re-render. The grace period's expiry is a pure wall-clock-time condition with
+   no corresponding change to the widget's stored `Preferences` — fixed by having
+   `UnreadGracePeriod` write a small, purely-instrumental touch value
+   (`WidgetStateKey.graceCheckTick`) immediately before calling `update()`, guaranteeing a
+   genuine state change every time so the re-render is never treated as a no-op.
+
+**On-device verification (device `RFCR91J237W`):** confirmed, after all three fixes, that a
+normal article's grace-period removal lands within ~5-8 seconds of being marked read (both
+widget types); confirmed a description-less rotter.net-style article now gets the same
+`readAt`+grace-period treatment; confirmed `readAt` survives a Settings-Save-triggered refresh
+landing mid-grace-period; confirmed Focus Mode's header shows no ▲/▼/✕ in any state, only the
+"N/M" indicator and visibly larger −/+ buttons; confirmed Focus Mode marks the article losing
+focus (not gaining it) read, and that re-tapping the focused row to clear focus marks nothing
+read; confirmed Show=All and Show=Read-only are unaffected by any of the grace-period logic.
