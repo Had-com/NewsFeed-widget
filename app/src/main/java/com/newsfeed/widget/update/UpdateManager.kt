@@ -30,12 +30,14 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * Checks the repo's rolling "latest" GitHub Release for a build newer than this one and,
- * unless [checkAndUpdate] is called with `notifyOnly = true`, downloads it and hands it to
- * Android's own package installer. Shared by the daily background check (UpdateCheckWorker,
- * notifyOnly = true), the manual "Check for updates" row (WidgetConfigActivity), and the
- * "Update available" notification's tap target (UpdateRelayActivity) — the latter two both
- * call with notifyOnly = false.
+ * Checks the repo's rolling "latest" GitHub Release for a build newer than this one via
+ * [checkForUpdate], and — once a caller has confirmed a newer build exists — downloads it and
+ * hands it to Android's own package installer via [proceedWithUpdate]. The daily background
+ * check (UpdateCheckWorker) uses [checkForUpdateAndNotify] instead, which only shows a system
+ * notification and never downloads anything on its own. The manual "Check for updates" row
+ * (WidgetConfigActivity) and the "Update available" notification's tap target
+ * (UpdateRelayActivity) both call [checkForUpdate] directly and show a release-notes
+ * confirmation UI before calling [proceedWithUpdate] themselves.
  */
 object UpdateManager {
     private const val RELEASE_BASE = "https://github.com/Had-com/NewsFeed-widget/releases/download/latest"
