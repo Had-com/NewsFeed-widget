@@ -91,6 +91,11 @@ import com.newsfeed.widget.glance.updateNewsFeedWidget
 import com.newsfeed.widget.glance.WidgetThemes
 import com.newsfeed.widget.glance.WidgetWorker
 import com.newsfeed.widget.update.UpdateManager
+import android.widget.Toast
+import com.newsfeed.widget.data.ReleaseNotesStore
+import com.newsfeed.widget.update.ReleaseNote
+import com.newsfeed.widget.update.ReleaseNotesContent
+import com.newsfeed.widget.update.ReleaseNotesFetcher
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.coroutines.Dispatchers
@@ -212,6 +217,15 @@ class WidgetConfigActivity : ComponentActivity() {
                 var searchDone     by remember { mutableStateOf(false) }
 
                 var isCheckingForUpdate by remember { mutableStateOf(false) }
+                var showUpdateDialog          by remember { mutableStateOf(false) }
+                var pendingUpdateVersionCode  by remember { mutableStateOf(0) }
+                var pendingReleaseNotes       by remember { mutableStateOf<List<ReleaseNote>>(emptyList()) }
+                // The highest release-note id actually shown in this dialog - NOT the same
+                // as pendingUpdateVersionCode (a build's versionCode and a release note's id
+                // are two independent, unrelated counters; see the design doc's "Decisions"
+                // section on why notes are keyed by their own id). This is what
+                // ReleaseNotesStore.markSeen must be called with.
+                var pendingHighestNoteId      by remember { mutableStateOf(0) }
 
                 // Bug reports — loaded once here via LaunchedEffect, not via remember{} inside
                 // the "BUG REPORTS" item{} block below: that block lives in a LazyColumn, which
@@ -297,6 +311,32 @@ class WidgetConfigActivity : ComponentActivity() {
                             }
                         },
                         dismissButton = { TextButton(onClick = { editingFeed = null }) { Text("Cancel") } },
+                    )
+                }
+
+                if (showUpdateDialog) {
+                    AlertDialog(
+                        onDismissRequest = {
+                            showUpdateDialog = false
+                            scope.launch { ReleaseNotesStore.markSeen(this@WidgetConfigActivity, pendingHighestNoteId) }
+                        },
+                        title = { Text("Update available") },
+                        text = { ReleaseNotesContent(pendingUpdateVersionCode, pendingReleaseNotes) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showUpdateDialog = false
+                                scope.launch {
+                                    ReleaseNotesStore.markSeen(this@WidgetConfigActivity, pendingHighestNoteId)
+                                    UpdateManager.proceedWithUpdate(this@WidgetConfigActivity)
+                                }
+                            }) { Text("Update Now") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                showUpdateDialog = false
+                                scope.launch { ReleaseNotesStore.markSeen(this@WidgetConfigActivity, pendingHighestNoteId) }
+                            }) { Text("Later") }
+                        },
                     )
                 }
 
@@ -1033,7 +1073,20 @@ class WidgetConfigActivity : ComponentActivity() {
                                         }
                                         isCheckingForUpdate = true
                                         scope.launch {
-                                            UpdateManager.checkAndUpdate(this@WidgetConfigActivity, notifyOnly = false)
+                                            when (val result = UpdateManager.checkForUpdate(this@WidgetConfigActivity)) {
+                                                UpdateManager.UpdateCheckResult.CheckFailed ->
+                                                    Toast.makeText(this@WidgetConfigActivity, "Couldn't check for updates — try again later", Toast.LENGTH_LONG).show()
+                                                UpdateManager.UpdateCheckResult.UpToDate ->
+                                                    Toast.makeText(this@WidgetConfigActivity, "You're up to date (build ${BuildConfig.VERSION_CODE})", Toast.LENGTH_LONG).show()
+                                                is UpdateManager.UpdateCheckResult.Available -> {
+                                                    val lastSeenId = ReleaseNotesStore.lastSeenId(this@WidgetConfigActivity)
+                                                    val notes = ReleaseNotesFetcher.fetchUnseenNotes(lastSeenId)
+                                                    pendingUpdateVersionCode = result.versionCode
+                                                    pendingReleaseNotes      = notes
+                                                    pendingHighestNoteId     = notes.maxOfOrNull { it.id } ?: lastSeenId
+                                                    showUpdateDialog         = true
+                                                }
+                                            }
                                             isCheckingForUpdate = false
                                         }
                                     }) { Text("Check now") }
