@@ -54,6 +54,6 @@ class ToggleExpandCallback : ActionCallback {
         }
         markedReadId?.let { ReadStatusStore(context).markRead(it) }
         NewsFeedWidget().update(context, glanceId)
-        UnreadGracePeriod.scheduleRefresh(markedReadId) { NewsFeedWidget().update(context, glanceId) }
+        UnreadGracePeriod.scheduleRefresh(context, glanceId, markedReadId) { c, g -> NewsFeedWidget().update(c, g) }
     }
 }

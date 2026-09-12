@@ -24,7 +24,12 @@ import kotlinx.serialization.json.Json
 // It does still mark the article read (silently — no expand, no navigation), same as a real
 // expand or "Open article" would. Without this, an article the user has no way to interact
 // with beyond this no-op tap would keep its unread dot forever, since neither of the other
-// two read-marking paths (ToggleExpandCallback, "Open article") is reachable for it.
+// two read-marking paths (ToggleExpandCallback, "Open article") is reachable for it. Also
+// sets readAt and schedules a grace-period refresh, same as ToggleExpandCallback/
+// SetFocusArticleCallback — this is a third, independent "mark read" path and was initially
+// missed when the grace period was added, leaving description-less articles (e.g. rotter.net
+// forum items) with no grace period at all (confirmed on-device via a raw datastore pull:
+// isRead flipped to true with readAt never set).
 class NoOpTapFeedbackCallback : ActionCallback {
     companion object {
         val ARTICLE_ID_KEY = ActionParameters.Key<String>("articleId")
@@ -32,25 +37,28 @@ class NoOpTapFeedbackCallback : ActionCallback {
 
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val articleId = parameters[ARTICLE_ID_KEY] ?: return
-        var wasUnread = false
+        var markedReadId: String? = null
         updateAppWidgetState(context, glanceId) { prefs ->
             val articles = prefs[WidgetStateKey.articles]
                 ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
             if (articles != null) {
-                wasUnread = articles.any { it.id == articleId && !it.isRead }
-                if (wasUnread) {
+                val target = articles.firstOrNull { it.id == articleId }
+                if (target != null && !target.isRead) {
+                    val now = System.currentTimeMillis()
                     prefs[WidgetStateKey.articles] = Json.encodeToString(
-                        articles.map { if (it.id == articleId) it.copy(isRead = true) else it }
+                        articles.map { if (it.id == articleId) it.copy(isRead = true, readAt = now) else it }
                     )
+                    markedReadId = articleId
                 }
             }
         }
-        if (wasUnread) {
+        if (markedReadId != null) {
             ReadStatusStore(context).markRead(articleId)
             // Only re-render when something actually changed (the unread dot cleared) — the
             // native press ripple already fired on tap regardless, so an already-read article
             // tapped again needs no widget update at all.
             NewsFeedWidget().update(context, glanceId)
         }
+        UnreadGracePeriod.scheduleRefresh(context, glanceId, markedReadId) { c, g -> NewsFeedWidget().update(c, g) }
     }
 }

@@ -38,4 +38,15 @@ object WidgetStateKey {
     // absent (before the user has ever adjusted it, or after focus moves to a different
     // article — see AdjustFocusScaleCallback) means "use the 1.25f default".
     val focusScale = floatPreferencesKey("focus_scale")
+
+    // A pure "something changed" touch value with no meaning of its own beyond forcing a
+    // genuine Preferences mutation - Glance/Compose skips recomposing a widget when its
+    // observed Preferences value is unchanged from last time, but UnreadGracePeriod's
+    // delayed refresh has nothing else to write (the grace period's expiry is a pure
+    // wall-clock-time condition, not a data change), so without this, that delayed update()
+    // call can be silently skipped as a no-op. Confirmed on-device: without this, an expired
+    // article stayed visible for 70+ seconds past its 5-second grace period, only actually
+    // disappearing once some unrelated later write (e.g. a CLOCK_TICK tick) forced a real
+    // recomposition.
+    val graceCheckTick = longPreferencesKey("grace_check_tick")
 }
