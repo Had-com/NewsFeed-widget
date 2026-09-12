@@ -868,3 +868,54 @@ landing mid-grace-period; confirmed Focus Mode's header shows no ▲/▼/✕ in 
 "N/M" indicator and visibly larger −/+ buttons; confirmed Focus Mode marks the article losing
 focus (not gaining it) read, and that re-tapping the focused row to clear focus marks nothing
 read; confirmed Show=All and Show=Read-only are unaffected by any of the grace-period logic.
+
+## Feature additions (2026-09-13) — Release notes on self-update
+
+Before installing an update — either via the manual "Check for updates" button in Settings or
+by tapping the "Update available" notification — the user now sees a short, plain-language
+summary of what changed, with "Update Now" / "Later" buttons, instead of the previous
+zero-confirmation flow (tap → straight to downloading). Notes are hand-written per release in
+`docs/RELEASE_NOTES.md` (fetched live from GitHub, the same way `TelegramFeedParser` scrapes
+an ordinary page), keyed by a sequential note id rather than `versionCode` — this repo's CI
+assigns a new `versionCode` on every push to `main`, most of them mid-feature commits with
+nothing user-facing to report, so keying to that would leave most versions with no entry. A
+new app-wide `ReleaseNotesStore` tracks the highest note id the user has already been shown,
+independent of any one widget instance. See
+`docs/superpowers/specs/2026-09-11-release-notes-design.md` for the full design.
+
+`UpdateManager.checkAndUpdate(context, notifyOnly)` — one function serving all three update
+call sites — split into `checkForUpdate()` (pure check, no side effects), `proceedWithUpdate()`
+(the unchanged download-and-install body), and `checkForUpdateAndNotify()` (used only by the
+daily silent background check, which keeps its exact prior behavior: a plain system
+notification, never an interruptive dialog). `UpdateRelayActivity` — previously an invisible
+relay Activity that silently re-checked and installed when the notification was tapped —
+became a real, minimal Compose screen, since it must work standalone when the app isn't
+already open.
+
+A code-quality review caught a soft-wrapped bullet in the seeded `docs/RELEASE_NOTES.md`
+(one bullet's text spanned two physical Markdown lines) that the line-based parser would have
+silently truncated at the line break — fixed before it ever shipped, and the file's own intro
+now documents the one-physical-line-per-bullet requirement for future entries. A second review
+caught a stale class-level doc comment in `UpdateManager.kt` still referencing the just-deleted
+`checkAndUpdate` function after the split — fixed in a follow-up commit.
+
+**On-device verification (device `RFCR91J237W`, test build with an intentionally low
+`versionCode` so the real GitHub Release always reports as newer):** confirmed the manual
+"Check for updates" button shows an `AlertDialog` titled "Update available" with the real
+build number and the full, untruncated bullet from `docs/RELEASE_NOTES.md`; confirmed
+"Later" dismisses without downloading anything and persists the seen-note id to disk
+(verified directly against the `release_notes.preferences_pb` DataStore file, not just the
+UI); confirmed re-checking afterward shows the same dialog with an empty "What's new" section,
+since the note was already marked seen; confirmed "Update Now" correctly reaches the
+pre-existing (unchanged) permission-check/download logic; confirmed the daily background
+check still posts only a plain system notification, never an unprompted dialog; confirmed
+`UpdateRelayActivity` is genuinely non-exported (a direct `adb shell am start -n` attempt was
+rejected with a `SecurityException`, as intended). One scenario — actually witnessing
+`UpdateRelayActivity`'s screen render after tapping a live "Update available" notification —
+could not be independently reproduced in this test environment (Android's own
+notification-permission/dedup behavior made forcing a fresh, currently-tappable notification
+unreliable via `adb`); this is a test-harness limitation, not a known code defect, since the
+screen shares its rendering logic (`ReleaseNotesContent`, `checkForUpdate`) entirely with the
+already-verified in-app dialog path, and its manifest declaration was independently confirmed
+correct via the `SecurityException` check above. Flagging here for anyone doing a future pass
+who has an easier way to hold a live notification still long enough to tap it.
