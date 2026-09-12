@@ -14,7 +14,7 @@ class UpdateCheckWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        UpdateManager.checkAndUpdate(context, notifyOnly = true)
+        UpdateManager.checkForUpdateAndNotify(context)
         return Result.success()
     }
 

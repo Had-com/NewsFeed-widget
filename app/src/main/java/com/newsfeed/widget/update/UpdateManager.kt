@@ -52,22 +52,36 @@ object UpdateManager {
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
-    suspend fun checkAndUpdate(context: Context, notifyOnly: Boolean) {
+    sealed interface UpdateCheckResult {
+        data class Available(val versionCode: Int) : UpdateCheckResult
+        data object UpToDate : UpdateCheckResult
+        data object CheckFailed : UpdateCheckResult
+    }
+
+    /** Just checks — no toast, no download, no notification. Callers decide what to do with
+     *  the result (WidgetConfigActivity/UpdateRelayActivity show a confirmation UI on
+     *  Available; checkForUpdateAndNotify below shows a system notification instead). */
+    suspend fun checkForUpdate(context: Context): UpdateCheckResult {
         val latestVersionCode = withContext(Dispatchers.IO) { fetchLatestVersionCode() }
-        if (latestVersionCode == null) {
-            if (!notifyOnly) toast(context, "Couldn't check for updates — try again later")
-            return
-        }
-        if (latestVersionCode <= BuildConfig.VERSION_CODE) {
-            if (!notifyOnly) toast(context, "You're up to date (build ${BuildConfig.VERSION_CODE})")
-            return
-        }
+            ?: return UpdateCheckResult.CheckFailed
+        return if (latestVersionCode > BuildConfig.VERSION_CODE) UpdateCheckResult.Available(latestVersionCode)
+        else UpdateCheckResult.UpToDate
+    }
 
-        if (notifyOnly) {
-            notifyUpdateAvailable(context, latestVersionCode)
-            return
-        }
+    /** Used only by the silent daily background check (UpdateCheckWorker) — checks, and shows
+     *  a system notification if a newer build exists, with no release-notes/confirmation UI
+     *  at all. Notes are only shown once the user actually acts on it (taps the notification
+     *  or the manual button) — an interruptive dialog during a silent background poll would
+     *  defeat the point of it being silent. */
+    suspend fun checkForUpdateAndNotify(context: Context) {
+        val result = checkForUpdate(context)
+        if (result is UpdateCheckResult.Available) notifyUpdateAvailable(context, result.versionCode)
+    }
 
+    /** Downloads the latest build and hands it to Android's installer. Callers must have
+     *  already confirmed a newer build exists (checkForUpdate returning Available) — this
+     *  function does not check the version itself. */
+    suspend fun proceedWithUpdate(context: Context) {
         if (!context.packageManager.canRequestPackageInstalls()) {
             toast(context, "Allow installing updates from this app, then try again")
             context.startActivity(
