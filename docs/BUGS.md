@@ -919,3 +919,65 @@ screen shares its rendering logic (`ReleaseNotesContent`, `checkForUpdate`) enti
 already-verified in-app dialog path, and its manifest declaration was independently confirmed
 correct via the `SecurityException` check above. Flagging here for anyone doing a future pass
 who has an easier way to hold a live notification still long enough to tap it.
+
+## Feature additions (2026-09-13) — Share button
+
+Two new share actions, both routing through `ShareRelayActivity` (a tiny existing relay
+Activity, needed because Glance can't launch an ambiguous `ACTION_SEND` chooser directly from
+a widget's `PendingIntent` context):
+
+1. **Per-article "Share ↗"** — a new button next to the existing "Open article →" in an
+   expanded article row, sharing that article's URL regardless of the "Open article in"
+   setting. Only shown when that setting is Browser — when it's already Share, "Open article
+   →" does the same thing, so a second identical button would be pure clutter.
+2. **Footer "Share"** — a new label in the widget footer (shared by both widget types),
+   between the refresh countdown and the ⚙ gear. Tapping it shows a dialog offering "Share the
+   app" (links to the repo) or "Share the download link" (links to the latest GitHub Release),
+   then shares whichever the user picked.
+
+See `docs/superpowers/specs/2026-09-13-share-button-design.md` for the full design — including
+why a three-connected-circles vector icon was explicitly declined in favor of plain text
+labels (it isn't reproducible as a single Unicode glyph, and would have been the first static
+vector icon anywhere in this app's widget chrome).
+
+**Three real issues were found and fixed during implementation and QA, worth recording since
+none were reachable by a clean compile alone:**
+
+1. **A genuine crash risk caught during planning, before it ever ran on a device.**
+   `ShareRelayActivity`'s manifest theme was `Theme.NoDisplay`, which requires an Activity to
+   call `finish()` or launch another activity before `onResume()` completes — the new
+   app-share dialog mode shows an `AlertDialog` and waits for a tap, which violates that and
+   would have crashed. Fixed by changing the theme to `Theme.Translucent.NoTitleBar` (already
+   used elsewhere in this app for the same reason: a real, displayable-but-invisible window
+   that can legitimately stay open for a dialog). Confirmed fixed on-device — tapping the
+   footer Share button no longer crashes, and logcat stayed clean across the whole test pass.
+2. **A share-sheet title regression caught during code review.** Extracting the chooser-
+   building logic into one shared `shareUrl()` function (so both the per-article and app-share
+   paths could reuse it) accidentally hardcoded a generic "Share" title for both, silently
+   changing the pre-existing per-article path's chooser title from "Share article" to "Share".
+   Fixed by giving `shareUrl()` a `chooserTitle` parameter so each call site keeps its own
+   appropriate title.
+3. **A footer layout overflow found via on-device QA.** At a narrow widget width, when the
+   refresh countdown shows its longest failure string ("⚠ refresh failed — tap to retry"), the
+   footer overflowed: the new "Share" label was clipped mid-word and the ⚙ gear icon vanished
+   entirely from the rendered layout (confirmed via `uiautomator` — zero matches for the gear
+   glyph), making Settings completely untappable in that state. Root cause: the footer row had
+   only one flexible element (a `Spacer` between the countdown and the Share/gear group) — the
+   countdown text itself was fixed-size, so when content overflowed, the fixed-size trailing
+   controls got pushed off-screen instead. Fixed by making the countdown text itself the
+   flexible/shrinkable element (`GlanceModifier.defaultWeight()` plus `maxLines = 1`, matching
+   `FeedItemRow.kt`'s existing precedent for truncating an overly-long feed name), so
+   informational text truncates first and the actionable Share/gear controls always keep their
+   full width. Re-verified on-device: forced a real refresh failure at minimum widget width —
+   the countdown text now truncates with an ellipsis while "Share" and a fully-tappable ⚙ gear
+   (confirmed by actually opening Settings, not just checking it's in the accessibility tree)
+   both render completely intact.
+
+**On-device verification (device `RFCR91J237W`, both widget types):** confirmed the
+per-article Share button appears only when "Open article in" is Browser and shares the correct
+article URL via the system share sheet; confirmed it disappears when that setting is Share;
+confirmed both buttons render without overlap at default and large font sizes; confirmed the
+footer Share button opens the two-option dialog without crashing on both widget types, that
+each option shares the correct URL, and that dismissing the dialog without picking anything
+returns cleanly with nothing stuck on screen; confirmed the narrow-width footer overflow fix
+above.
