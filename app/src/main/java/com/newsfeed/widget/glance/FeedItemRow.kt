@@ -846,33 +846,63 @@ fun FeedItemRow(
 
                 if (openIntent != null) {
                     Spacer(GlanceModifier.height(6.dp))
-                    // Article rows live inside a LazyColumn, so clicks route through Glance's
-                    // list-adapter trampoline (InvisibleActionTrampolineActivity). Building the
-                    // Intent at compose time and using actionStartActivity() (rather than a custom
-                    // ActionCallback manually calling context.startActivity()) is what makes Browser
-                    // mode (a plain ACTION_VIEW) work reliably. Share mode does not: an ACTION_SEND
-                    // intent is inherently ambiguous (multiple apps can match), and two different
-                    // attempts to fix it directly — dropping Intent.createChooser(), then giving each
-                    // row's intent a distinct `data` field to dodge Glance's action-conflation — both
-                    // still failed (the second differently: the trampoline now fires but silently
-                    // self-finishes without ever launching anything). Rather than keep fighting
-                    // Glance's handling of ambiguous/chooser intents, Share mode now targets
-                    // ShareRelayActivity — a real, single, unambiguous target within our own app —
-                    // which then builds and launches the actual chooser from a proper Activity
-                    // context that isn't subject to any of this. (openIntent itself is built once,
-                    // above, and shared with the per-chunk OpenInBrowserLink links.)
-                    Text(
-                        text = "Open article →",
-                        style = TextStyle(
-                            fontSize   = (9f * fontSize).sp,
-                            fontFamily = FontFamily.SansSerif,
-                            color      = accentProvider,
-                        ),
-                        modifier = GlanceModifier
-                            .background(GlanceTheme.colors.primaryContainer)
-                            .padding(horizontal = 8.dp, vertical = 3.dp)
-                            .clickable(actionStartActivity(openIntent)),
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Article rows live inside a LazyColumn, so clicks route through Glance's
+                        // list-adapter trampoline (InvisibleActionTrampolineActivity). Building the
+                        // Intent at compose time and using actionStartActivity() (rather than a custom
+                        // ActionCallback manually calling context.startActivity()) is what makes Browser
+                        // mode (a plain ACTION_VIEW) work reliably. Share mode does not: an ACTION_SEND
+                        // intent is inherently ambiguous (multiple apps can match), and two different
+                        // attempts to fix it directly — dropping Intent.createChooser(), then giving each
+                        // row's intent a distinct `data` field to dodge Glance's action-conflation — both
+                        // still failed (the second differently: the trampoline now fires but silently
+                        // self-finishes without ever launching anything). Rather than keep fighting
+                        // Glance's handling of ambiguous/chooser intents, Share mode now targets
+                        // ShareRelayActivity — a real, single, unambiguous target within our own app —
+                        // which then builds and launches the actual chooser from a proper Activity
+                        // context that isn't subject to any of this. (openIntent itself is built once,
+                        // above, and shared with the per-chunk OpenInBrowserLink links.)
+                        Text(
+                            text = "Open article →",
+                            style = TextStyle(
+                                fontSize   = (9f * fontSize).sp,
+                                fontFamily = FontFamily.SansSerif,
+                                color      = accentProvider,
+                            ),
+                            modifier = GlanceModifier
+                                .background(GlanceTheme.colors.primaryContainer)
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                .clickable(actionStartActivity(openIntent)),
+                        )
+                        // New, independent share action - only shown when "Open article in" is
+                        // Browser. When it's already Share, "Open article ->" above does the
+                        // exact same thing this button would, so showing both would be pure
+                        // redundant clutter, not a new capability.
+                        if (externalApp == "browser") {
+                            Spacer(GlanceModifier.width(6.dp))
+                            Text(
+                                text = "Share ↗",
+                                style = TextStyle(
+                                    fontSize   = (9f * fontSize).sp,
+                                    fontFamily = FontFamily.SansSerif,
+                                    color      = accentProvider,
+                                ),
+                                modifier = GlanceModifier
+                                    .background(GlanceTheme.colors.primaryContainer)
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    .clickable(actionStartActivity(
+                                        // .setData(...) is required, not decorative - see this
+                                        // file's own header comment on ShareRelayActivity's
+                                        // per-row distinctness requirement (a real, previously
+                                        // hit bug: Glance can otherwise treat multiple rows'
+                                        // identical-looking ShareRelayActivity intents as one).
+                                        Intent(context, ShareRelayActivity::class.java)
+                                            .setData(Uri.parse(article.articleUrl))
+                                            .putExtra(ShareRelayActivity.EXTRA_ARTICLE_URL, article.articleUrl)
+                                    )),
+                            )
+                        }
+                    }
                 }
             }
             }
