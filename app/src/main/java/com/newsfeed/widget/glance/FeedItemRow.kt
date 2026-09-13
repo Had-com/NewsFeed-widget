@@ -891,11 +891,11 @@ fun FeedItemRow(
                                     .background(GlanceTheme.colors.primaryContainer)
                                     .padding(horizontal = 8.dp, vertical = 3.dp)
                                     .clickable(actionStartActivity(
-                                        // .setData(...) is required, not decorative - see this
-                                        // file's own header comment on ShareRelayActivity's
-                                        // per-row distinctness requirement (a real, previously
-                                        // hit bug: Glance can otherwise treat multiple rows'
-                                        // identical-looking ShareRelayActivity intents as one).
+                                        // .setData(...) is required, not decorative - matches
+                                        // openIntent's own share-mode branch above (~line 580),
+                                        // which needs the same distinct `data` field so Glance
+                                        // doesn't treat multiple rows' otherwise-identical
+                                        // ShareRelayActivity intents as the same one.
                                         Intent(context, ShareRelayActivity::class.java)
                                             .setData(Uri.parse(article.articleUrl))
                                             .putExtra(ShareRelayActivity.EXTRA_ARTICLE_URL, article.articleUrl)
