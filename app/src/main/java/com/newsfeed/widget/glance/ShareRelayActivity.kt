@@ -33,7 +33,7 @@ class ShareRelayActivity : Activity() {
         super.onCreate(savedInstanceState)
         val articleUrl = intent.getStringExtra(EXTRA_ARTICLE_URL)
         if (!articleUrl.isNullOrBlank()) {
-            shareUrl(articleUrl)
+            shareUrl(articleUrl, "Share article")
             finish()
             return
         }
@@ -41,7 +41,9 @@ class ShareRelayActivity : Activity() {
             AlertDialog.Builder(this)
                 .setTitle("Share NewsFeed")
                 .setItems(arrayOf("Share the app", "Share the download link")) { _, which ->
-                    shareUrl(if (which == 0) APP_URL else DOWNLOAD_URL)
+                    val url = if (which == 0) APP_URL else DOWNLOAD_URL
+                    val title = if (which == 0) "Share the app" else "Share the download link"
+                    shareUrl(url, title)
                     finish()
                 }
                 .setOnCancelListener { finish() }
@@ -51,11 +53,11 @@ class ShareRelayActivity : Activity() {
         finish()
     }
 
-    private fun shareUrl(url: String) {
+    private fun shareUrl(url: String, chooserTitle: String) {
         startActivity(
             Intent.createChooser(
                 Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url),
-                "Share",
+                chooserTitle,
             )
         )
     }
