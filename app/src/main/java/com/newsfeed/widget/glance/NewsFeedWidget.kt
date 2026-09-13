@@ -524,15 +524,24 @@ private fun WidgetFooter(lastRefreshTime: Long, lastRefreshFailed: Boolean, inte
         Text(
             text = countdownText,
             style = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.SansSerif, color = countdownColor),
-            // Matches the gear button's own .padding(4.dp)-before-.clickable() pattern just
-            // below — without it, the tap target was exactly the tight wrap-content bounds of
-            // the glyph string (icon + text), noticeably smaller than what visually reads as
-            // "the refresh button" in the footer row. Reported and confirmed.
+            maxLines = 1,
+            // defaultWeight() here (not on a separate Spacer) makes the countdown text itself
+            // the row's one flexible/shrinkable element - it truncates first when space is
+            // tight, so the actionable Share/gear controls after it (fixed-size, no weight)
+            // always keep their full width and stay fully visible and tappable. Before this,
+            // a lone Spacer(defaultWeight()) between the countdown and Share/gear meant the
+            // countdown's own text never shrank - at a narrow widget width with the longest
+            // countdown string ("⚠ refresh failed — tap to retry"), the fixed-size Share/gear
+            // group got pushed past the row's bounds instead, clipping "Share" and cutting the
+            // gear icon out of the layout entirely (confirmed on-device: zero matches for the
+            // gear glyph in the accessibility tree in that state, making Settings untappable).
+            // Matches FeedItemRow.kt's own maxLines = 1 precedent for feedConfig.displayName -
+            // truncate the informational text, never the interactive controls.
             modifier = GlanceModifier
+                .defaultWeight()
                 .padding(4.dp)
                 .clickable(actionRunCallback<RefreshNowCallback>()),
         )
-        Spacer(GlanceModifier.defaultWeight())
         Text(
             text = "Share",
             style = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.SansSerif, color = GlanceTheme.colors.primary),
