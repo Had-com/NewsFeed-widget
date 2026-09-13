@@ -534,6 +534,17 @@ private fun WidgetFooter(lastRefreshTime: Long, lastRefreshFailed: Boolean, inte
         )
         Spacer(GlanceModifier.defaultWeight())
         Text(
+            text = "Share",
+            style = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.SansSerif, color = GlanceTheme.colors.primary),
+            modifier = GlanceModifier
+                .padding(4.dp)
+                .clickable(actionStartActivity(
+                    Intent(context, ShareRelayActivity::class.java)
+                        .putExtra(ShareRelayActivity.EXTRA_SHOW_APP_SHARE_CHOICE, true)
+                )),
+        )
+        Spacer(GlanceModifier.width(4.dp))
+        Text(
             text = "⚙",
             style = TextStyle(fontSize = 14.sp, color = GlanceTheme.colors.primary),
             modifier = GlanceModifier
