@@ -545,8 +545,16 @@ private fun WidgetFooter(lastRefreshTime: Long, lastRefreshFailed: Boolean, inte
         Text(
             text = "Share",
             style = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.SansSerif, color = GlanceTheme.colors.primary),
+            // Background pill matching the approved mockup shown during design brainstorming -
+            // a light wash of the accent color behind accent-colored text, with rounded
+            // corners. Uses GlanceTheme.colors.primaryContainer (the theme's own "light wash
+            // of primary" role) rather than the mockup's illustrative hardcoded hex, so this
+            // stays correct across all 10 themes, not just the default purple one the mockup
+            // happened to visualize against.
             modifier = GlanceModifier
-                .padding(4.dp)
+                .background(GlanceTheme.colors.primaryContainer)
+                .cornerRadius(6.dp)
+                .padding(horizontal = 8.dp, vertical = 2.dp)
                 .clickable(actionStartActivity(
                     Intent(context, ShareRelayActivity::class.java)
                         .putExtra(ShareRelayActivity.EXTRA_SHOW_APP_SHARE_CHOICE, true)
