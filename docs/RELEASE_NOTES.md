@@ -8,3 +8,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 1
 - You'll now see what's new right before installing an update, with a short summary of what changed and why it's worth updating.
+
+## Note 2
+- New Share buttons: share an article's link straight from the widget, or share NewsFeed itself (or a direct download link) from the widget's footer.
