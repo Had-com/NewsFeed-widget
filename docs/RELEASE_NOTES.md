@@ -11,3 +11,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 2
 - New Share buttons: share an article's link straight from the widget, or share NewsFeed itself (or a direct download link) from the widget's footer.
+
+## Note 3
+- Articles are now marked read when you move on to another article, not the moment you tap one — so under "Unread only" the article you're reading no longer dims and vanishes while you're still on it.
