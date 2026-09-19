@@ -31,8 +31,14 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # The ubuntu runner already ships the Android SDK. android-actions/setup-android@v3 was
+      # replaced because it runs `sdkmanager tools`, a legacy package that no longer exists
+      # ("Failed to find package 'tools'"), failing every build. Just accept licenses so Gradle
+      # can auto-download any missing platform/build-tools components.
+      - name: Accept Android SDK licenses
+        run: |
+          SDKM=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | head -1)
+          yes | "$SDKM" --licenses > /dev/null || true
 
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace -PbuildVersionCode=${{ github.run_number }}
