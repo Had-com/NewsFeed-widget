@@ -13,7 +13,7 @@ Derived directly from `README.md` — every checklist item below maps to a featu
 ## 0. Installation & first run
 
 - [ ] Download `NewsFeed-latest.apk` from the [latest release](https://github.com/Had-com/NewsFeed-widget/releases/tag/latest); confirm the "install unknown apps" and (if shown) Play Protect prompts appear and can be gotten past — this is expected, not a bug.
-- [ ] Fresh install (no prior data) → place a widget → confirm `default_feeds.opml`'s Hebrew news feeds load automatically as the starting feed list.
+- [ ] Fresh install (no prior data) → place a widget → confirm `default_feeds.opml`'s feeds (Hebrew news, Telegram channels, English AI news) load automatically as the starting feed list.
 - [ ] Confirm the widget's **default** appearance matches the documented default: **Glamour theme, Light variant, accent colors on**.
 - [ ] Open the system "Add widget" picker → confirm **both** "NewsFeed" and "NewsFeed Focus" appear as separate entries under one app, with correct labels and no duplicate/missing entries.
 - [ ] Place a widget of each type simultaneously → confirm both render independently without interfering with each other.

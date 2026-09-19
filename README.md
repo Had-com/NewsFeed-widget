@@ -366,7 +366,7 @@ Android blocks apps not downloaded from the Play Store by default. You need to a
 ```
 app/src/main/
 ├── assets/
-│   └── default_feeds.opml            # Default Hebrew news feeds loaded on first launch
+│   └── default_feeds.opml            # Default feeds (Hebrew news, Telegram channels, AI news) loaded on first launch
 ├── java/com/newsfeed/widget/
 │   ├── NewsFeedApplication.kt        # Application subclass — installs the process-wide uncaught-exception
 │   │                                 #   handler that feeds CrashLogStore (see data/), then re-throws to
