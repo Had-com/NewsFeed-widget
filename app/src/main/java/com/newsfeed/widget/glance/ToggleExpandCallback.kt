@@ -18,9 +18,8 @@ import kotlinx.serialization.json.Json
 // Read is flagged on the article LOSING expansion, once the user has actually moved on to
 // another one - not the moment an article is pressed, which was too early (reported live).
 // This mirrors Focus mode's SetFocusArticleCallback: nothing is marked on the first press or on
-// collapsing the expanded article. Read status also needs marking here because the external
-// "Open article" button uses actionStartActivity(), which (unlike a custom ActionCallback)
-// can't run a suspend body of its own.
+// collapsing the expanded article. The external "Open article" button uses
+// actionStartActivity(), which can't run a suspend body, so it marks nothing itself.
 class ToggleExpandCallback : ActionCallback {
     companion object {
         val ARTICLE_ID_KEY = ActionParameters.Key<String>("articleId")

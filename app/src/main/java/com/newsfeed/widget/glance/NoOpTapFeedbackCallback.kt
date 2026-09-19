@@ -21,10 +21,10 @@ import kotlinx.serialization.json.Json
 // .clickable() instead of ToggleExpandCallback — the tap still gets the native ripple/press
 // feedback, it just doesn't expand anything or navigate anywhere.
 //
-// It does still mark the article read (silently — no expand, no navigation), same as a real
-// expand or "Open article" would. Without this, an article the user has no way to interact
-// with beyond this no-op tap would keep its unread dot forever, since neither of the other
-// two read-marking paths (ToggleExpandCallback, "Open article") is reachable for it. Also
+// It does still mark the article read (silently — no expand, no navigation), immediately on
+// tap. Without this, an article the user has no way to interact with beyond this no-op tap
+// would keep its unread dot forever, since ToggleExpandCallback's mark-on-expand-away path
+// is unreachable for it (nothing to expand, so no "moving to another" transition). Also
 // sets readAt and schedules a grace-period refresh, same as ToggleExpandCallback/
 // SetFocusArticleCallback — this is a third, independent "mark read" path and was initially
 // missed when the grace period was added, leaving description-less articles (e.g. rotter.net
