@@ -46,7 +46,7 @@ Consequences, in order of importance:
    [I Refresh/worker/boot](#i--refresh--worker--timers--boot) · [J Settings persistence/backup/multi-widget](#j--settings-persistence--backup--multi-widget) ·
    [K Self-update & release notes](#k--self-update--release-notes) · [L Robustness](#l--robustness) ·
    [M Regressions](#m--regression-cases-for-past-bugs) ·
-   [N Applies once Focus-as-setting ships](#n--applies-once-focus-as-setting-ships)
+   [N Focus as a setting & state cleanup](#n--focus-as-a-setting--state-cleanup)
 9. Appendices: [A Bug ledger](#appendix-a--cases-added-because-of-a-bug) ·
    [B Pairwise tables](#appendix-b--pairwise-configuration-tables) ·
    [C Test data](#appendix-c--reference-test-data) ·
@@ -125,11 +125,11 @@ runs used `15` = Standard, `16` = Focus). Never delete the reference widgets to 
 | **CI** | GitHub Actions / release | `gh run list --workflow "Build APK" -L 3`, `gh release view latest`. |
 
 Every case records **which widget** (id / type), the build (`versionCode`), and the Settings values in force.
-Use both widget types wherever a case says "both" (until the Focus setting ships, see section N).
+Use both tap behaviours (Expand and Focus) wherever a case says "both" (see section N).
 
 ### 4. Preconditions common to all cases
 
-* Reference widgets placed (one standard, one Focus until merged) with the default feed set
+* Reference widgets placed (two "NewsFeed" widgets: one on **When I tap an article: Expand in place**, one on **Focus (enlarge)**) with the default feed set
   ([Appendix C](#appendix-c--reference-test-data)); device online; system language English unless a case
   says Hebrew; system dark mode off unless stated; notification permission state noted.
 * Settings changes only take effect on **Save** — every case that changes a setting ends with Save.
@@ -146,8 +146,8 @@ Each case row: `ID | P | Do ⇒ Expect | Evid | Auto`.
 * **Evid** — evidence codes from the table above.
 * **Auto** — what is machine-checked today. `UT:<file>` = a unit test file that exercises the logic;
   `none` = manual only. "Auto" is a coverage note, not a substitute for the device run on P0 cases.
-* Tags: **[until merged]** = applies to the separate NewsFeed Focus widget and goes away when Focus-as-setting
-  ships; **[post-merge]** = only applies once it ships (all of section N). **↔ X-nn** = the case is the same
+* Tags: the former **[until merged]** / **[post-merge]** tags are retired now that Focus-as-setting has shipped:
+  Focus cases run on a widget whose **When I tap an article** setting is **Focus (enlarge)**. **↔ X-nn** = the case is the same
   execution as `X-nn` viewed as a regression (run once, record under both IDs).
 
 ---
@@ -258,11 +258,11 @@ mid-development checks and hotfix triage. Not sufficient for a release.
 
 **Full run** — required before every release:
 
-1. All cases in sections A–M (P0 + P1 + P2), run on the standard widget **and** (until merged) the Focus widget
-   where a case says "both" or is tagged **[until merged]**.
+1. All cases in sections A–M (P0 + P1 + P2), run on an **Expand-mode** widget **and** a **Focus-mode** widget
+   where a case says "both" or names Focus.
 2. Matrix `G-M01…G-M12` (filter × sort × tap behaviour) — all 12 rows, each in both tap behaviours.
-3. Pairwise `PW-A` (50 configurations, Appendix B) via case `H-24`; once Focus-as-setting ships also `PW-B` via `N-22`.
-4. Section N in full once Focus-as-setting ships (it replaces every **[until merged]** case).
+3. Pairwise `PW-A` (50 configurations, Appendix B) via case `H-24`; `PW-B` (with the Tap factor) via `N-22`.
+4. Section N in full (Focus as a setting, mode switching, orphan cleanup).
 5. Unit tests, CI status, logcat check, restore of backed-up state.
 
 Estimated effort: Smoke ≈ 45 min; Full ≈ 6–8 h including PW-A (≈ 2 h alone; the 50 rows are ordered so an
@@ -270,7 +270,7 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 
 ### Smoke subset — P0 cases in sections A–M
 
-38 rows = **35 distinct executions** (`M-01`, `M-02`, `M-10` are the same execution as `F-01/F-02`, `F-04`, `F-12`), ≈ 45–60 min. `E-20` and `F-08` are **[until merged]** Focus cases. Section N adds 10 P0 cases once Focus-as-setting ships (`N-01…N-07`, `N-09`, `N-14`, `N-18`) and replaces the two Focus ones.
+38 rows = **35 distinct executions** (`M-01`, `M-02`, `M-10` are the same execution as `F-01/F-02`, `F-04`, `F-12`), ≈ 45–60 min for A–M (≈ 60–80 min with section N). `E-20` and `F-08` are the Focus-mode cases. Section N adds 11 more P0 cases (`N-01…N-07`, `N-09`, `N-14`, `N-18`, `N-27`), so the Smoke subset is 49 rows.
 
 `A-01`, `B-01`, `B-05`, `B-07`, `C-01`, `C-04`, `C-15`, `D-03`, `D-17`, `E-01`, `E-04`, `E-07`, `E-09`, `E-20`, `F-01`, `F-02`, `F-04`, `F-08`, `F-09`, `F-12`, `G-05`, `G-M05`, `H-01`, `I-02`, `I-07`, `J-05`, `J-06`, `K-01`, `K-03`, `K-12`, `L-01`, `L-12`, `M-01`, `M-02`, `M-09`, `M-10`, `M-11`, `M-38`
 
@@ -291,8 +291,8 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | K Self-update & release notes | 19 | 3 | 15 | 1 |
 | L Robustness | 20 | 2 | 14 | 4 |
 | M Regression cases for past bugs | 39 | 6 | 32 | 1 |
-| N Applies once Focus-as-setting ships | 25 | 10 | 15 | 0 |
-| **Total** | **297** | **48** | **230** | **19** |
+| N Focus as a setting & state cleanup | 29 | 11 | 18 | 0 |
+| **Total** | **301** | **49** | **233** | **19** |
 
 Plus the two pairwise tables (50 configurations each, run through `H-24` and `N-22`).
 
@@ -333,7 +333,7 @@ Excluded from pairwise on purpose (covered elsewhere): sort and filter (matrix),
 | A-01 | P0 | On a device with no data (or a spare install ID) install the APK, long-press home → Widgets → NewsFeed, drop it ⇒ the Settings screen opens by itself **before** the widget is placed; the feed list is pre-filled with the 11 bundled feeds; **Save** places the widget and it fills with articles within ~1 min | UI, DS (`newsfeed_config` has 11 feeds for the new id), LC | none |
 | A-02 | P1 | Open Settings on that brand-new widget without touching anything ⇒ documented code defaults: Sort **By feed**, Show **All**, Refresh **15 minutes**, Keep articles **Forever**, Open in **Browser**, Font size 1.0 (Medium), Article font size 1.0, Expanded article **First paragraph**, theme **Glamour**, variant **Light**, Use theme accent colors **on**, opacity **100%** | UI, DS (`config_json`) | none |
 | A-03 | P1 | Save the fresh widget and view it ⇒ Glamour Light look (cream/beige, Playpen Sans Hebrew handwriting headlines), header "NewsFeed" + `unread(total)` badge, footer `↻ …`/Share/⚙ | SS | none |
-| A-04 | P1 | Open the "Add widget" picker (long-press → Widgets → NewsFeed) ⇒ **[until merged]** two entries "NewsFeed" and "NewsFeed Focus", correct labels, no duplicates; **[post-merge]** one entry (see N-01) | VIS/SS | none |
+| A-04 | P1 | Open the "Add widget" picker (long-press → Widgets → NewsFeed) ⇒ exactly **one** entry "NewsFeed" with the correct label, no duplicates and no "NewsFeed Focus" (see N-01) | VIS/SS | none |
 | A-05 | P1 | **Add default feeds** on a list that lacks some defaults ⇒ only missing ones appended in defaults order, none duplicated; status + Toast "Added N default feeds (M already present)"; tapping again ⇒ "Added 0 … (11 already present)"; nothing persisted until Save (Back without Save keeps the old list) | UI, DS | UT:DefaultFeedsMergeTest |
 | A-06 | P1 | **Reset to defaults** ⇒ confirmation dialog "Remove all your feeds and load the defaults?"; **Cancel** changes nothing; **Reset** replaces the whole list with the 11 bundled feeds, status "Feeds reset to defaults (tap Save to apply)"; Back without Save keeps the old list; Save persists | UI, DS | none |
 | A-07 | P1 | Add default feeds when the list already contains the same feed typed differently (`HTTPS://WWW.YNET.CO.IL/…/`, trailing slash, `@N12_News` vs `t.me/s/N12_News`) ⇒ treated as already present (skipped); `http://` vs `https://` of the same host is **not** equated (both kept) | UI | UT:DefaultFeedsMergeTest |
@@ -434,8 +434,8 @@ Section 6 of Settings ("FEED ORDER & STYLE") plus ADD FEED and FIND FEEDS.
 
 ## E — Reading (expand / focus / open / share)
 
-Standard-widget cases run in "Expand" behaviour (the only one until Focus ships). Cases marked **[until merged]** run on
-the separate NewsFeed Focus widget.
+Unless a case says Focus, cases run on a widget set to **When I tap an article: Expand in place**. Focus cases
+(`E-20…E-27`) run on a widget set to **Focus (enlarge)**.
 
 | ID | P | Do ⇒ Expect | Evid | Auto |
 |---|---|---|---|---|
@@ -446,28 +446,28 @@ the separate NewsFeed Focus widget.
 | E-05 | P1 | Full mode on a clutter-heavy site and on a Hebrew site (ynet) and rotter.net ⇒ real body only (no nav/ads/related links), no charset mangling, correct RTL | SS | none |
 | E-06 | P1 | Full mode **Load more ↓** ⇒ 1200-char chunks, each with **Open in browser ↗**, stops cleanly at the article end or the memory/8-chunk cap with no dangling button; in non-Glamour the whole fetched text renders at once | SS, UI, LC | none |
 | E-07 | P0 | **Open article →** with Open-in = Browser ⇒ default browser opens the article URL; with Open-in = **Share sheet** ⇒ chooser titled "Share article" with the URL | VIS, LC | none |
-| E-08 | P1 | **Share ↗** (only present when Open-in = Browser) ⇒ chooser titled "Share article" carrying that article's URL; absent when Open-in = Share sheet; works on both widget types | VIS, UI | none |
+| E-08 | P1 | **Share ↗** (only present when Open-in = Browser) ⇒ chooser titled "Share article" carrying that article's URL; absent when Open-in = Share sheet; works in both tap modes | VIS, UI | none |
 | E-09 | P0 | Footer **Share** ⇒ dialog "Share NewsFeed" with "Share the app" (repo URL) and "Share the download link" (releases/tag/latest URL); each shares the right URL under its own chooser title; dismissing without choosing leaves nothing on screen; no crash | VIS, LC | none |
 | E-10 | P1 | Expanded row at font 3.0 and at min widget width ⇒ Open/Share/Load buttons do not overlap or overflow; hidden while the row is dissolving (`F-11`) | SS, UI | none |
 | E-11 | P1 | Full mode with the device offline / dead article URL ⇒ description stays, no crash, no infinite spinner | SS, LC | none |
 | E-12 | P1 | Expanded state survives a refresh and a Settings save; article without a URL ⇒ no Open/Share links | DS, UI | none |
 | E-13 | P1 | Open-in = Share and a Browser-mode change made on a **second** widget ⇒ each widget keeps its own setting | UI | none |
-| E-20 | P0 | **[until merged]** Focus widget: tap article A ⇒ row enlarges (default 1.25×) with the primary-container tint, its description/full-text auto-expands, every other row shrinks to *Background rows size*; header shows **N/M** and **− +** only (no ▲ ▼ ✕); none of these appear on the standard widget | SS, UI | none |
-| E-21 | P1 | **[until merged]** **− / +** ⇒ focused row scale steps 0.15 within 0.75×–2.5×, clamps at both ends; focusing a different article resets to 1.25× | DS (`focus_scale`), SS | none |
-| E-22 | P1 | **[until merged]** Tap the focused row again ⇒ focus clears, all rows normal size, **N/M and −/+ disappear**, nothing marked read | DS, UI | none |
-| E-23 | P1 | **[until merged]** *Background rows size* slider (25–100 %) appears **only** in the Focus widget's Settings, absent on the standard widget; changing it changes non-focused rows' size, not the focused row's | UI, SS | none |
-| E-24 | P1 | **[until merged]** Glamour + Font size 3.0 + focus scale 2.5 (worst case) ⇒ renders (≥ 1 row), no "Can't show content", logcat clean | SS, LC | none |
-| E-25 | P1 | **[until merged]** Step focus A→B→C ⇒ only the current row is tinted/enlarged; previous rows' tint/size never stick (recycled-view regression) | SS, UI | none |
-| E-26 | P1 | **[until merged]** Focused row at high scale ⇒ meta row (favicon, name, time) stays at normal size and never spills off the edge | SS | none |
-| E-27 | P1 | **[until merged]** Focused row's Load full article / Load more / Open article / Share ↗ / Open in browser ↗ behave exactly as on the standard widget | UI, VIS | none |
+| E-20 | P0 | Focus mode (`tapMode = focus`): tap article A ⇒ row enlarges (default 1.25×) with the primary-container tint, its description/full-text auto-expands, **every other row stays at normal size** (identical to Expand mode); header shows **N/M** and **− +** only (no ▲ ▼ ✕); none of these appear on an Expand-mode widget | SS, UI | UT:TapRoutingTest (routing, `rowFontScale`) |
+| E-21 | P1 | Focus mode: **− / +** ⇒ focused row scale steps 0.15 within 0.75×–2.5×, clamps at both ends; focusing a different article resets to 1.25× | DS (`focus_scale`), SS | none |
+| E-22 | P1 | Focus mode: tap the focused row again ⇒ focus clears, all rows normal size, **N/M and −/+ disappear**, nothing marked read | DS, UI | none |
+| E-23 | P1 | Settings has **no** *Background rows size* slider in either tap mode; a widget whose saved config still carries `focusBackgroundScale` (e.g. 0.25) renders non-focused rows at normal size ↔ N-04, N-13 | UI, SS | UT:WidgetConfigTapModeTest, UT:TapRoutingTest |
+| E-24 | P1 | Focus mode: Glamour + Font size 3.0 + focus scale 2.5 (worst case) ⇒ renders (≥ 1 row), no "Can't show content", logcat clean | SS, LC | none |
+| E-25 | P1 | Focus mode: step focus A→B→C ⇒ only the current row is tinted/enlarged; previous rows' tint/size never stick (recycled-view regression) | SS, UI | UT:TapRoutingTest (`non-focused rows are exactly normal size`) |
+| E-26 | P1 | Focus mode: focused row at high scale ⇒ meta row (favicon, name, time) stays at normal size and never spills off the edge | SS | none |
+| E-27 | P1 | Focus mode: focused row's Load full article / Load more / Open article / Share ↗ / Open in browser ↗ behave exactly as in Expand mode | UI, VIS | none |
 
 ---
 
 ## F — Read state & Unread-only grace period / dissolve
 
-Rules under test. **Standard widget:** pressing an article marks nothing; when a **different** article is tapped,
+Rules under test. **Expand mode:** pressing an article marks nothing; when a **different** article is tapped,
 the previously tapped one is marked read (`isRead=true`, `readAt=now`); re-tap/collapse marks nothing; an already-read
-article is never re-stamped; description-less articles follow the same rule. **Focus [until merged]:** the article
+article is never re-stamped; description-less articles follow the same rule. **Focus mode:** the article
 **losing** focus is marked when focus moves to another article; clearing focus marks nothing. **Unread only:** a
 just-read article stays 5 s: normal text to 2.5 s → all dots 2.5–3.33 s → 2/3 of the dots 3.33–4.17 s → 1/3 of
 the dots 4.17–5 s → removed (observed ≈ 5.6–5.9 s wall time because renders fire ≈ 0.5 s late). Dissolve applies **only**
@@ -475,14 +475,14 @@ under "Unread only".
 
 | ID | P | Do ⇒ Expect | Evid | Auto |
 |---|---|---|---|---|
-| F-01 | P0 | Standard widget, unread article A: tap it once ⇒ A **not** marked (`isRead:false`, no `readAt`); `last_tapped_article_id` = A | DS | UT:ReadOnMoveAwayTest |
+| F-01 | P0 | Expand mode, unread article A: tap it once ⇒ A **not** marked (`isRead:false`, no `readAt`); `last_tapped_article_id` = A | DS | UT:ReadOnMoveAwayTest |
 | F-02 | P0 | Then tap a different article B ⇒ A now `isRead:true` with a fresh `readAt`; B not marked; header unread count −1 | DS, UI | UT:ReadOnMoveAwayTest |
 | F-03 | P1 | Tap A again immediately / collapse the expanded A ⇒ nothing marked, no `readAt` change | DS | UT:ReadOnMoveAwayTest |
 | F-04 | P0 | Description-less article A (rotter/ynet flash) then a different article B ⇒ A marked read at B (via the no-op tap path); pressing A alone marked nothing; no expand, ripple only | DS | UT:ReadOnMoveAwayTest |
 | F-05 | P1 | Mixed chain: expandable A → description-less B → expandable C ⇒ A read at B, B read at C, C unread | DS | UT:ReadOnMoveAwayTest |
 | F-06 | P1 | Tap through already-read articles ⇒ their `readAt` is not re-stamped, no new grace period starts | DS | UT:ReadOnMoveAwayTest |
 | F-07 | P1 | Press **Open article →** / **Share ↗** / **Open in browser ↗** on the current article ⇒ **record** whether anything is marked read (code: these buttons mark nothing; `DEBUG_PLAN.md` §1 claims the Open-in setting marks read — Appendix D) | DS | none |
-| F-08 | P0 | **[until merged]** Focus widget: focus A ⇒ nothing marked; focus B ⇒ **A** marked read (losing focus), B unread; tap focused B to clear ⇒ nothing marked | DS | none |
+| F-08 | P0 | Focus mode: focus A ⇒ nothing marked; focus B ⇒ **A** marked read (losing focus), B unread; tap focused B to clear ⇒ nothing marked | DS | UT:ReadOnMoveAwayTest, UT:TapRoutingTest |
 | F-09 | P0 | Show = **Unread only**, mark A read (tap B) and capture TS frames ⇒ A visible dimmed; text normal until ≈ 2.5 s, all dots ≈ 2.5 s, 2/3 dots ≈ 3.3 s, 1/3 dots ≈ 4.2 s, gone ≈ 5.6–5.9 s; each stage seen in at least one frame, in order; unread badge already decremented | TS, DS | UT:ArticleDissolveTest, ArticleSortingTest |
 | F-10 | P1 | Same read event under **All** and **Read only** ⇒ article is never dotted or removed, only dimmed (All) / listed (Read only) | TS/SS | UT:ArticleSortingTest |
 | F-11 | P1 | While a row dissolves ⇒ its Load full article / Open / Share / Load more controls are hidden (they would act on dotted text); return to normal rows unaffected | UI | UT:GraceRefreshRegistryTest (`isDissolving`) |
@@ -514,7 +514,7 @@ Sort/filter are applied at render time to the whole accumulated list.
 | G-05 | P0 | Show = Unread only ⇒ read articles genuinely absent (except the 5 s grace); Read only ⇒ only read articles; All ⇒ everything | UI | UT:ArticleSortingTest |
 | G-06 | P1 | A brand-new widget's Sort is **By feed** (code default; README says Newest first — Appendix D) | DS, UI | none |
 | G-07 | P1 | Change Sort/Filter, Save ⇒ widget reflects it, and it **survives** the next refresh (sort/filter must not be re-applied only to a fresh batch) | UI | UT:ArticleSortingTest |
-| G-08 | P1 | Filter change while an article is expanded (Expand) or focused (**[until merged]** Focus) ⇒ no crash; expanded/focused state is dropped or kept consistently, record which | UI, DS | none |
+| G-08 | P1 | Filter change while an article is expanded (Expand) or focused (Focus mode) ⇒ no crash; expanded/focused state is dropped or kept consistently, record which | UI, DS | none |
 | G-09 | P1 | Sort × Load more ⇒ order is stable across chunks (no article repeats/skips between the first 10 and the next 10) | UI | none |
 | G-10 | P1 | Low-frequency feed under By feed with high-frequency neighbours ⇒ its articles are reachable within Load more (under Newest they may not be — note the difference) | UI, DS | none |
 
@@ -522,8 +522,7 @@ Sort/filter are applied at render time to the whole accumulated list.
 
 **Scenario S** (run in **each** row, once per tap behaviour): ≥ 3 feeds, ≥ 6 articles each, mix of read/unread (for
 Read only pre-read ≥ 3 articles). Tap top-most eligible article **A**, then another article **B** (A ≠ B, both
-eligible for the filter). Expand behaviour = standard widget; Focus behaviour = Focus widget [until merged] /
-`tapMode=Focus` [post-merge]. Record `isRead`/`readAt` (DS) and TS frames where dissolve is expected.
+eligible for the filter). Expand behaviour = `tapMode=Expand`; Focus behaviour = `tapMode=Focus`. Record `isRead`/`readAt` (DS) and TS frames where dissolve is expected.
 
 | ID | P | Filter | Sort | Expected — Expand (tap B after A) | Expected — Focus (focus B after A) |
 |---|---|---|---|---|---|
@@ -590,7 +589,7 @@ Glamour ignores per-feed font and B/I/U (bitmap headlines).
 | I-03 | P1 | **Save** in Settings triggers an immediate refresh of all placed widgets (both types) and reschedules the periodic job to the saved interval | JS, DS | none |
 | I-04 | P1 | After placing a widget ⇒ `NewsFeedRefresh` (periodic), `NewsFeedUpdateCheck` (24 h) and the `CLOCK_TICK` alarm are scheduled | JS | none |
 | I-05 | P1 | Enabling a second widget (either type) after the interval was set to e.g. 6 h ⇒ the interval is **not** reset to 15 min | JS | none |
-| I-06 | P1 | **[until merged]** Remove only the standard widget ⇒ shared jobs survive, Focus `CLOCK_TICK_FOCUS` pending, standard `CLOCK_TICK` gone; remove only the Focus widget ⇒ mirror image; remove both ⇒ `NewsFeedRefresh`/`NewsFeedUpdateCheck` cancelled | JS | none |
+| I-06 | P1 | Two widgets placed, remove one ⇒ `NewsFeedRefresh`/`NewsFeedUpdateCheck` survive and the single `CLOCK_TICK` alarm stays pending; no `CLOCK_TICK_FOCUS` alarm exists at any time; remove the last widget ⇒ both jobs cancelled and `CLOCK_TICK` gone (see N-15, N-17) | JS | none |
 | I-07 | P0 | Reboot with a widget placed ⇒ refresh job, update-check job and the clock alarm(s) resume **without** opening the app; widget refreshes | JS, DS | none |
 | I-08 | P1 | Leave the phone idle ≥ 1 h (screen off) ⇒ `last_refresh_time` advances at about the chosen interval; if a whole cycle fails with "refresh failed" and logcat shows `isBlocked=true` DNS for several apps, classify as the environmental network flap (BUG-014), not an app defect | DS, LC | none |
 | I-09 | P1 | Worker with an empty feed list (simulate by clearing the live config) ⇒ `ConfigBackup.restoreIfEmpty` restores feeds and order on the next refresh; no crash | DS, LC | none |
@@ -606,7 +605,7 @@ Glamour ignores per-feed font and B/I/U (bitmap headlines).
 | ID | P | Do ⇒ Expect | Evid | Auto |
 |---|---|---|---|---|
 | J-01 | P1 | Change **every** SORT & FILTER control (sort, show, refresh, keep articles, open article in), Save, reopen ⇒ each value persisted and reflected on the widget | DS, UI | none |
-| J-02 | P1 | Change **every** DISPLAY control (font size, article font size, expanded article; **[until merged]** background rows size on the Focus widget) ⇒ persisted | DS, UI | none |
+| J-02 | P1 | Change **every** DISPLAY control (font size, article font size, expanded article, When I tap an article) ⇒ persisted | DS, UI | none |
 | J-03 | P1 | Change **every** APPEARANCE control (theme, variant, custom font/background RGB, accent switch, opacity) ⇒ persisted | DS, UI | none |
 | J-04 | P1 | Per-feed fields (name, URL, colour, direction, display mode, font, styles, order) ⇒ persisted per feed | DS | none |
 | J-05 | P0 | Change several settings and press **Back** (no Save) ⇒ widget and stored config unchanged; reopening shows the old values | DS, UI | none |
@@ -617,7 +616,7 @@ Glamour ignores per-feed font and B/I/U (bitmap headlines).
 | J-10 | P1 | Save while offline ⇒ config saved, widget re-renders, refresh fails gracefully | DS, SS | none |
 | J-11 | P1 | Upgrade path: install the previous release, configure it, `install -r` the new build ⇒ config with older/missing fields decodes with defaults, nothing resets | DS, UI | none |
 | J-12 | P1 | Export OPML → Reset to defaults → Import the OPML ⇒ same feed set restored (colours regenerated) | UI | none |
-| J-13 | P2 | Remove a widget from the home screen ⇒ record whether its `widget_<id>` config / `appWidget-<id>` state remains (known leak: no `onDeleted`); no crash; no effect on other widgets | DS | none |
+| J-13 | P2 | Remove a widget from the home screen ⇒ no crash, no effect on other widgets; its `widget_<id>` config / backup / `appWidget-<id>` state is removed by `onDeleted` (verified in detail by N-16, N-26) | DS | UT:OrphanCleanupTest |
 | J-14 | P2 | `allowBackup="true"`: config restored via device backup/restore is not required, but a restore must not crash the app (widget ids change → `restoreIfEmpty` keyed by id finds nothing) | LC | none |
 
 ---
@@ -661,7 +660,7 @@ Glamour ignores per-feed font and B/I/U (bitmap headlines).
 | L-07 | P1 | Z Fold fold/unfold and rotation with the widget on screen ⇒ widget re-renders at the new size (Exact), no clipped footer/gear, no bitmap-memory crash | SS, LC | none |
 | L-08 | P1 | Toggle system dark mode with widgets and Settings visible ⇒ Auto theme flips, other themes unchanged, Settings readable | SS | none |
 | L-09 | P1 | Change system font size and display size ⇒ see D-19; widgets keep working | SS | none |
-| L-10 | P1 | **System language Hebrew**: Settings mirrors RTL and stays readable; feeds explicitly set LTR/RTL — **record** whether the stripe/meta row mirror with the locale (BUG-002 open, structural Glance limit); timestamps, badge and (until merged) N/M read correctly | SS, UI | none |
+| L-10 | P1 | **System language Hebrew**: Settings mirrors RTL and stays readable; feeds explicitly set LTR/RTL — **record** whether the stripe/meta row mirror with the locale (BUG-002 open, structural Glance limit); timestamps, badge and (Focus mode) N/M read correctly | SS, UI | none |
 | L-11 | P1 | Locale switch English↔Hebrew while widgets are placed ⇒ no crash; widget re-renders | LC | none |
 | L-12 | P0 | Logcat over the whole run ⇒ **zero** `FATAL EXCEPTION`/`AndroidRuntime` for `com.newsfeed.widget`, no `exceeds maximum bitmap memory`, no `Can't show content` | LC | none |
 | L-13 | P1 | Bug reports: empty state text "No crashes detected on this device."; `adb shell am crash com.newsfeed.widget` ⇒ still crashes for real; relaunch ⇒ entry (type, message, count, build, time) marked **Unsolved**; **Share crash report** ⇒ chooser with a `crash_report.txt` file (no inline text); no network activity | UI, VIS, LC | UT:CrashLogStoreTest |
@@ -691,7 +690,7 @@ Ledger: [Appendix A](#appendix-a--cases-added-because-of-a-bug).
 | M-06 | P1 | **Orphan cache after feed removal** (DEBUG_PLAN "BUG-003"): ~48 articles of a removed feed linger in `articles_json` after Save ⇒ record the actual count; they must not render or count in the badge; store cleans up by the next refresh or is documented as known | DS, UI | none |
 | M-07 | P1 | **Accent colour reuse / default accent** (BUG-016, 8474b57): manual add, OPML import, search add and Add default feeds must each assign a rotating palette colour, and Add default feeds prefers colours no existing feed uses ⇒ none is left at `#9B72E3` by default | DS | none |
 | M-08 | P1 | **Blank widget after reinstall "No session available"**: after `install -r` or `force-stop` the host may show a placeholder ⇒ one tap must recover the widget; if it stays blank after a tap, or after 60 s, S2 ↔ A-12 | UI, LC | none |
-| M-09 | P0 | **Glance "Can't show content" / bitmap memory ceiling**: Glamour × font 3.0 × article font 3.0 × Full article with chunks × 300 stored (× **[until merged]** focus 2.5) ⇒ always renders ≥ 1 row, row cap message accurate, logcat has no `exceeds maximum bitmap memory` / `Column container cannot have more than 10 elements` ↔ D-06, E-24, E-06 | LC, SS | none |
+| M-09 | P0 | **Glance "Can't show content" / bitmap memory ceiling**: Glamour × font 3.0 × article font 3.0 × Full article with chunks × 300 stored (× Focus mode with focus scale 2.5) ⇒ always renders ≥ 1 row, row cap message accurate, logcat has no `exceeds maximum bitmap memory` / `Column container cannot have more than 10 elements` ↔ D-06, E-24, E-06 | LC, SS | none |
 | M-10 | P0 | **Unread grace vanished early** (3325f4c, f48ea17): refresh wiped `readAt`, and the expiry re-render did nothing until a later tick ⇒ `readAt` survives refresh and the article is gone ≈ 5–8 s after the mark, not 70+ s ↔ F-12, F-13 | DS, TS | UT:ArticleMergeTest |
 | M-11 | P0 | **Share button footer overflow** (23a52e4): minimum width widget + `⚠ refresh failed — tap to retry` ⇒ the countdown truncates with an ellipsis while **Share** and **⚙** stay fully visible **and tappable** (open Settings) | UI (gear present), SS | none |
 | M-12 | P1 | **CI publish failures** (f18617d setup-android `sdkmanager tools`, b0cff3a rename step, 1da7246 compile, caaf549 overlapping runs) ⇒ after the push: `Build APK` run green; `latest` release updated with `NewsFeed-latest.apk` + `version.json` (`versionCode` = run number); no overlapping runs | CI | none |
@@ -702,8 +701,8 @@ Ledger: [Appendix A](#appendix-a--cases-added-because-of-a-bug).
 | M-17 | P1 | **Duplicate feed crashes Settings list** (duplicate feedId vs LazyColumn key) ⇒ Add Feed, OPML import and search-add all refuse duplicates, no crash ↔ B-05 | LC | UT:DefaultFeedsMergeTest |
 | M-18 | P1 | **Sort/Show had no effect** (BUG-001) ⇒ applied to already-stored articles at render time ↔ G-07 | UI | UT:ArticleSortingTest |
 | M-19 | P1 | **Per-feed direction flipped by system locale** (BUG-002, open/structural) ⇒ run under Hebrew system locale; record whether stripe/meta mirror; unchanged from baseline is acceptable ↔ L-10 | SS, UI | none |
-| M-20 | P1 | **[until merged]** Focus zoom scaled only the headline (BUG-017) ⇒ body text scales in lockstep with the headline (≈ 2.0× between focus 1.25 and 2.5) ↔ E-21 | SS (line-height measurement) | none |
-| M-21 | P1 | **[until merged]** Focus highlight stuck on the previous row ⇒ see E-25 | SS, UI | none |
+| M-20 | P1 | Focus zoom scaled only the headline (BUG-017) ⇒ body text scales in lockstep with the headline (≈ 2.0× between focus 1.25 and 2.5), in Focus mode ↔ E-21 | SS (line-height measurement) | none |
+| M-21 | P1 | Focus highlight stuck on the previous row ⇒ see E-25 | SS, UI | UT:TapRoutingTest |
 | M-22 | P1 | **Raw HTML entity text in titles** (BUG-013, partial) ⇒ typical rotter titles decode; record residual literal ones ↔ C-09 | SS | none |
 | M-23 | P1 | **Low-frequency feeds starved / unreachable** (BUG-008, BUG-015) ⇒ per-feed floor of 10 in the store and By-feed default lets a quiet feed show in the first round ↔ C-16, G-10 | DS, UI | none |
 | M-24 | P1 | **Custom theme left stock purple in five colour slots** ⇒ gear, footer text, badge, dividers, row dots use derived colours ↔ H-15 | SS | UT:WidgetThemesTest |
@@ -725,43 +724,51 @@ Ledger: [Appendix A](#appendix-a--cases-added-because-of-a-bug).
 
 ---
 
-## N — Applies once Focus-as-setting ships
+## N — Focus as a setting & state cleanup
 
-**Status: not built.** Spec `docs/superpowers/specs/2026-09-20-focus-as-setting-design.md` (approved): one "NewsFeed"
+**Status: shipped in code (Tasks 1-6 of `docs/superpowers/plans/2026-09-20-focus-as-setting.md`); awaiting the
+on-device release run.** Spec `docs/superpowers/specs/2026-09-20-focus-as-setting-design.md` (approved): one "NewsFeed"
 widget; per-widget setting **"When I tap an article: Expand in place / Focus (enlarge)"** (default Expand) in the
 SORT & FILTER section directly after "Open article in"; only the focused article enlarges, other rows keep their
 normal size; no Background-rows-size slider; `NewsFeedFocusWidgetReceiver` deleted, so already placed Focus widgets
-disappear on update. When it ships: run this section in full, **remove** the **[until merged]** cases (`E-20…E-27`,
-`F-08`, the Focus-only halves of `G-M01…G-M12`, `I-06`, `J-02` slider clause, `M-20`, `M-21`) and re-baseline the
-smoke list. Field: `WidgetConfig.tapMode` (`"expand"` | `"focus"`); deprecated `focusBackgroundScale` is kept and ignored.
+disappear on update; state of removed widget ids is cleaned up (`onDeleted` + a sweep in `WidgetWorker`). This is the
+live behaviour: run this section in full. The former **[until merged]** cases (`E-20…E-27`, `F-08`, `I-06`, `J-02`,
+`M-20`, `M-21`, the Focus halves of `G-M01…G-M12`) were rewritten in place to the setting-based form, IDs unchanged.
+Field: `WidgetConfig.tapMode` (`"expand"` | `"focus"`); deprecated `focusBackgroundScale` is kept and ignored.
+Existing unit tests: `TapRoutingTest`, `WidgetConfigTapModeTest`, `OrphanCleanupTest`
+(`app/src/test/java/com/newsfeed/widget/`).
 
 | ID | P | Do ⇒ Expect | Evid | Auto |
 |---|---|---|---|---|
 | N-01 | P0 | Add-widget picker ⇒ **one** entry "NewsFeed" (no "NewsFeed Focus"; `appwidget_info_focus.xml` and the Focus receiver gone) | VIS, ADB (`dumpsys appwidget`) | none |
-| N-02 | P0 | New widget's Settings ⇒ row **When I tap an article** after "Open article in" with "Expand in place ▾" (default) / "Focus (enlarge) ▾"; picking Focus shows the hint "Tap enlarges the article; use − / + in the widget header to resize it."; no Focus-only slider in DISPLAY in either mode | UI, DS (`tapMode`) | UT (planned): TapMode.fromKey |
-| N-03 | P0 | Upgrade path: a config saved by an older build (no `tapMode`, possibly `focusBackgroundScale`) ⇒ loads as **expand**, widget keeps rendering (not blank), all other settings intact | DS, UI | UT (planned): WidgetConfig decode |
-| N-04 | P0 | tapMode = Focus, tap article A ⇒ A enlarges (1.25×) with tint and auto-expands; **every other row is exactly the same size as in Expand mode** (compare `uiautomator` bounds / screenshots), also when the saved config carries `focusBackgroundScale` 0.25 | UI (bounds), SS | UT (planned): rowFontScale |
-| N-05 | P0 | Tap routing — Expand + description ⇒ toggles expand; read rule: previously tapped article marked at the next different tap | DS | UT (planned): TapRoutingTest |
-| N-06 | P0 | Tap routing — Expand + **no** description ⇒ ripple only; previous marked at the next different tap | DS | UT (planned): TapRoutingTest |
-| N-07 | P0 | Tap routing — Focus + description ⇒ focus set, auto-expanded; article **losing focus** marked when focus moves; clearing focus marks nothing | DS | UT (planned): TapRoutingTest |
-| N-08 | P1 | Tap routing — Focus + no description ⇒ still focuses (wins regardless of description) | DS, UI | UT (planned): TapRoutingTest |
-| N-09 | P0 | Switch mode on a **live** widget Expand→Focus and Focus→Expand (reconfigure, Save) ⇒ `expanded_article_id`, `focused_article_id`, `last_tapped_article_id`, `focus_scale` all cleared; `isRead` flags **unchanged**; the pending article is dropped, not marked | DS | UT (planned): resetTapState |
+| N-02 | P0 | New widget's Settings ⇒ row **When I tap an article** after "Open article in" with "Expand in place ▾" (default) / "Focus (enlarge) ▾"; picking Focus shows the hint "Tap enlarges the article; use − / + in the widget header to resize it."; no Focus-only slider in DISPLAY in either mode | UI, DS (`tapMode`) | UT:WidgetConfigTapModeTest (`fromKey`) |
+| N-03 | P0 | Upgrade path: a config saved by an older build (no `tapMode`, possibly `focusBackgroundScale`) ⇒ loads as **expand**, widget keeps rendering (not blank), all other settings intact | DS, UI | UT:WidgetConfigTapModeTest |
+| N-04 | P0 | tapMode = Focus, tap article A ⇒ A enlarges (1.25×) with tint and auto-expands; **every other row is exactly the same size as in Expand mode** (compare `uiautomator` bounds / screenshots), also when the saved config carries `focusBackgroundScale` 0.25 | UI (bounds), SS | UT:TapRoutingTest (`rowFontScale`) |
+| N-05 | P0 | Tap routing — Expand + description ⇒ toggles expand; read rule: previously tapped article marked at the next different tap | DS | UT:TapRoutingTest |
+| N-06 | P0 | Tap routing — Expand + **no** description ⇒ ripple only; previous marked at the next different tap | DS | UT:TapRoutingTest |
+| N-07 | P0 | Tap routing — Focus + description ⇒ focus set, auto-expanded; article **losing focus** marked when focus moves; clearing focus marks nothing | DS | UT:TapRoutingTest |
+| N-08 | P1 | Tap routing — Focus + no description ⇒ still focuses (wins regardless of description) | DS, UI | UT:TapRoutingTest |
+| N-09 | P0 | Switch mode on a **live** widget Expand→Focus and Focus→Expand (reconfigure, Save) ⇒ `expanded_article_id`, `focused_article_id`, `last_tapped_article_id`, `focus_scale` all cleared; `isRead` flags **unchanged**; the pending article is dropped, not marked | DS | UT:TapRoutingTest (`resetTapState`, `tapModeChanged`) |
 | N-10 | P1 | Save Settings **without** changing the mode while an article is expanded/focused ⇒ tap state is kept (reset only on an actual mode change) | DS | none |
 | N-11 | P1 | Focus header ⇒ **N/M** correct and updates on tap; **− / +** step 0.15 within 0.75×–2.5×, reset when focus moves; no ▲ ▼ ✕ | UI, DS | none |
-| N-12 | P1 | Stale `focused_article_id` while tapMode = expand ⇒ no row enlarges (defense in depth) | DS, SS | none |
-| N-13 | P1 | Old saved config JSON containing `focusBackgroundScale` (e.g. 0.25) in the Glance state ⇒ decodes without blanking the widget and renders the same as one without the key | DS, SS | UT (planned) |
-| N-14 | P0 | Update over a build with a **placed Focus widget** ⇒ that widget disappears, no crash, logcat clean, standard widgets untouched; after one refresh the orphan `appWidget-<id>` files and any `CLOCK_TICK_FOCUS` alarm are gone | UI, DS, JS, LC | UT (planned): orphanedIds |
+| N-12 | P1 | Stale `focused_article_id` while tapMode = expand ⇒ no row enlarges (defense in depth) | DS, SS | UT:TapRoutingTest (`expand mode ignores a stale focused id`) |
+| N-13 | P1 | Old saved config JSON containing `focusBackgroundScale` (e.g. 0.25) in the Glance state ⇒ decodes without blanking the widget and renders the same as one without the key | DS, SS | UT:WidgetConfigTapModeTest |
+| N-14 | P0 | Update over a build with a **placed Focus widget** ⇒ that widget disappears, no crash, logcat clean, standard widgets untouched; after one refresh the orphan `appWidget-<id>` files and any `CLOCK_TICK_FOCUS` alarm are gone | UI, DS, JS, LC | UT:OrphanCleanupTest (`orphanedIds`) |
 | N-15 | P1 | Update when **only** Focus widgets existed ⇒ after the first refresh `NewsFeedRefresh` and `NewsFeedUpdateCheck` are cancelled; adding a widget re-arms them | JS | none |
-| N-16 | P1 | Remove a widget ⇒ its `widget_<id>` entries in `newsfeed_config` and `newsfeed_config_backup` and its Glance state file are deleted (`onDeleted`); closes the leak recorded in J-13 | DS | none |
+| N-16 | P1 | Remove a widget ⇒ its `widget_<id>` entries in `newsfeed_config` and `newsfeed_config_backup` and its Glance state file are deleted (`onDeleted`); closes the leak recorded in J-13 | DS | UT:OrphanCleanupTest (id parsing) |
 | N-17 | P1 | Reboot ⇒ jobs and the single clock alarm resume (one receiver) | JS | none |
 | N-18 | P0 | Memory: tapMode = Focus, Glamour, Font 3.0, focus scale 2.5 ⇒ renders, no "Can't show content"; row cap identical to Expand mode | SS, LC | none |
 | N-19 | P1 | Hebrew system locale ⇒ the new Settings row mirrors like its siblings; hint text readable | SS | none |
 | N-20 | P1 | Two widgets, one Expand and one Focus ⇒ independent tap state and read tracking | DS | none |
 | N-21 | P1 | Matrix `G-M01…G-M12` executed with **tapMode = Focus** (replaces the Focus-widget halves) | DS, TS | none |
 | N-22 | P1 | **Pairwise PW-B** (50 configurations, includes the Tap factor) | SS, LC | none |
-| N-23 | P1 | `docs/RELEASE_NOTES.md` has the new note (Focus is now a setting; existing Focus widgets are removed — add NewsFeed again and choose Focus) and shows in the update dialog | UI | UT:ReleaseNotesFetcherTest |
-| N-24 | P1 | Docs in sync: README (one widget, Focus section reworded, settings row), PRD, DEBUG_PLAN §7/§8, this plan's **[until merged]** cases removed | VIS | none |
-| N-25 | P1 | New unit tests exist and pass: TapRoutingTest (6 cells), `TapMode.fromKey`, `WidgetConfig` decode (missing key, unknown key), `resetTapState`, `orphanedIds`, `rowFontScale` | UT | planned |
+| N-23 | P1 | `docs/RELEASE_NOTES.md` has the new `## Note 9` (Focus is now a setting; existing Focus widgets are removed — add NewsFeed again and choose Focus) and shows in the update dialog | UI | UT:ReleaseNotesFetcherTest |
+| N-24 | P1 | Docs in sync: README (one widget, Focus section reworded, settings row), PRD, DEBUG_PLAN §6-§8 and §10, release Note 9, and this plan (former **[until merged]** cases rewritten to the setting-based form) | VIS | none |
+| N-25 | P1 | Existing unit tests pass: `TapRoutingTest` (routing cells, `tapModeChanged`, `resetTapState`, `rowFontScale`), `WidgetConfigTapModeTest` (missing key, old `focusBackgroundScale` JSON, round trip, `TapMode.fromKey`), `OrphanCleanupTest` (`orphanedIds`, empty live set, live ids never orphaned, key/file-name parsing) | UT | UT:TapRoutingTest, UT:WidgetConfigTapModeTest, UT:OrphanCleanupTest |
+| N-26 | P1 | **Orphan sweep.** Plant an orphan: `adb shell run-as com.newsfeed.widget cp files/datastore/appWidget-<liveId>.preferences_pb files/datastore/appWidget-99999.preferences_pb`, then trigger a refresh (Save in Settings) and wait for the worker ⇒ `appWidget-99999.preferences_pb` is deleted; any `widget_99999` key that existed in `newsfeed_config` / `newsfeed_config_backup` is gone; a `CLOCK_TICK_FOCUS` alarm left from an older build is cancelled; logcat clean | DS, JS, LC | UT:OrphanCleanupTest |
+| N-27 | P0 | **The sweep never deletes a live widget's state.** With one Expand and one Focus widget placed (distinct settings), run refreshes (Save, footer refresh, reboot) ⇒ both `appWidget-<id>` files and both `widget_<id>` keys in `newsfeed_config` and `newsfeed_config_backup` are still present after each run, and both widgets keep their own settings and articles (no fallback to defaults); an id known to only one store (e.g. a config key without a state file) is not treated as dead while its widget is live | DS, UI | UT:OrphanCleanupTest (`a live id is never orphaned no matter how many stores know it`) |
+| N-28 | P1 | **Empty live-set guard.** When the system reports no live widget ids (last widget just removed, or ids unavailable) the sweep deletes nothing beyond the removed widget's own `onDeleted` cleanup: plant a stray `appWidget-99999` file, remove the last widget ⇒ the stray file is **not** swept while the live set is empty (only the removed widget's own files go); place a widget again ⇒ the next refresh then sweeps the stray file | DS, JS | UT:OrphanCleanupTest (`an empty live set never orphans anything`) |
+| N-29 | P1 | **Mode switch reset is per widget.** Widgets A and B both have an article expanded/focused; switch **only A** (Expand→Focus, Save) ⇒ A's `expanded_article_id`, `last_tapped_article_id`, `focused_article_id`, `focus_scale` are cleared and no `isRead` changed; **B's** four keys and its config are untouched; Save A again without changing the mode ⇒ no further reset | DS | UT:TapRoutingTest (`resetTapState`, `tapModeChanged`) |
 
 ---
 
@@ -821,7 +828,7 @@ status recorded in `docs/BUGS.md` / `DEBUG_PLAN.md` when this plan was written (
 so a mixed RTL/LTR widget is covered by `H-19` instead); `FontSz` = Font size slider, `ArtSz` = Article font
 size slider, `Opacity` = Background opacity, `OpenIn` = Open article in, `Length` = Expanded article, `Accent` =
 Use theme accent colors (`theme` = on). `Style` `-` = none, `BIU` = Bold + Italic + Underline. `Tap` (PW-B) =
-When I tap an article, **only after** Focus-as-setting ships. For each row: Save; expand an article with a
+When I tap an article. For each row: Save; expand an article with a
 description, an article without one, and one with a thumbnail; check headline, meta row, expanded text, footer, no
 overlap/clipping, the row's expected effect of each option (see H-01…H-23), logcat clean. **Custom RGB** sets:
 `CC1` font `#1B1F27` on background `#FFFFFF` (default), `CC2` font `#FFE5B4` on `#101820`, `CC3` font `#808080`
@@ -833,7 +840,7 @@ value pair of every factor pair; sorted by theme so the order is stable. To rege
 value, recompute with any all-pairs tool (e.g. `allpairspy`) and replace the table — the coverage claim
 (`pairs covered = pairs possible`) must be re-verified and the new row count recorded here.
 
-### PW-A — current build (12 factors, 50 configurations, 705/705 value pairs covered)
+### PW-A — without the Tap factor (12 factors, 50 configurations, 705/705 value pairs covered)
 
 | Cfg | Theme | Variant | Accent | Font | Style | Dir | Mode | Length | FontSz | ArtSz | Opacity | OpenIn | Custom RGB |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -888,7 +895,7 @@ value, recompute with any all-pairs tool (e.g. `allpairspy`) and replace the tab
 | A49 | custom | dark | per-feed | default | - | LTR | IMG | medium | 1.0 | 3.0 | 100% | share | CC1 |
 | A50 | custom | dark | per-feed | mono | BIU | RTL | TXT | full | 1.0 | 3.0 | 100% | browser | CC2 |
 
-### PW-B — once Focus-as-setting ships (13 factors, adds **Tap**, 50 configurations, 785/785 pairs covered)
+### PW-B — current build (13 factors, adds **Tap**, 50 configurations, 785/785 pairs covered)
 
 | Cfg | Theme | Variant | Accent | Font | Style | Dir | Mode | Length | FontSz | ArtSz | Opacity | OpenIn | Tap | Custom RGB |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -954,7 +961,7 @@ value, recompute with any all-pairs tool (e.g. `allpairspy`) and replace the tab
 * **Article shapes to have on the widget:** with description and image; with description and no image; **no
   description** (rotter.net, ynet flash); Hebrew RTL headline; mixed Hebrew/English; headline starting with a
   digit or quote; very long headline; Telegram post (two-line headline); Telegram photo-only.
-* **Widgets:** at least one standard widget and (until merged) one Focus widget with distinct settings; a spare
+* **Widgets:** at least one Expand-mode widget and one Focus-mode widget with distinct settings; a spare
   widget for placement/removal cases.
 * **Extra feed URLs to keep handy:** a valid RSS, a valid Atom, an HTML page, a 404, a 403, a redirecting URL, an
   `http://` feed, `@telegram` / `t.me/cnnbrk` Telegram channels, an OPML file (flat) and one (grouped).
@@ -981,14 +988,14 @@ records the actual behaviour. None has been "fixed" here (this file is docs-only
 6. **BUG numbering collision:** `DEBUG_PLAN.md` §14 calls the "removed feeds' articles linger" issue **BUG-003**, but
    `BUGS.md` BUG-003 is "Settings labels not Hebrew-localized"; that orphan-cache issue has no `BUGS.md` number. → `M-06`;
    assign a real number next time it is touched.
-7. **PRD status:** `PRD.md` lists the Share button as "🚧 In progress" and describes Focus as a separate widget with
-   "shrinking" rows; the Share button shipped (batch builds #127–#139 per `DEBUG_PLAN.md`, release Note 2), and the Focus wording changes with the spec.
+7. **PRD status:** `PRD.md` lists the Share button as "🚧 In progress" and described Focus as a separate widget with
+   "shrinking" rows; the Share button shipped (batch builds #127–#139 per `DEBUG_PLAN.md`, release Note 2), and the Focus wording was updated with the Focus-as-setting change (PRD now describes a per-widget setting).
 8. **BUG-002:** `NewsFeedWidget.provideGlance` locks `LocalLayoutDirection` to LTR "to fix" the locale flip, while
    `BUGS.md` concludes the mirror is structural and unfixed; the README claims per-feed direction is locale-independent.
    The current real behaviour is unrecorded. → `L-10`, `M-19`.
 9. **`FeedConfig.enabled`:** the flag exists and is honoured by the fetcher, but there is no UI to toggle it. Not
    testable; no case.
-10. **CI does not run unit tests** (`assembleDebug` only) although the repo has 10 unit-test classes. → `M-38`.
+10. **CI does not run unit tests** (`assembleDebug` only) although the repo has 14 unit-test classes. → `M-38`.
 11. **Untested logic (no unit test):** `retainWithPerFeedGuarantee` / retention cutoff (`C-16`, `C-17`), `ConfigBackup`
     (`J-08`), `OpmlManager` (needs the Android XML parser), footer countdown text, `formatDateTime`. Candidates for
     new tests.

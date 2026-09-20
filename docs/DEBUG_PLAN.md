@@ -4,7 +4,7 @@ Derived directly from `README.md` — every checklist item below maps to a featu
 
 **Test device:** a real phone (this project's own history shows RTL/locale bugs that never appeared on an emulator or in English-locale testing — a real device with a Hebrew-locale toggle is required, not optional).
 
-**Before starting:** install the current build fresh (uninstall any prior version first if its signature might not match — see §0), and place **one "NewsFeed" widget and one "NewsFeed Focus" widget side by side** before beginning, since several checks (§8) require both to exist at once.
+**Before starting:** install the current build fresh (uninstall any prior version first if its signature might not match — see §0), and place **two "NewsFeed" widgets** before beginning: leave one on **When I tap an article: Expand in place** and set the other to **Focus (enlarge)** in its Settings, since several checks (§7, §8) compare the two modes. There is only one widget type in the picker now.
 
 **Reporting convention:** for each item, record ✅ Pass / ❌ Fail (with repro steps + screenshot) / ⚠️ Couldn't test (with why). Don't mark anything ✅ without actually observing it — several items below exist specifically because a past session's own optimistic "should work" assumption turned out wrong on-device.
 
@@ -15,7 +15,7 @@ Derived directly from `README.md` — every checklist item below maps to a featu
 - [ ] Download `NewsFeed-latest.apk` from the [latest release](https://github.com/Had-com/NewsFeed-widget/releases/tag/latest); confirm the "install unknown apps" and (if shown) Play Protect prompts appear and can be gotten past — this is expected, not a bug.
 - [ ] Fresh install (no prior data) → place a widget → confirm `default_feeds.opml`'s feeds (Hebrew news, Telegram channels, English AI news) load automatically as the starting feed list.
 - [ ] Confirm the widget's **default** appearance matches the documented default: **Glamour theme, Light variant, accent colors on**.
-- [ ] Open the system "Add widget" picker → confirm **both** "NewsFeed" and "NewsFeed Focus" appear as separate entries under one app, with correct labels and no duplicate/missing entries.
+- [ ] Open the system "Add widget" picker → confirm exactly **one** "NewsFeed" entry under the app (no "NewsFeed Focus"), with the correct label. Cross-check: `adb shell cmd package query-receivers --brief -a android.appwidget.action.APPWIDGET_UPDATE | grep newsfeed` lists only `NewsFeedWidgetReceiver`.
 - [ ] Place a widget of each type simultaneously → confirm both render independently without interfering with each other.
 
 ---
@@ -34,7 +34,7 @@ Settings is now split into three sections (Sort & Filter / Display / Appearance)
 
 - [ ] **Font size slider** — drag to each labeled tier (Tiny/Small/Medium/Large/Huge); confirm headline/meta/header/footer text visibly scales.
 - [ ] **Article font size slider** — same tiers, confirm it scales *only* expanded body text and does **not** move the headline size (the two sliders must be provably independent — change one, confirm the other's rendered size doesn't shift).
-- [ ] **Background rows size slider** — confirm this row is **present** on the Focus widget's Settings and **absent** on the standard widget's Settings for the exact same underlying setting.
+- [ ] **When I tap an article** — confirm the row is present after **Open article in**, offers **Expand in place** (default) and **Focus (enlarge)**, shows the one-line "− / +" hint only while Focus is selected, and that there is **no** "Background rows size" slider in either mode.
 - [ ] **Live preview card** — confirm it visibly updates in real time as you touch the theme, font size, article font size, and article-length controls above it, without needing to Save first.
 - [ ] **Expanded article** (length mode) — Subtitle only (~100 chars), First paragraph (~400 chars), Full article (fetches the real page, see §2).
 
@@ -99,32 +99,33 @@ For one representative feed, exercise every control; spot-check the rest for at 
 - [ ] On Android 13+: with notification permission not yet granted, tap **Check now** — confirm the system permission prompt appears; deny it — confirm "Check now" still works via Toast regardless.
 - [ ] Revoke "install unknown apps" for the package (`adb shell appops set com.newsfeed.widget REQUEST_INSTALL_PACKAGES deny`), tap **Check now** with an update available — confirm it routes you to that exact package's "install unknown apps" settings screen rather than failing silently; grant it, tap **Check now** again — confirm it proceeds straight through this time.
 - [ ] Confirm the daily background check is actually scheduled: `adb shell dumpsys jobscheduler | grep -A2 NewsFeedUpdateCheck`. If you can force-fire it with a genuinely newer build available, confirm a system notification appears and that tapping it downloads + prompts install without requiring you to open the app first.
-- [ ] Repeat the "finds an update" checks above for **both** widget packages/types if you have a way to test an older Focus-widget-only or standard-widget-only install — confirm each only ever offers its own correct build (there's only one shared APK now, so this mostly reduces to "confirm the same build number shows correctly in both widgets' Settings screens").
+- [ ] Confirm the build number shown in Settings is the installed build on every placed widget (there is one APK and one widget type now).
 
 ---
 
-## 7. Focus Mode (NewsFeed Focus widget only)
+## 7. Focus mode (per-widget setting: When I tap an article → Focus (enlarge))
 
-- [ ] Tap any article — confirm it enlarges ("focuses"), every other row shrinks, and its description/full text **auto-expands inline** with no separate tap needed.
-- [ ] Confirm the header now shows **▲ ▼**, an **N/M** position indicator, **✕**, and **− +** — and confirm none of these appear on the standard "NewsFeed" widget at any time.
-- [ ] **▲ / ▼** — step through several articles; confirm focus moves correctly at both ends of the list (first/last article — should clamp, not wrap or crash) and the **N/M** indicator stays accurate at every step.
-- [ ] **✕** — clears focus; confirm every row returns to normal size.
-- [ ] **− / +** — adjust the focused row's scale; confirm it's clamped to the documented 0.75×–2.5× range; step focus to a different article and confirm the scale **resets to default** rather than carrying over.
-- [ ] Tap the already-focused row again (not the ✕ button) — confirm this also clears focus, acknowledging this only reliably works if the tap lands on the row's *current* (possibly already-shrunk-back) bounds.
-- [ ] Change **Background rows size** in Settings (e.g. to 25% and separately to 100%) — confirm the *unfocused* rows' relative size visibly changes accordingly while the focused row's own size (governed by −/+) is unaffected.
-- [ ] Confirm tapping a focused article's **Load more ↓** / **Open article →** / **Open in browser ↗** controls (from the auto-expanded content) work exactly as they do on the standard widget.
+- [ ] A newly placed widget defaults to **Expand in place**, and every widget that existed before this feature is still Expand.
+- [ ] Set a widget to **Focus (enlarge)** and Save. Tap an article: it enlarges, its description/full text **auto-expands inline**, and **every other row stays exactly the same size** as in Expand mode (compare `uiautomator dump` bounds or screenshots of the same widget before and after the tap).
+- [ ] Header controls in Focus mode: **N/M** shows the focused article's position and is accurate after each tap; **− / +** change the focused row's scale, clamped to 0.75×–2.5×, and the scale **resets to default** when focus moves to a different article. None of these controls ever appear on an Expand-mode widget. (The ▲/▼/✕ buttons were removed earlier and are not expected.)
+- [ ] Tap the already-focused row again: focus clears and the widget looks like Expand mode.
+- [ ] **Switch live, Expand → Focus:** on a widget with one article expanded, open Settings (⚙), switch to Focus, Save. Pull `files/datastore/appWidget-<id>.preferences_pb` (`adb exec-out run-as com.newsfeed.widget cat ...`) and confirm `expanded_article_id`, `last_tapped_article_id`, `focused_article_id`, `focus_scale` are all absent, the article count of `"isRead":true` in `articles_json` is unchanged, and the widget shows no expanded row.
+- [ ] **Switch live, Focus → Expand:** with one article focused and a custom scale, switch to Expand, Save. Same DataStore check; no row enlarged; the previously focused article is **not** marked read by the switch itself.
+- [ ] **Read on move-away, Expand mode:** tap article A then B: only A becomes read (`isRead` + `readAt` in DataStore), B stays unread. Repeat with an article that has no description (e.g. ynet flash / rotter) as A, and as B: same rule.
+- [ ] **Read on move-away, Focus mode:** focus A then B: only A becomes read. Focus a description-less article and move away from it: it is marked read too.
+- [ ] Old-config decoding (config JSON still carrying `focusBackgroundScale`): covered by `WidgetConfigTapModeTest`; not reproducible on-device (no surviving widget carries the key), record ⚠️ "unit-test only".
+- [ ] Tapping a focused article's **Load more ↓** / **Open article →** / **Open in browser ↗** controls works exactly as on an Expand-mode widget.
 
 ---
 
-## 8. Shared background work across both widget types
+## 8. Shared background work (single widget type) and orphan cleanup
 
-Requires both a standard and a Focus widget placed simultaneously (per the setup note above).
-
-- [ ] With both placed, confirm both `NewsFeedRefresh` and `NewsFeedUpdateCheck` jobs are scheduled (`adb shell dumpsys jobscheduler`) and both `com.newsfeed.widget.CLOCK_TICK` / `CLOCK_TICK_FOCUS` alarms are pending (`adb shell dumpsys alarm`).
-- [ ] Remove **only** the standard widget → confirm the shared jobs are **still scheduled** (the Focus widget still needs them) and the Focus widget's own `CLOCK_TICK_FOCUS` alarm is still pending, while the standard widget's now-orphaned `CLOCK_TICK` alarm is gone.
-- [ ] Re-place a standard widget, then remove **only** the Focus widget instead → confirm the mirror-image result (shared jobs survive, standard's `CLOCK_TICK` still pending, `CLOCK_TICK_FOCUS` gone).
-- [ ] Remove **both** widgets entirely → confirm the shared jobs are now genuinely cancelled (`NewsFeedRefresh`/`NewsFeedUpdateCheck` no longer listed) — this closes the loop on "does cleanup actually happen, not just survival."
-- [ ] Place at least one widget again, then reboot the device → confirm refresh, update-check, and the correct clock-tick alarm(s) all resume automatically without needing to reopen the widget or Settings.
+- [ ] With one or more widgets placed: `NewsFeedRefresh` and `NewsFeedUpdateCheck` are scheduled (`adb shell dumpsys jobscheduler`), a `com.newsfeed.widget.CLOCK_TICK` alarm is pending and **no** `CLOCK_TICK_FOCUS` alarm exists (`adb shell dumpsys alarm | grep -c CLOCK_TICK_FOCUS` prints 0).
+- [ ] With two widgets placed, remove one: jobs and `CLOCK_TICK` survive. Remove the last: the jobs are cancelled and `CLOCK_TICK` is gone.
+- [ ] After removing a widget, its `files/datastore/appWidget-<id>.preferences_pb` is gone and its `widget_<id>` key is gone from `newsfeed_config` and `newsfeed_config_backup` (`grep -a -o "widget_[0-9]*"` on each file) — the `onDeleted` cleanup.
+- [ ] **Update over a build that had a Focus widget placed** (no uninstall): the Focus widget disappears from the home screen, the standard widget keeps its feeds and renders, logcat has no `FATAL EXCEPTION` and no repeating error from the app. After one refresh (Save in Settings triggers it) the removed widget's `appWidget-<id>` file, config keys and `CLOCK_TICK_FOCUS` alarm are gone.
+- [ ] If the only widgets before the update were Focus widgets: after the update and one worker run, `NewsFeedRefresh` and `NewsFeedUpdateCheck` are no longer scheduled; placing a NewsFeed widget re-arms them.
+- [ ] Reboot with a widget placed: refresh, update-check and the `CLOCK_TICK` alarm resume without opening the app.
 
 ---
 
@@ -144,7 +145,7 @@ Switch the device's **system language** to Hebrew for this section specifically 
 These map directly to real crashes/behaviors this project has hit and fixed before — they're regression checks, not speculative stress tests.
 
 - [ ] Glamour theme + Font size slider at maximum (3.0×) — confirm no "Can't show content" / RemoteViews bitmap-memory crash; confirm the row-count message at the bottom ("Showing X of Y…") appears and is accurate rather than the widget silently failing to render.
-- [ ] (Focus widget only) Glamour + Font size 3.0× + focus scale at its own maximum (2.5×) simultaneously on the focused row — the historically worst-case combination — confirm the same: no crash, a real (even if small) row count still renders.
+- [ ] (Focus mode only) Glamour + Font size 3.0× + focus scale at its own maximum (2.5×) simultaneously on the focused row — the historically worst-case combination — confirm the same: no crash, a real (even if small) row count still renders.
 - [ ] A non-Glamour theme (e.g. Simple or Data Science) with 200+ accumulated articles — confirm the widget can scroll to reach close to the real total (up to 300), not capped at a flat 60 the way Glamour legitimately is.
 - [ ] With articles near the 300-item accumulation cap, confirm "Load more articles ↓" and the "Showing X of Y" messaging both make sense and match what's actually reachable.
 
@@ -152,14 +153,14 @@ These map directly to real crashes/behaviors this project has hit and fixed befo
 
 - [ ] Resize a placed widget down to its minimum (130×200dp) — confirm layout doesn't clip/overlap in a broken way.
 - [ ] Resize up to its maximum (500×600dp) — confirm content scales/reflows sensibly rather than leaving large dead space or breaking the header/footer.
-- [ ] Repeat for both widget types.
+- [ ] Repeat in both tap modes (Expand and Focus).
 
 ## 12. Known-bug regression spot-checks
 
 Quick confirmations that specific, previously-reported-and-fixed bugs haven't resurfaced:
 
 - [ ] Hebrew headline text shows normal word spacing (no oversized gaps from a stray justification mode).
-- [ ] After stepping Focus to a different article, the *previously*-focused row's highlight/size does not stick — only the newly-focused row is enlarged.
+- [ ] After tapping a different article in Focus mode, the *previously*-focused row's highlight/size does not stick — only the newly-focused row is enlarged.
 - [ ] The header's unread/total badge reflects only what's currently visible/scrollable, not the full up-to-300 accumulated store.
 - [ ] Meta-row (feed name/timestamp) and article preview text are comfortably legible at default settings — not the thin/small rendering from before the readability fix.
 - [ ] Non-Glamour headline text never renders in the Playpen Sans Hebrew handwriting font under any theme selection.
@@ -182,7 +183,7 @@ CI publishes every push to `main` as the rolling "latest" release that installed
 
 1. **Verify each new feature on the real device** with hard evidence — DataStore pulls (`run-as ... cat files/datastore/appWidget-<id>.preferences_pb`), screenshots, `uiautomator dump`, logcat — never "it compiles" or "the review passed".
 2. **Run the full QA plan** in [`docs/QA_PLAN.md`](QA_PLAN.md) (all features, all options, and their combinations; any bug it did not already test gets a new case added there) and record the results in this plan, one subsection per release below, in the format that plan defines.
-3. **Check fully**: the feature itself, its edge cases, regressions in neighbouring features, **both widget types**, logcat clean.
+3. **Check fully**: the feature itself, its edge cases, regressions in neighbouring features, **both tap modes (Expand and Focus)**, logcat clean.
 4. **Report** results to the user, including anything not verified. If the device is offline or a check is impossible, say so and do not call it release-ready.
 5. Security review before the push, and confirm the CI run is green after it.
 
@@ -216,4 +217,4 @@ Known unverified: `UpdateRelayActivity` screen from a live notification tap (And
 
 ## Reporting
 
-For every ❌, capture: exact steps to reproduce, a screenshot, the widget theme/settings active at the time, and whether it reproduces on both widget types or just one. File findings as you go rather than batching them — several past bugs in this project were only caught because a specific repro was pinned down immediately rather than described vaguely after the fact.
+For every ❌, capture: exact steps to reproduce, a screenshot, the widget theme/settings active at the time, and whether it reproduces in both tap modes or just one. File findings as you go rather than batching them — several past bugs in this project were only caught because a specific repro was pinned down immediately rather than described vaguely after the fact.

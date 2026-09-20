@@ -30,3 +30,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 8
 - Telegram posts now show their full text when expanded, and "Load full article" no longer replaces a post with unrelated page text.
+
+## Note 9
+- NewsFeed Focus is now a setting: in widget settings choose "When I tap an article" and pick "Expand in place" or "Focus (enlarge)". The separate NewsFeed Focus widget is gone, so a Focus widget already on your home screen disappears when you update: add the standard NewsFeed widget and choose Focus. In Focus mode only the article you tap enlarges, and the other rows keep their normal size.

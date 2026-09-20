@@ -7,8 +7,8 @@ user-facing manual, `docs/BUGS.md` for the engineering/QA history, and
 
 **Product**: a standalone Android home-screen widget that fetches and displays RSS/Atom feeds
 (and public Telegram channels) directly on the home screen, with no companion app or server —
-everything runs on-device. Two widget types from one app: **NewsFeed** (standard) and
-**NewsFeed Focus** (adds a tap-to-enlarge reading mode). Built with first-class RTL Hebrew
+everything runs on-device. One widget with a per-widget tap behavior: expand an article in place, or
+**Focus** it (a tap-to-enlarge reading mode). Built with first-class RTL Hebrew
 support as a founding requirement, not an afterthought.
 
 Status legend: ✅ Shipped · 🚧 In progress · 📋 Planned (spec approved, not yet built) ·
@@ -39,13 +39,14 @@ Status legend: ✅ Shipped · 🚧 In progress · 📋 Planned (spec approved, n
 | Independent font-size controls (headline vs. article body) | ✅ | Readability tuning without coupling the two. |
 | Background opacity | ✅ | Widget can blend with the wallpaper instead of always being opaque. |
 
-## Focus Mode (NewsFeed Focus widget)
+## Focus Mode (tap-behavior setting)
 
 | Feature | Status | Requirement |
 |---|---|---|
-| Tap-to-enlarge focus | ✅ | One article can be read at a larger size while others shrink, without opening a separate view. |
+| Tap-to-enlarge focus | ✅ | One article can be read at a larger size while others stay the same size, without opening a separate view. |
 | Read-marking on focus-away | ✅ | An article is marked read only once the user has moved on to another one, not the instant it's tapped. |
 | Adjustable focus scale (+/-) | ✅ | User controls how large the focused row gets, in the moment. |
+| Per-widget setting | ✅ | "When I tap an article" in Widget settings picks Expand in place (default) or Focus (enlarge) for each placed widget; switching resets that widget's expanded/focused article. |
 
 ## Reliability & maintenance
 

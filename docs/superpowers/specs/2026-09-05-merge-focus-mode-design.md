@@ -1,7 +1,7 @@
 # Merge Focus Mode into one app (two widgets) — design spec
 **Date:** 2026-09-05
 **Project:** NewsFeed widget
-**Status:** Approved
+**Status:** Approved. The "two widgets in one app" decision was superseded on 2026-09-20 by `2026-09-20-focus-as-setting-design.md`: Focus is now a per-widget setting of the single NewsFeed widget.
 
 ---
 

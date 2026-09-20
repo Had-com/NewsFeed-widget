@@ -2,7 +2,7 @@
 
 A standalone Android home screen widget that fetches and displays RSS/Atom feeds directly on your home screen — no companion app required. Built for full **RTL Hebrew support** and designed for the **Galaxy Z Fold** inner display.
 
-One app, two widgets: **NewsFeed** (standard) and **NewsFeed Focus** (adds a tap-to-enlarge reading mode). Both are offered from the same "Add widget" picker and can be placed side by side.
+One widget, two tap behaviors: **NewsFeed** expands an article in place when you tap it, or, per widget in Settings, enlarges it (**Focus** mode) for reading one article at a time. There is a single "NewsFeed" entry in the "Add widget" picker.
 
 ---
 
@@ -55,7 +55,7 @@ Tapping an article title expands it inside the widget:
 - **Open article →** button appears to open the full article externally
 - Tap the expanded article again to collapse it
 
-*(On a **NewsFeed Focus** widget, tapping instead enlarges the article — see [Focus Mode](#focus-mode) below.)*
+*(With **When I tap an article** set to **Focus (enlarge)** in Settings, tapping instead enlarges the article — see [Focus Mode](#focus-mode) below.)*
 
 ### Article length modes
 | Mode | Setting label | Description |
@@ -71,7 +71,7 @@ The "Open article in" setting controls where the Open button sends you:
 - **Browser** — opens in your default web browser (default)
 - **Share sheet** — share the article URL to any app
 
-An article is **marked as read** once you move on to another one (expanding a different article, or focusing a different one on the Focus widget) — not the moment you press it. Articles with no description have nothing to expand, but follow the same rule: they are marked read when you tap a different article.
+An article is **marked as read** once you move on to another one (expanding a different article, or focusing a different one in Focus mode) — not the moment you press it. Articles with no description have nothing to expand, but follow the same rule: they are marked read when you tap a different article.
 
 ### Sort options
 | Option | Description |
@@ -163,19 +163,19 @@ The existing **Theme variant** (Light/Dark) toggle is reused for Custom instead 
 
 ### Focus Mode
 
-**NewsFeed Focus** is a second widget offered by the same app, for browsing by tapping through articles one at a time rather than scrolling a list.
+Focus is a per-widget setting, not a separate widget. In **Widget settings → When I tap an article**, choose **Focus (enlarge)** (the default is **Expand in place**). It is for browsing by tapping through articles one at a time rather than scrolling a list. Switching the setting on a placed widget takes effect on **Save** and resets that widget's expanded/focused article.
 
-- **Tap any article** to focus it: that row enlarges, every other row shrinks (how much is set by the **Background rows size** slider in Settings, Focus-only), and the article's description/full text auto-expands inline — no separate expand tap needed.
-- **Header controls** (only present on a Focus widget):
-  - **▲ / ▼** — step focus to the previous/next article without needing to land a tap on a specific (possibly now-shrunk) row.
+> **Upgrading from the separate NewsFeed Focus widget:** that widget no longer exists, and the update removes any placed Focus widget from your home screen. Add the **NewsFeed** widget again and set **When I tap an article** to **Focus (enlarge)**.
+
+- **Tap any article** to focus it: that row enlarges, every other row stays at its normal size, and the article's description/full text auto-expands inline — no separate expand tap needed. Tapping the focused row again clears focus.
+- **Header controls** (only shown in Focus mode):
   - **N/M** — a position indicator showing where the focused article sits among what's currently on screen.
-  - **✕** — clears focus, returning every row to its normal size. More reliable than tapping the focused row again, since focusing reflows the whole list and the row you meant to re-tap may no longer be where you left it.
   - **− / +** — adjust the focused row's own enlargement (0.75× – 2.5×) live, per article. This resets to a default whenever focus moves to a different article — it's a look-at-this-one-now adjustment, not a standing preference.
-- Everything else (feeds, sort, filter, theme, refresh, self-update) is shared with the standard widget — Focus Mode only changes how you browse, not what's fetched or shown.
+- Everything else (feeds, sort, filter, theme, refresh, self-update) is shared with Expand mode — Focus only changes how you browse, not what's fetched or shown.
 
 ### Self-updating
 
-Both widgets can check for and install a newer build directly, without manually re-downloading the APK.
+The widget can check for and install a newer build directly, without manually re-downloading the APK.
 
 - **Automatic daily check** — runs once a day in the background; if a newer build is available, you get a system notification. Tapping it downloads the update and hands it straight to Android's own install screen.
 - **Manual check** — the **APP UPDATE** section in Settings shows your current build number and a **Check now** button that checks immediately instead of waiting for the daily cycle.
@@ -219,7 +219,7 @@ Feeds are fetched with browser-like HTTP headers so Israeli news sites (ynet, ro
 | Minimum after resize | 130×200dp |
 | Maximum after resize | 500×600dp |
 
-The widget is fully resizable in both directions — drag its edges on the home screen to adjust. Both NewsFeed and NewsFeed Focus share identical sizing.
+The widget is fully resizable in both directions — drag its edges on the home screen to adjust. Sizing is identical in Expand and Focus mode.
 
 ---
 
@@ -239,6 +239,7 @@ Core app-wide list preferences:
 | Refresh every | 15 min · 30 min · 1h · 2h · 4h · 6h · 12h | Background auto-refresh interval; 15 min is the floor (Android WorkManager's own minimum) |
 | Keep articles for | Forever · 1 day · 3 days · 1 week · 2 weeks · 1 month | Independent of the 300-article accumulation cap, which always applies |
 | Open article in | Browser · Share sheet | Where the "Open article →"/"Open in browser ↗" buttons send you |
+| When I tap an article | Expand in place · Focus (enlarge) | Per widget; see [Focus Mode](#focus-mode). Switching resets the widget's expanded/focused article |
 
 ### 2. Display
 Text sizing and the article-length setting, plus a live preview of the result:
@@ -247,7 +248,6 @@ Text sizing and the article-length setting, plus a live preview of the result:
 |---|---|---|
 | Font size (slider) | 50%–300% | Headlines, meta text, header/footer |
 | Article font size (slider) | 50%–300% | Expanded article body text only, independent of the slider above |
-| Background rows size (slider) | 25%–100% | **NewsFeed Focus only** — how small every non-focused row renders |
 | *(live preview card)* | — | Shows a sample headline + description rendered with your current theme/font choices, updating as you adjust settings above |
 | Expanded article | Subtitle only · First paragraph · Full article | See [Article length modes](#article-length-modes) |
 
@@ -347,7 +347,7 @@ Android blocks apps not downloaded from the Play Store by default. You need to a
 
 1. Long-press an empty area of your home screen
 2. Tap **Widgets**
-3. Search for or scroll to find **NewsFeed** — you'll see two entries, **NewsFeed** and **NewsFeed Focus** (see [Focus Mode](#focus-mode)); add either or both
+3. Search for or scroll to find **NewsFeed** and add it. To browse in Focus mode, set **When I tap an article** to **Focus (enlarge)** in its Settings (see [Focus Mode](#focus-mode))
 4. Drag the widget to your home screen
 5. The settings screen opens automatically — add your first feed URL, search by topic, or import an OPML file
 
@@ -375,19 +375,19 @@ app/src/main/
 │   │                                 #   handler that feeds CrashLogStore (see data/), then re-throws to
 │   │                                 #   Android's own handler unchanged
 │   ├── glance/
-│   │   ├── NewsFeedWidget.kt          # Both GlanceAppWidget classes (standard + Focus), both
-│   │   │                              #   GlanceAppWidgetReceivers, shared composables, and the
-│   │   │                              #   updateNewsFeedWidget() cross-widget-type update router
+│   │   ├── NewsFeedWidget.kt          # The GlanceAppWidget, its GlanceAppWidgetReceiver (onDeleted cleanup, clock tick), and the
+│   │   │                              #   shared composables (Focus vs Expand is read from WidgetConfig.tapMode)
+│   │   ├── TapRouting.kt              # Pure helpers: tap routing matrix, mode-switch state reset, focused-row scale
 │   │   ├── FeedItemRow.kt             # Per-article row (circle icon, expand/collapse, focus scaling, thumbnail, bitmap headline)
 │   │   ├── TextBitmapHelper.kt        # Canvas bitmap renderer for Glamour Hebrew headlines/body (Playpen Sans Hebrew)
-│   │   ├── WidgetWorker.kt            # WorkManager refresh job (both widget types) + article merge + thumbnail download
+│   │   ├── WidgetWorker.kt            # WorkManager refresh job + orphaned-state sweep + article merge + thumbnail download
 │   │   ├── WidgetThemes.kt            # 10 colour schemes (incl. the user-defined "custom" scheme built
 │   │   │                              #   from parseHexColor()) + rawColorSchemeFor() + fontFamilyFor()
 │   │   ├── BootReceiver.kt            # Reschedules WorkManager, update-check, and clock ticks after device reboot
 │   │   ├── RefreshNowCallback.kt      # ActionCallback — immediate refresh on footer tap
-│   │   ├── ToggleExpandCallback.kt    # ActionCallback — expand/collapse article (standard widget)
-│   │   ├── SetFocusArticleCallback.kt # ActionCallback — tap-to-focus an article; marks the previously-focused article read (Focus widget)
-│   │   ├── AdjustFocusScaleCallback.kt # ActionCallback — −/+ header buttons (Focus widget)
+│   │   ├── ToggleExpandCallback.kt    # ActionCallback — expand/collapse article (Expand mode)
+│   │   ├── SetFocusArticleCallback.kt # ActionCallback — tap-to-focus an article; marks the previously-focused article read (Focus mode)
+│   │   ├── AdjustFocusScaleCallback.kt # ActionCallback — −/+ header buttons (Focus mode)
 │   │   ├── UnreadGracePeriod.kt        # Delayed re-render so a just-read article's grace period actually elapses on-widget and dissolve stages (text turns to dots, then is erased from the end)
 │   │   ├── FetchFullArticleCallback.kt # ActionCallback — two-phase loading (description → full web content via Jsoup, charset-sniffed)
 │   │   ├── LoadMoreArticleCallback.kt  # ActionCallback — reveal next chunk of one article's full text
@@ -430,10 +430,9 @@ app/src/main/
     ├── mipmap-anydpi-v26/
     │   ├── ic_launcher.xml             # Adaptive icon (Android 8+)
     │   └── ic_launcher_round.xml       # Round adaptive icon
-    ├── values/strings.xml              # English strings (app name + both widgets' picker labels)
+    ├── values/strings.xml              # English strings (app name + widget picker label)
     ├── values-iw/strings.xml           # Hebrew strings (עברית)
-    ├── xml/appwidget_info.xml          # Standard widget metadata
-    ├── xml/appwidget_info_focus.xml    # Focus widget metadata
+    ├── xml/appwidget_info.xml          # Widget metadata
     └── xml/file_paths.xml              # FileProvider paths (OPML export, downloaded updates)
 
 keystore/
