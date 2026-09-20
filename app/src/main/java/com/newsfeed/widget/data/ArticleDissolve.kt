@@ -87,3 +87,7 @@ fun remainingRefreshDelays(markedAt: Long, now: Long): List<Long> {
     val anyPassed = future.size < waits.size
     return if (anyPassed) listOf(0L) + future else future
 }
+
+/** True while a read article is in a dissolve stage (its row must then hide action buttons). */
+fun isDissolving(article: ArticleItem, now: Long): Boolean =
+    article.isRead && dissolveStage(article.readAt, now) > 0

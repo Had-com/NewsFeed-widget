@@ -67,6 +67,11 @@ fun FeedItemRow(
     focusScale: Float = AdjustFocusScaleCallback.DEFAULT_SCALE,
     focusBackgroundScale: Float = 0.5f,
     isFocusWidget: Boolean = false,
+    // True while this just-read article is dissolving (Unread only, see ArticleDissolve.kt):
+    // its row shows only the dissolved title/description - no Load full article / Open article /
+    // Share / Load more controls, which would act on a row that is about to vanish (and would
+    // otherwise pass dissolved text to FetchFullArticleCallback).
+    isDissolving: Boolean = false,
 ) {
     val context        = LocalContext.current
     // Focus Mode only. Hoisted above isExpanded: Focus Mode has no separate expand/collapse
@@ -667,7 +672,7 @@ fun FeedItemRow(
                 }
 
                 if (articleLength == "full") {
-                    if (fullArticleId == article.id && fullArticleText.isNotBlank()) {
+                    if (!isDissolving && fullArticleId == article.id && fullArticleText.isNotBlank()) {
                         Spacer(GlanceModifier.height(4.dp))
                         if (widgetTheme == "glamer") {
                             val density2       = context.resources.displayMetrics.density
@@ -810,7 +815,7 @@ fun FeedItemRow(
                             val clipped = article.description.take(400).trimEnd()
                             DescriptionText(clipped, maxLines = 10)
                         }
-                        if (article.articleUrl.isNotBlank()) {
+                        if (!isDissolving && article.articleUrl.isNotBlank()) {
                             Spacer(GlanceModifier.height(6.dp))
                             Text(
                                 text = "Load full article ↓",
@@ -844,7 +849,7 @@ fun FeedItemRow(
                     }
                 }
 
-                if (openIntent != null) {
+                if (openIntent != null && !isDissolving) {
                     Spacer(GlanceModifier.height(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // Article rows live inside a LazyColumn, so clicks route through Glance's

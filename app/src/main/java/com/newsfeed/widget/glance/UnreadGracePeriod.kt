@@ -3,6 +3,7 @@ package com.newsfeed.widget.glance
 import android.content.Context
 import androidx.glance.GlanceId
 import androidx.glance.appwidget.state.updateAppWidgetState
+import com.newsfeed.widget.data.GraceRefreshRegistry
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.remainingRefreshDelays
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +20,10 @@ import kotlinx.coroutines.launch
 object UnreadGracePeriod {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    // Shared by the tap callbacks and the render-time resume in NewsFeedWidget.kt: whoever gets
+    // here first for a given (widget, article, readAt) owns the schedule; the rest no-op.
+    private val registry = GraceRefreshRegistry()
+
     // No-op if nothing was actually marked read this action (markedArticleId is null) - e.g.
     // a toggle-off in Focus Mode, or an already-expanded/already-focused article being
     // re-tapped, or an article that was already read before this tap.
@@ -33,7 +38,10 @@ object UnreadGracePeriod {
         update: suspend (Context, GlanceId) -> Unit,
     ) {
         if (markedArticleId == null) return
+        val key = GraceRefreshRegistry.key(glanceId.toString(), markedArticleId, markedAt)
+        if (!registry.tryRegister(key)) return
         scope.launch {
+            try {
             // remainingRefreshDelays() derives from graceRefreshDelays() = +2.5s, +3.33s, +4.17s, +5s, each with a +100ms buffer so it fires
             // strictly after its boundary (the dissolve stage change / the filter excluding
             // the article), never before it. They share the constants the filter and the
@@ -62,6 +70,10 @@ object UnreadGracePeriod {
                     }
                     update(context, glanceId)
                 }
+            }
+            } finally {
+                // Released whether the schedule completed or the scope was cancelled.
+                registry.release(key)
             }
         }
     }

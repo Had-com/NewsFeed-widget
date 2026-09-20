@@ -8,6 +8,8 @@ import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.glance.LocalGlanceId
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -55,6 +57,8 @@ import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.applyFilterAndSort
 import com.newsfeed.widget.data.dissolveArticle
+import com.newsfeed.widget.data.isDissolving
+import com.newsfeed.widget.data.UNREAD_GRACE_PERIOD_MS
 import com.newsfeed.widget.update.UpdateCheckWorker
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -274,6 +278,30 @@ private fun WidgetContent(isFocusWidget: Boolean) {
     val focusedIndex    = if (focusedArticleId.isNotBlank())
         displayArticles.indexOfFirst { it.id == focusedArticleId } else -1
 
+    // Resume the dissolve/removal refreshes if this process didn't schedule them (the
+    // scheduler's coroutine dies with the process, e.g. `adb install -r` mid-dissolve, which
+    // would leave a row stuck half-dotted until some unrelated refresh). Deduped in-process by
+    // UnreadGracePeriod's registry, so the re-renders those refreshes trigger, and the tap
+    // callbacks' own scheduling, never spawn a second schedule. An article already >= 5s
+    // past readAt is filtered out of this very render, so it never gets here.
+    if (config.filter == FilterMode.UNREAD.key) {
+        val graceGlanceId = LocalGlanceId.current
+        val graceContext = LocalContext.current
+        val resumeArticles = articles.filter {
+            it.isRead && it.readAt != null && feedMap.containsKey(it.feedId) &&
+                now - it.readAt < UNREAD_GRACE_PERIOD_MS
+        }
+        if (resumeArticles.isNotEmpty()) {
+            SideEffect {
+                resumeArticles.forEach { a ->
+                    UnreadGracePeriod.scheduleRefresh(graceContext, graceGlanceId, a.id, a.readAt!!) { c, g ->
+                        if (isFocusWidget) NewsFeedFocusWidget().update(c, g) else NewsFeedWidget().update(c, g)
+                    }
+                }
+            }
+        }
+    }
+
     val themeColors = WidgetThemes.colorProvidersFor(
         config.widgetTheme, config.themeVariant, config.customFontColor, config.customBackgroundColor)
     val surfaceColor = WidgetThemes.surfaceColorFor(
@@ -337,6 +365,7 @@ private fun WidgetContent(isFocusWidget: Boolean) {
                                 focusScale        = focusScale,
                                 focusBackgroundScale = config.focusBackgroundScale,
                                 isFocusWidget     = isFocusWidget,
+                                isDissolving      = config.filter == FilterMode.UNREAD.key && isDissolving(article, now),
                             )
                             if (!isLast) {
                                 Box(modifier = GlanceModifier
