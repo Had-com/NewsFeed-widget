@@ -368,6 +368,43 @@ class WidgetConfigActivity : ComponentActivity() {
                     }
                 }
 
+                var showResetDefaultsDialog by remember { mutableStateOf(false) }
+
+                // Bundled defaults parsed exactly like the brand-new-widget path above; accent
+                // colors continue the palette from the current list size, like Add Feed does.
+                fun loadDefaultFeeds(baseIdx: Int): List<FeedConfig>? {
+                    val opml = runCatching {
+                        assets.open("default_feeds.opml").bufferedReader().readText()
+                    }.getOrNull() ?: return null
+                    val palette = feedAccentColors(config.widgetTheme)
+                    return OpmlManager.parse(opml).mapIndexed { i, (title, url) ->
+                        FeedConfig(feedId = url, displayName = title, feedUrl = url,
+                            accentColor = palette[(baseIdx + i) % palette.size])
+                    }.ifEmpty { null }
+                }
+
+                fun doAddDefaultFeeds() {
+                    val defaults = loadDefaultFeeds(config.feeds.size)
+                        ?: run { statusMessage = "Could not load default feeds"; return }
+                    val result = mergeDefaultFeeds(config.feeds, defaults)
+                    val existingIds = config.feeds.map { it.feedId }.toSet()
+                    val added = result.merged.filter { it.feedId !in existingIds }
+                    config = config.copy(feeds = result.merged)
+                    added.forEach { feedOrder.add(it.feedId) }
+                    val msg = "Added ${result.addedCount} default feeds (${result.skippedCount} already present)"
+                    statusMessage = msg
+                    Toast.makeText(this@WidgetConfigActivity, msg, Toast.LENGTH_SHORT).show()
+                }
+
+                fun doResetToDefaults() {
+                    val defaults = loadDefaultFeeds(0)
+                        ?: run { statusMessage = "Could not load default feeds"; return }
+                    feedOrder.clear()
+                    feedOrder.addAll(defaults.map { it.feedId })
+                    config = config.copy(feeds = defaults)
+                    statusMessage = "Feeds reset to defaults (tap Save to apply)"
+                }
+
                 fun doAddFeed() {
                     val raw = addFeedUrl.trim(); if (raw.isBlank()) return
                     // Recognized Telegram references (t.me/channel, @channel, ...) are
@@ -458,6 +495,19 @@ class WidgetConfigActivity : ComponentActivity() {
                     config.articleFontSize < 1.5f  -> "Medium"
                     config.articleFontSize < 2.0f  -> "Large"
                     else                            -> "Huge"
+                }
+
+                if (showResetDefaultsDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showResetDefaultsDialog = false },
+                        text = { Text("Remove all your feeds and load the defaults?") },
+                        confirmButton = {
+                            TextButton(onClick = { showResetDefaultsDialog = false; doResetToDefaults() }) { Text("Reset") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showResetDefaultsDialog = false }) { Text("Cancel") }
+                        },
+                    )
                 }
 
                 Scaffold(
@@ -909,6 +959,13 @@ class WidgetConfigActivity : ComponentActivity() {
                                 Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                                     TextButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Text("Import OPML") }
                                     TextButton(onClick = { doExport() }, enabled = config.feeds.isNotEmpty()) { Text("Export OPML") }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Default feeds", fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(end = 8.dp))
+                                    TextButton(onClick = { doAddDefaultFeeds() }) { Text("Add default feeds") }
+                                    TextButton(onClick = { showResetDefaultsDialog = true }) { Text("Reset to defaults") }
                                 }
                                 if (statusMessage.isNotEmpty()) {
                                     Text(statusMessage, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)

@@ -88,6 +88,9 @@ An article is **marked as read** once you move on to another one (expanding a di
 | Unread only | Show only articles you haven't read yet |
 | Read only | Show only articles you've already read |
 
+### Default feeds
+Under **Add Feed** in Settings, **Add default feeds** merges the bundled starter feeds into your list without duplicating any you already have, and **Reset to defaults** (with a confirmation) replaces your whole list with them; both apply when you tap Save.
+
 ### Find feeds by topic
 A search box in Settings looks up feeds by topic, site name, or keyword (via Feedly's public feed-search index) and lists title, description, and subscriber count for each result — tap **+ Add** to add one directly, no need to already know its URL.
 

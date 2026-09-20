@@ -18,3 +18,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 ## Note 4
 - Fixed: articles without a description (most news flashes) are now also marked read only when you tap a different article, not the moment you tap them.
 - New default feeds: a brand-new widget now starts with an updated set of Hebrew news and AI feeds.
+
+## Note 5
+- Settings now has "Add default feeds" (adds the built-in feeds you are missing, without duplicates) and "Reset to defaults" (replaces all your feeds with the built-in ones, after a confirmation); both take effect when you tap Save.
