@@ -83,10 +83,13 @@ import com.newsfeed.widget.data.SortOrder
 import com.newsfeed.widget.data.TelegramFeedParser
 import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetConfigStore
+import com.newsfeed.widget.data.TapMode
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.glance.NewsFeedWidget
 import com.newsfeed.widget.glance.NewsFeedFocusWidget
 import com.newsfeed.widget.glance.NewsFeedFocusWidgetReceiver
+import com.newsfeed.widget.glance.resetTapState
+import com.newsfeed.widget.glance.tapModeChanged
 import com.newsfeed.widget.glance.updateNewsFeedWidget
 import com.newsfeed.widget.glance.WidgetThemes
 import com.newsfeed.widget.glance.WidgetWorker
@@ -127,13 +130,6 @@ class WidgetConfigActivity : ComponentActivity() {
             setResult(RESULT_CANCELED); finish(); return
         }
 
-        // Which widget type THIS specific instance is — determined by which receiver it's
-        // actually registered to, not a compile-time flag, now that both widget types live
-        // in one app. Computed once here (not inside the Composable below) since it never
-        // changes for the lifetime of this screen.
-        val isFocusWidget = AppWidgetManager.getInstance(this)
-            .getAppWidgetInfo(appWidgetId)?.provider
-            ?.className == NewsFeedFocusWidgetReceiver::class.java.name
 
         val store = WidgetConfigStore(this)
         val repo  = NewsFeedRepository(this)
@@ -141,6 +137,9 @@ class WidgetConfigActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
                 var config by remember { mutableStateOf(WidgetConfig(widgetId = appWidgetId)) }
+                // The tapMode this widget had when the screen opened (from its saved config). Save
+                // compares it with the chosen one to decide whether live tap state must be reset.
+                var loadedTapMode by remember { mutableStateOf(TapMode.EXPAND.key) }
                 val scope  = rememberCoroutineScope()
                 val notificationPermissionLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission()
@@ -148,6 +147,7 @@ class WidgetConfigActivity : ComponentActivity() {
 
                 androidx.compose.runtime.LaunchedEffect(appWidgetId) {
                     val saved = store.configFlow(appWidgetId).first()
+                    loadedTapMode = saved.tapMode
                     if (saved.feeds.isEmpty()) {
                         val opml = runCatching {
                             assets.open("default_feeds.opml").bufferedReader().readText()
@@ -187,6 +187,7 @@ class WidgetConfigActivity : ComponentActivity() {
                 var showFilterMenu   by remember { mutableStateOf(false) }
                 var showRefreshMenu  by remember { mutableStateOf(false) }
                 var showExternalMenu by remember { mutableStateOf(false) }
+                var showTapModeMenu  by remember { mutableStateOf(false) }
                 var showLengthMenu   by remember { mutableStateOf(false) }
                 var showThemeMenu    by remember { mutableStateOf(false) }
                 var showRetentionMenu by remember { mutableStateOf(false) }
@@ -526,6 +527,7 @@ class WidgetConfigActivity : ComponentActivity() {
                             actions = {
                                 TextButton(onClick = {
                                     val final = config.copy(feedOrder = feedOrder.toList())
+                                    val loadedAtSave = loadedTapMode
                                     lifecycleScope.launch {
                                         store.save(final)
                                         WidgetWorker.schedule(this@WidgetConfigActivity, final.refreshIntervalMinutes.toLong())
@@ -533,6 +535,10 @@ class WidgetConfigActivity : ComponentActivity() {
                                             val glanceId = GlanceAppWidgetManager(this@WidgetConfigActivity).getGlanceIdBy(appWidgetId)
                                             updateAppWidgetState(this@WidgetConfigActivity, glanceId) { prefs ->
                                                 prefs[WidgetStateKey.configJson] = Json.encodeToString(final)
+                                                // Switching Expand <-> Focus on a live widget: drop the old mode's
+                                                // transient state (expanded / focused / last-tapped / focus scale).
+                                                // Read flags are untouched, see resetTapState().
+                                                if (tapModeChanged(loadedAtSave, final.tapMode)) resetTapState(prefs)
                                             }
                                             // updateNewsFeedWidget() initialises the Glance DataStore
                                             // subscription for whichever widget type this instance
@@ -643,6 +649,28 @@ class WidgetConfigActivity : ComponentActivity() {
                                         }
                                     }
                                 }
+
+                                // When I tap an article: per widget, Expand in place (default) or Focus (enlarge).
+                                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                                    Text("When I tap an article", style = MaterialTheme.typography.bodyMedium)
+                                    androidx.compose.foundation.layout.Box {
+                                        val tapLabel = TapMode.fromKey(config.tapMode).label
+                                        TextButton(onClick = { showTapModeMenu = true }) { Text("$tapLabel ▾", fontSize = 13.sp) }
+                                        DropdownMenu(showTapModeMenu, { showTapModeMenu = false }) {
+                                            TapMode.entries.forEach { mode ->
+                                                DropdownMenuItem(text = { Text(mode.label) },
+                                                    onClick = { config = config.copy(tapMode = mode.key); showTapModeMenu = false })
+                                            }
+                                        }
+                                    }
+                                }
+                                if (TapMode.fromKey(config.tapMode) == TapMode.FOCUS) {
+                                    Text(
+                                        "Tap enlarges the article; use − / + in the widget header to resize it.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                             HorizontalDivider()
                         }
@@ -681,25 +709,6 @@ class WidgetConfigActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxWidth(),
                                 )
 
-                                // Focus Mode only. How small every row other than the focused
-                                // one renders (as a fraction of Font size above) — a standing
-                                // preference, so it lives here as a slider, unlike the focused
-                                // row's own size, which is a live, on-widget +/- adjustment
-                                // (AdjustFocusScaleCallback) because that's meant to be tuned
-                                // per article in the moment, not set once in advance.
-                                if (isFocusWidget) {
-                                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                                        Text("Background rows size", style = MaterialTheme.typography.bodyMedium)
-                                        Text("${(config.focusBackgroundScale * 100).toInt()}%", fontSize = 13.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                    Slider(
-                                        value = config.focusBackgroundScale,
-                                        onValueChange = { config = config.copy(focusBackgroundScale = it) },
-                                        valueRange = 0.25f..1.0f,
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                }
                                 // Live preview
                                 val sampleDesc = "פרטי הכתבה לדוגמה מופיעים כאן לאחר הפתיחה — When you tap a headline, this is the description text that appears below it. The length setting controls how much of this text is shown."
                                 val previewDesc = when (config.articleLength) {
