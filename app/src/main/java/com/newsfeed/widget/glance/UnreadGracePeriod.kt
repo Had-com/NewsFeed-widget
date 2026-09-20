@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 
 // Glance never re-renders on its own between explicit update() calls, so a callback that
 // marks an article read under "Unread only" also needs to trigger delayed follow-up updates:
-// one per dissolve stage (the text turning into dots, see data/ArticleDissolve.kt) and a
+// one per dissolve stage (the text turning into dots, then being erased from the end, see data/ArticleDissolve.kt) and a
 // final one once the grace period elapses - otherwise the article would linger visible until
 // some unrelated future refresh instead of actually disappearing after 5 seconds.
 object UnreadGracePeriod {
@@ -30,12 +30,12 @@ object UnreadGracePeriod {
     ) {
         if (markedArticleId == null) return
         scope.launch {
-            // graceRefreshDelays() = +2.5s, +4s, +5s, each with a +100ms buffer so it fires
+            // graceRefreshDelays() = +2.5s, +3.33s, +4.17s, +5s, each with a +100ms buffer so it fires
             // strictly after its boundary (the dissolve stage change / the filter excluding
             // the article), never before it. They share the constants the filter and the
             // dissolve stages use, so they can never silently drift out of sync. Each stage
             // is computed from that article's own readAt at render time, so one update
-            // re-renders every article currently dissolving. Three updates per read article
+            // re-renders every article currently dissolving. Four updates per read article
             // at most, no polling.
             var elapsed = 0L
             for (target in graceRefreshDelays()) {

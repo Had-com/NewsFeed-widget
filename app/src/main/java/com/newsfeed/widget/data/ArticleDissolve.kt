@@ -1,57 +1,50 @@
 package com.newsfeed.widget.data
 
 /**
- * Staged "dissolve into dots" for a just-read article under Show = "Unread only", shown
- * during the last part of its UNREAD_GRACE_PERIOD_MS window. Glance cannot animate, so the
- * effect is a few discrete re-renders (scheduled by glance/UnreadGracePeriod.kt):
- *   stage 0: readAt + 0    .. 2.5s -> normal text
- *   stage 1: readAt + 2.5s .. 4s   -> about half of the non-space characters become a middle dot
- *   stage 2: readAt + 4s   .. 5s   -> every non-space character becomes a middle dot
- * Pure functions only, so all of it is unit-testable off-device.
+ * Staged "dissolve" for a just-read article under Show = "Unread only", shown during the
+ * last part of its UNREAD_GRACE_PERIOD_MS window: all text turns into middle dots, then the
+ * dots are erased from the END toward the beginning until the article is removed. Glance
+ * cannot animate, so this is a few discrete re-renders (scheduled by
+ * glance/UnreadGracePeriod.kt). Pure functions only, so it is unit-testable off-device.
  *
- * Both stage boundaries must stay below UNREAD_GRACE_PERIOD_MS (asserted in the tests).
+ *   stage 0: readAt + 0     .. 2.5s   normal text
+ *   stage 1: readAt + 2.5s  .. 3.33s  every non-space char is a dot, full length
+ *   stage 2: readAt + 3.33s .. 4.17s  first 2/3 of the dots remain
+ *   stage 3: readAt + 4.17s .. 5s     first 1/3 of the dots remain
+ *   >= 5s: removed by applyFilterAndSort
+ *
+ * To change the animation, edit the two lists below (same size; entry i describes stage i+1).
+ * Every start must be increasing and below UNREAD_GRACE_PERIOD_MS (asserted in the tests).
  */
-const val DISSOLVE_STAGE1_MS = 2_500L
-const val DISSOLVE_STAGE2_MS = 4_000L
+val DISSOLVE_STAGE_STARTS_MS: List<Long> = listOf(2_500L, 3_333L, 4_167L)
+
+/** Fraction of the text kept at each stage, as numerator to denominator (all-dots, 2/3, 1/3). */
+val DISSOLVE_KEEP_FRACTIONS: List<Pair<Int, Int>> = listOf(1 to 1, 2 to 3, 1 to 3)
 
 private const val DOT = '·'.code
 private const val SCHEDULE_BUFFER_MS = 100L
 
-/** 0 = normal, 1 = half dissolved, 2 = fully dissolved. A null readAt is always stage 0. */
+/** 0 = normal, 1..DISSOLVE_STAGE_STARTS_MS.size = dissolving. A null readAt is always 0. */
 fun dissolveStage(readAt: Long?, now: Long): Int {
     if (readAt == null) return 0
     val elapsed = now - readAt
-    return when {
-        elapsed >= DISSOLVE_STAGE2_MS -> 2
-        elapsed >= DISSOLVE_STAGE1_MS -> 1
-        else -> 0
-    }
+    return DISSOLVE_STAGE_STARTS_MS.count { elapsed >= it }
 }
 
 /**
- * Replaces non-whitespace characters with a middle dot, per code point (so surrogate pairs
- * are never split) and keeping whitespace, so word shapes and RTL layout survive. Stage 1
- * replaces every second non-space character; which parity is replaced comes from [seed], so
- * the result is stable across re-renders.
+ * Stage 0 returns [text] unchanged. Otherwise every non-whitespace code point becomes a
+ * middle dot (whitespace kept, so word shapes and RTL layout survive), then the result is cut
+ * to the first part given by DISSOLVE_KEEP_FRACTIONS[stage - 1] (counted in code points, so
+ * surrogate pairs are never split) and trailing whitespace is trimmed. Non-blank text always
+ * keeps at least one dot, so it never turns empty before the removal itself.
  */
-fun dissolveText(text: String, stage: Int, seed: String): String {
-    if (stage <= 0 || text.isEmpty()) return text
-    val parity = seed.hashCode() and 1
-    val sb = StringBuilder(text.length)
-    var index = 0
-    var n = 0 // count of non-space code points seen so far
-    while (index < text.length) {
-        val cp = text.codePointAt(index)
-        index += Character.charCount(cp)
-        if (Character.isWhitespace(cp)) {
-            sb.appendCodePoint(cp)
-        } else {
-            val dissolve = stage >= 2 || (n and 1) == parity
-            sb.appendCodePoint(if (dissolve) DOT else cp)
-            n++
-        }
-    }
-    return sb.toString()
+fun dissolveText(text: String, stage: Int): String {
+    if (stage <= 0 || text.isBlank()) return text
+    val (num, den) = DISSOLVE_KEEP_FRACTIONS[(stage - 1).coerceAtMost(DISSOLVE_KEEP_FRACTIONS.lastIndex)]
+    val cps = text.codePoints().map { if (Character.isWhitespace(it)) it else DOT }.toArray()
+    val keep = (cps.size.toLong() * num / den).toInt().coerceAtLeast(1)
+    val cut = String(cps, 0, keep).trimEnd()
+    return cut.ifEmpty { "·" }
 }
 
 /**
@@ -64,8 +57,8 @@ fun dissolveArticle(article: ArticleItem, now: Long): ArticleItem {
     val stage = dissolveStage(article.readAt, now)
     if (stage == 0) return article
     return article.copy(
-        title = dissolveText(article.title, stage, article.id + ":t"),
-        description = dissolveText(article.description, stage, article.id + ":d"),
+        title = dissolveText(article.title, stage),
+        description = dissolveText(article.description, stage),
     )
 }
 
@@ -74,8 +67,5 @@ fun dissolveArticle(article: ArticleItem, now: Long): ArticleItem {
  * each dissolve stage boundary, then the removal. The small buffer makes each fire strictly
  * after its boundary, never before it.
  */
-fun graceRefreshDelays(): List<Long> = listOf(
-    DISSOLVE_STAGE1_MS + SCHEDULE_BUFFER_MS,
-    DISSOLVE_STAGE2_MS + SCHEDULE_BUFFER_MS,
-    UNREAD_GRACE_PERIOD_MS + SCHEDULE_BUFFER_MS,
-)
+fun graceRefreshDelays(): List<Long> =
+    (DISSOLVE_STAGE_STARTS_MS + UNREAD_GRACE_PERIOD_MS).map { it + SCHEDULE_BUFFER_MS }

@@ -219,7 +219,7 @@ point size).
 
 ## Out of scope
 
-- Any actual fade/dissolve animation — confirmed impossible on this platform (see Decisions). *Later note:* a staged approximation was added afterwards — during the last 2.5 s of the grace period the row's text is re-rendered as half dots (2.5–4 s) then all dots (4–5 s), via extra scheduled re-renders (`data/ArticleDissolve.kt`); the removal time is unchanged.
+- Any actual fade/dissolve animation — confirmed impossible on this platform (see Decisions). *Later note:* a staged approximation was added afterwards — during the last 2.5 s of the grace period the row's text is re-rendered as all dots (2.5 s), then the dots erased from the end to 2/3 (3.33 s) and 1/3 (4.17 s) of their length, via extra scheduled re-renders (`data/ArticleDissolve.kt`); the removal time is unchanged.
 - Changing the standard widget's read-marking timing (unaffected — already correct).
 - A settings toggle to adjust the 5-second duration — fixed at 5 seconds per the original
   request, not configurable.

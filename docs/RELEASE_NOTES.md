@@ -24,3 +24,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 6
 - In "Unread only", a just-read article now fades into dots before it disappears: its text turns half dotted, then fully dotted, during the last couple of seconds.
+
+## Note 7
+- The fade-out now turns the text to dots and erases them from the end before the article disappears.

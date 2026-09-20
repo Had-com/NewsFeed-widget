@@ -1,7 +1,6 @@
 package com.newsfeed.widget.data
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -10,10 +9,13 @@ class ArticleDissolveTest {
     private val readAt = 1_000_000L
 
     @Test
-    fun `dissolve stages fit inside the grace period and in order`() {
-        assertTrue(DISSOLVE_STAGE1_MS > 0L)
-        assertTrue(DISSOLVE_STAGE1_MS < DISSOLVE_STAGE2_MS)
-        assertTrue(DISSOLVE_STAGE2_MS < UNREAD_GRACE_PERIOD_MS)
+    fun `stage boundaries are increasing and all inside the grace period`() {
+        assertTrue(DISSOLVE_STAGE_STARTS_MS.isNotEmpty())
+        assertTrue(DISSOLVE_STAGE_STARTS_MS.first() > 0L)
+        assertEquals(DISSOLVE_STAGE_STARTS_MS.sorted(), DISSOLVE_STAGE_STARTS_MS)
+        assertEquals(DISSOLVE_STAGE_STARTS_MS.distinct(), DISSOLVE_STAGE_STARTS_MS)
+        assertTrue(DISSOLVE_STAGE_STARTS_MS.last() < UNREAD_GRACE_PERIOD_MS)
+        assertEquals(DISSOLVE_STAGE_STARTS_MS.size, DISSOLVE_KEEP_FRACTIONS.size)
     }
 
     @Test
@@ -22,23 +24,25 @@ class ArticleDissolveTest {
     }
 
     @Test
-    fun `stage is 0 just under 2_5s and 1 at 2_5s`() {
+    fun `stage 0 until 2_5s then 1`() {
         assertEquals(0, dissolveStage(readAt, readAt))
         assertEquals(0, dissolveStage(readAt, readAt + 2_499L))
         assertEquals(1, dissolveStage(readAt, readAt + 2_500L))
     }
 
     @Test
-    fun `stage is 1 just under 4s and 2 at 4s`() {
-        assertEquals(1, dissolveStage(readAt, readAt + 3_999L))
-        assertEquals(2, dissolveStage(readAt, readAt + 4_000L))
+    fun `stage 1 until 3_33s then 2, then 3 from 4_17s`() {
+        assertEquals(1, dissolveStage(readAt, readAt + 3_332L))
+        assertEquals(2, dissolveStage(readAt, readAt + 3_333L))
+        assertEquals(2, dissolveStage(readAt, readAt + 4_166L))
+        assertEquals(3, dissolveStage(readAt, readAt + 4_167L))
     }
 
     @Test
-    fun `stage stays 2 up to and past the 5s removal point`() {
-        assertEquals(2, dissolveStage(readAt, readAt + 4_999L))
-        assertEquals(2, dissolveStage(readAt, readAt + 5_000L))
-        assertEquals(2, dissolveStage(readAt, readAt + 9_000L))
+    fun `stage stays 3 up to and past the 5s removal point`() {
+        assertEquals(3, dissolveStage(readAt, readAt + 4_999L))
+        assertEquals(3, dissolveStage(readAt, readAt + 5_000L))
+        assertEquals(3, dissolveStage(readAt, readAt + 9_000L))
     }
 
     @Test
@@ -48,77 +52,85 @@ class ArticleDissolveTest {
 
     @Test
     fun `stage 0 leaves text unchanged`() {
-        assertEquals("Hello world", dissolveText("Hello world", 0, "id"))
+        assertEquals("Hello world", dissolveText("Hello world", 0))
     }
 
     @Test
-    fun `stage 1 keeps spaces and length and changes some but not all characters`() {
-        val text = "Breaking news from the capital"
-        val out = dissolveText(text, 1, "a1")
-        assertEquals(text.length, out.length)
-        for (i in text.indices) if (text[i] == ' ') assertEquals(' ', out[i])
-        val dots = out.count { it == '·' }
-        val nonSpace = text.count { it != ' ' }
-        assertTrue(dots > 0)
-        assertTrue(dots < nonSpace)
-        assertNotEquals(text, out)
+    fun `stage 1 turns every non-space character into a dot keeping spaces and length`() {
+        assertEquals("···· ·····", dissolveText("abcd efghi", 1))
+        assertEquals("·· ·\n··", dissolveText("ab c\ncd", 1))
     }
 
     @Test
-    fun `stage 1 is deterministic for the same seed`() {
-        val text = "Breaking news from the capital"
-        assertEquals(dissolveText(text, 1, "a1"), dissolveText(text, 1, "a1"))
+    fun `stage 2 keeps the first two thirds of the dotted text`() {
+        // 9 chars -> 6 kept
+        assertEquals("······", dissolveText("abcdefghi", 2))
     }
 
     @Test
-    fun `stage 2 replaces every non-space character with a dot`() {
-        assertEquals("···· ·····", dissolveText("abcd efghi", 2, "x"))
+    fun `stage 3 keeps the first third of the dotted text`() {
+        assertEquals("···", dissolveText("abcdefghi", 3))
     }
 
     @Test
-    fun `stage 2 also treats tabs and newlines as spaces`() {
-        assertEquals("·· ·\n··", dissolveText("ab c\ncd", 2, "x"))
+    fun `dots are erased from the end so length shrinks stage by stage`() {
+        val text = "one two three four five six"
+        val lens = (1..3).map { dissolveText(text, it).length }
+        assertEquals(text.length, lens[0])
+        assertTrue(lens[0] > lens[1])
+        assertTrue(lens[1] > lens[2])
     }
 
     @Test
-    fun `hebrew text is dissolved per character keeping spaces`() {
-        val text = "שלום עולם יפה"
-        val s2 = dissolveText(text, 2, "h")
-        assertEquals("···· ···· ···", s2)
-        val s1 = dissolveText(text, 1, "h")
-        assertEquals(text.length, s1.length)
-        assertTrue(s1.contains('·'))
-        assertTrue(s1.any { it in 'א'..'ת' })
+    fun `no dangling trailing space after cutting`() {
+        // 8 chars, keep 5 -> "ab cd" ... cut lands right after a space
+        val out = dissolveText("abc def g", 3) // 9 chars keep 3 -> "abc" -> "···"
+        assertEquals("···", out)
+        val out2 = dissolveText("ab cdefgh", 3) // keep 3 -> "ab " -> trimmed
+        assertEquals("··", out2)
     }
 
     @Test
-    fun `surrogate pairs are treated as one character`() {
-        val text = "a😀b😀"
-        assertEquals("····", dissolveText(text, 2, "e"))
-        val s1 = dissolveText(text, 1, "e")
-        // Never a lone surrogate half left behind.
-        var i = 0
-        while (i < s1.length) {
-            val cp = s1.codePointAt(i)
-            assertTrue(cp == '·'.code || cp == 'a'.code || cp == 'b'.code || cp == 0x1F600)
-            i += Character.charCount(cp)
+    fun `a non-empty title never becomes empty in stages 1 to 3`() {
+        for (stage in 1..3) {
+            assertEquals("·", dissolveText("a", stage))
+            assertEquals("·", dissolveText("ab", stage).take(1))
+            assertTrue(dissolveText("  x", stage).isNotEmpty())
         }
     }
 
     @Test
-    fun `empty string stays empty`() {
-        assertEquals("", dissolveText("", 1, "x"))
-        assertEquals("", dissolveText("", 2, "x"))
+    fun `hebrew text works`() {
+        assertEquals("···· ···· ···", dissolveText("שלום עולם יפה", 1))
+        val s3 = dissolveText("שלום עולם יפה", 3)
+        assertTrue(s3.isNotEmpty())
+        assertTrue(s3.all { it == '·' || it == ' ' })
     }
 
     @Test
-    fun `dissolveArticle only touches title and description at a stage above 0`() {
-        val a = ArticleItem(id = "a", feedId = "f", feedName = "F", title = "Some title",
-            description = "Some description", publishedAt = 0L, isRead = true, readAt = readAt)
+    fun `surrogate pairs are one character`() {
+        assertEquals("····", dissolveText("a😀b😀", 1))
+        assertEquals("··", dissolveText("a😀b😀", 2)) // 4 code points, keep 2
+        assertTrue(dissolveText("a😀b😀", 3).all { it == '·' })
+    }
+
+    @Test
+    fun `empty and blank strings stay as they are`() {
+        assertEquals("", dissolveText("", 1))
+        assertEquals("", dissolveText("", 3))
+        assertEquals("   ", dissolveText("   ", 2))
+    }
+
+    @Test
+    fun `dissolveArticle dissolves title and description at each stage`() {
+        val a = ArticleItem(id = "a", feedId = "f", feedName = "F", title = "abcdefghi",
+            description = "abcdefghi", publishedAt = 0L, isRead = true, readAt = readAt)
         assertEquals(a, dissolveArticle(a, readAt + 1_000L))
+        assertEquals("·········", dissolveArticle(a, readAt + 2_600L).title)
+        assertEquals("······", dissolveArticle(a, readAt + 3_500L).title)
         val d = dissolveArticle(a, readAt + 4_500L)
-        assertEquals("···· ·····", d.title)
-        assertEquals("···· ···········", d.description)
+        assertEquals("···", d.title)
+        assertEquals("···", d.description)
         assertEquals(a.id, d.id)
         assertEquals(a.feedName, d.feedName)
     }
@@ -131,10 +143,12 @@ class ArticleDissolveTest {
     }
 
     @Test
-    fun `graceRefreshDelays are the two dissolve stages then the removal, each with a buffer`() {
+    fun `graceRefreshDelays are every stage boundary then the removal, each with a buffer`() {
         assertEquals(
-            listOf(DISSOLVE_STAGE1_MS + 100L, DISSOLVE_STAGE2_MS + 100L, UNREAD_GRACE_PERIOD_MS + 100L),
+            DISSOLVE_STAGE_STARTS_MS.map { it + 100L } + (UNREAD_GRACE_PERIOD_MS + 100L),
             graceRefreshDelays(),
         )
+        assertEquals(4, graceRefreshDelays().size)
+        assertEquals(graceRefreshDelays().sorted(), graceRefreshDelays())
     }
 }
