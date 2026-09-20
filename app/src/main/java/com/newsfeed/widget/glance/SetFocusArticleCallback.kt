@@ -33,6 +33,7 @@ class SetFocusArticleCallback : ActionCallback {
         // Only set when the article losing focus was actually unread — re-tapping through
         // already-read articles shouldn't reset their readAt and restart a grace period that
         // doesn't apply to them.
+        val markedAt = System.currentTimeMillis()
         var articleLosingFocusId: String? = null
         updateAppWidgetState(context, glanceId) { prefs ->
             val current = prefs[WidgetStateKey.focusedArticleId] ?: ""
@@ -49,9 +50,8 @@ class SetFocusArticleCallback : ActionCallback {
                 if (articles != null) {
                     val target = articles.firstOrNull { it.id == current }
                     if (target != null && !target.isRead) {
-                        val now = System.currentTimeMillis()
                         prefs[WidgetStateKey.articles] = Json.encodeToString(
-                            articles.map { if (it.id == current) it.copy(isRead = true, readAt = now) else it }
+                            articles.map { if (it.id == current) it.copy(isRead = true, readAt = markedAt) else it }
                         )
                         articleLosingFocusId = current
                     }
@@ -60,6 +60,6 @@ class SetFocusArticleCallback : ActionCallback {
         }
         articleLosingFocusId?.let { ReadStatusStore(context).markRead(it) }
         NewsFeedFocusWidget().update(context, glanceId)
-        UnreadGracePeriod.scheduleRefresh(context, glanceId, articleLosingFocusId) { c, g -> NewsFeedFocusWidget().update(c, g) }
+        UnreadGracePeriod.scheduleRefresh(context, glanceId, articleLosingFocusId, markedAt) { c, g -> NewsFeedFocusWidget().update(c, g) }
     }
 }

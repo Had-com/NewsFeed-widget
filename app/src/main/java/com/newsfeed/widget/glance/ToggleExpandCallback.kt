@@ -31,14 +31,16 @@ class ToggleExpandCallback : ActionCallback {
         // Only set when the previously tapped article was actually unread - this is what
         // genuinely flips isRead false -> true, so it is both what ReadStatusStore should be
         // told about and what should get a grace-period refresh scheduled.
+        // Stamped into readAt AND used as the base for the dissolve/removal refresh delays.
+        val markedAt = System.currentTimeMillis()
         var markedReadId: String? = null
         updateAppWidgetState(context, glanceId) { prefs ->
             val current = prefs[WidgetStateKey.expandedArticleId] ?: ""
             prefs[WidgetStateKey.expandedArticleId] = if (current != articleId) articleId else ""
-            markedReadId = markPreviousTappedRead(prefs, articleId)
+            markedReadId = markPreviousTappedRead(prefs, articleId, markedAt)
         }
         markedReadId?.let { ReadStatusStore(context).markRead(it) }
         NewsFeedWidget().update(context, glanceId)
-        UnreadGracePeriod.scheduleRefresh(context, glanceId, markedReadId) { c, g -> NewsFeedWidget().update(c, g) }
+        UnreadGracePeriod.scheduleRefresh(context, glanceId, markedReadId, markedAt) { c, g -> NewsFeedWidget().update(c, g) }
     }
 }

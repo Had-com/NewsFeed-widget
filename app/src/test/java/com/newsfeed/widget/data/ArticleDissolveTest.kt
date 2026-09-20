@@ -151,4 +151,37 @@ class ArticleDissolveTest {
         assertEquals(4, graceRefreshDelays().size)
         assertEquals(graceRefreshDelays().sorted(), graceRefreshDelays())
     }
+
+    @Test
+    fun `remainingRefreshDelays right at the mark returns all four delays`() {
+        assertEquals(graceRefreshDelays(), remainingRefreshDelays(readAt, readAt))
+    }
+
+    @Test
+    fun `remainingRefreshDelays counts from the mark, not from when it was called`() {
+        // 1.15s late (a slow render): every remaining wait is shortened by exactly that.
+        val late = remainingRefreshDelays(readAt, readAt + 1_150L)
+        assertEquals(graceRefreshDelays().map { it - 1_150L }, late)
+    }
+
+    @Test
+    fun `remainingRefreshDelays past a boundary fires one catch-up now plus the future ones`() {
+        // 3_000ms: stage-1 boundary (2_600) passed; 3_433 / 4_267 / 5_100 still ahead.
+        assertEquals(listOf(0L, 433L, 1_267L, 2_100L), remainingRefreshDelays(readAt, readAt + 3_000L))
+        // 4_000ms: stages 1 and 2 passed -> still just ONE catch-up, not two.
+        assertEquals(listOf(0L, 267L, 1_100L), remainingRefreshDelays(readAt, readAt + 4_000L))
+    }
+
+    @Test
+    fun `remainingRefreshDelays past everything is a single immediate update`() {
+        assertEquals(listOf(0L), remainingRefreshDelays(readAt, readAt + 5_100L))
+        assertEquals(listOf(0L), remainingRefreshDelays(readAt, readAt + 60_000L))
+    }
+
+    @Test
+    fun `remainingRefreshDelays is never negative even if the clock is before the mark`() {
+        val r = remainingRefreshDelays(readAt, readAt - 500L)
+        assertTrue(r.all { it >= 0L })
+        assertEquals(4, r.size)
+    }
 }

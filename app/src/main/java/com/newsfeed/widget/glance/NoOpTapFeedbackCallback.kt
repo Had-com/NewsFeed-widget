@@ -26,15 +26,16 @@ class NoOpTapFeedbackCallback : ActionCallback {
 
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val articleId = parameters[ARTICLE_ID_KEY] ?: return
+        val markedAt = System.currentTimeMillis()
         var markedReadId: String? = null
         updateAppWidgetState(context, glanceId) { prefs ->
-            markedReadId = markPreviousTappedRead(prefs, articleId)
+            markedReadId = markPreviousTappedRead(prefs, articleId, markedAt)
         }
         markedReadId?.let { ReadStatusStore(context).markRead(it) }
         // Only re-render when something actually changed (the previous article's unread dot
         // cleared) — a plain tap changes nothing visible, and the native press ripple already
         // fired regardless.
         if (markedReadId != null) NewsFeedWidget().update(context, glanceId)
-        UnreadGracePeriod.scheduleRefresh(context, glanceId, markedReadId) { c, g -> NewsFeedWidget().update(c, g) }
+        UnreadGracePeriod.scheduleRefresh(context, glanceId, markedReadId, markedAt) { c, g -> NewsFeedWidget().update(c, g) }
     }
 }

@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.glance.GlanceId
 import androidx.glance.appwidget.state.updateAppWidgetState
 import com.newsfeed.widget.data.WidgetStateKey
-import com.newsfeed.widget.data.graceRefreshDelays
+import com.newsfeed.widget.data.remainingRefreshDelays
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -26,11 +26,15 @@ object UnreadGracePeriod {
         context: Context,
         glanceId: GlanceId,
         markedArticleId: String?,
+        // The instant the article was marked read (same value stamped into its readAt). Delays
+        // count from HERE, not from when this is called - the callback's own update() runs
+        // first and can take over a second on a heavy row.
+        markedAt: Long = System.currentTimeMillis(),
         update: suspend (Context, GlanceId) -> Unit,
     ) {
         if (markedArticleId == null) return
         scope.launch {
-            // graceRefreshDelays() = +2.5s, +3.33s, +4.17s, +5s, each with a +100ms buffer so it fires
+            // remainingRefreshDelays() derives from graceRefreshDelays() = +2.5s, +3.33s, +4.17s, +5s, each with a +100ms buffer so it fires
             // strictly after its boundary (the dissolve stage change / the filter excluding
             // the article), never before it. They share the constants the filter and the
             // dissolve stages use, so they can never silently drift out of sync. Each stage
@@ -38,7 +42,7 @@ object UnreadGracePeriod {
             // re-renders every article currently dissolving. Four updates per read article
             // at most, no polling.
             var elapsed = 0L
-            for (target in graceRefreshDelays()) {
+            for (target in remainingRefreshDelays(markedAt, System.currentTimeMillis())) {
                 delay(target - elapsed)
                 elapsed = target
                 // A widget removed during the delay (or any other transient failure updating

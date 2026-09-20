@@ -69,3 +69,21 @@ fun dissolveArticle(article: ArticleItem, now: Long): ArticleItem {
  */
 fun graceRefreshDelays(): List<Long> =
     (DISSOLVE_STAGE_STARTS_MS + UNREAD_GRACE_PERIOD_MS).map { it + SCHEDULE_BUFFER_MS }
+
+/**
+ * How long to wait from [now] for each re-render still needed, given the article was marked
+ * read at [markedAt] (the same instant stamped into its readAt). Counting from the mark, not
+ * from whenever scheduling happens, matters because the callback's own update() can take over
+ * a second on a heavy row, which would otherwise push every stage late.
+ *
+ * Boundaries still in the future keep their (shortened) wait. Boundaries already passed are
+ * superseded by the latest one, so they collapse into at most ONE immediate (0) catch-up
+ * update - and if the removal itself is already due, that single update is all that remains.
+ * Never negative; increasing.
+ */
+fun remainingRefreshDelays(markedAt: Long, now: Long): List<Long> {
+    val waits = graceRefreshDelays().map { markedAt + it - now }
+    val future = waits.filter { it > 0L }
+    val anyPassed = future.size < waits.size
+    return if (anyPassed) listOf(0L) + future else future
+}
