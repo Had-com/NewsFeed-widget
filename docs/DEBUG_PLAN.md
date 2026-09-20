@@ -181,7 +181,7 @@ Quick confirmations that specific, previously-reported-and-fixed bugs haven't re
 CI publishes every push to `main` as the rolling "latest" release that installed apps self-update from, so **a push that ships a new or changed user-facing feature is a release.** Before it:
 
 1. **Verify each new feature on the real device** with hard evidence — DataStore pulls (`run-as ... cat files/datastore/appWidget-<id>.preferences_pb`), screenshots, `uiautomator dump`, logcat — never "it compiles" or "the review passed".
-2. **Write/extend this plan** with exactly what was checked and how (one subsection per release below).
+2. **Run the full QA plan** in [`docs/QA_PLAN.md`](QA_PLAN.md) (all features, all options, and their combinations; any bug it did not already test gets a new case added there) and record the results in this plan, one subsection per release below, in the format that plan defines.
 3. **Check fully**: the feature itself, its edge cases, regressions in neighbouring features, **both widget types**, logcat clean.
 4. **Report** results to the user, including anything not verified. If the device is offline or a check is impossible, say so and do not call it release-ready.
 5. Security review before the push, and confirm the CI run is green after it.
