@@ -47,20 +47,19 @@ class WidgetWorker(
         // removed NewsFeed Focus widgets, which vanish on update without any callback). The live
         // set is the UNION of the system list for our provider and Glance's own list, so a
         // failure of either lookup can only make the live set larger (= fewer deletions). If the
-        // union is empty the sweep is a no-op (never "everything is an orphan"), and only when
-        // BOTH sources agree nothing is placed do we stop the shared periodic jobs (placing a
-        // widget again re-arms them via NewsFeedWidgetReceiver.onEnabled()).
+        // union is empty the sweep is a no-op (never "everything is an orphan"). The worker never
+        // cancels the shared periodic jobs itself: an empty list can be transient (right after
+        // boot / package replace) and nothing would re-arm them. A genuine last-widget removal
+        // cancels them in NewsFeedWidgetReceiver.onDisabled().
         val systemIds = runCatching {
             AppWidgetManager.getInstance(context)
                 .getAppWidgetIds(ComponentName(context, NewsFeedWidgetReceiver::class.java)).toSet()
         }.getOrDefault(emptySet())
         val liveIds = systemIds + widgetIds.map { manager.getAppWidgetId(it) }
         OrphanCleanup.sweep(context, liveIds)
-        if (liveIds.isEmpty()) {
-            cancel(context)
-            UpdateCheckWorker.cancel(context)
-            return Result.success()
-        }
+        if (liveIds.isEmpty()) return Result.success()
+        // Self-heal: widgets exist, so make sure the daily update check is armed (KEEP = no-op if it is).
+        runCatching { UpdateCheckWorker.schedule(context) }
 
         for (glanceId in widgetIds) {
             val appWidgetId = manager.getAppWidgetId(glanceId)
