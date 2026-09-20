@@ -388,7 +388,7 @@ app/src/main/
 │   │   ├── ToggleExpandCallback.kt    # ActionCallback — expand/collapse article (standard widget)
 │   │   ├── SetFocusArticleCallback.kt # ActionCallback — tap-to-focus an article; marks the previously-focused article read (Focus widget)
 │   │   ├── AdjustFocusScaleCallback.kt # ActionCallback — −/+ header buttons (Focus widget)
-│   │   ├── UnreadGracePeriod.kt        # Delayed re-render so a just-read article's grace period actually elapses on-widget
+│   │   ├── UnreadGracePeriod.kt        # Delayed re-render so a just-read article's grace period actually elapses on-widget and dissolve stages (text fading into dots)
 │   │   ├── FetchFullArticleCallback.kt # ActionCallback — two-phase loading (description → full web content via Jsoup, charset-sniffed)
 │   │   ├── LoadMoreArticleCallback.kt  # ActionCallback — reveal next chunk of one article's full text
 │   │   ├── LoadMoreArticlesCallback.kt # ActionCallback — reveal next chunk of the article list

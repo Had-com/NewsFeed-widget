@@ -23,8 +23,13 @@ package com.newsfeed.widget.data
 // delayed re-render's wait time and this filter's own window can never drift apart.
 const val UNREAD_GRACE_PERIOD_MS = 5_000L
 
-fun applyFilterAndSort(articles: List<ArticleItem>, config: WidgetConfig): List<ArticleItem> {
-    val now = System.currentTimeMillis()
+// `now` is a parameter so the widget render can use the same instant for the filter and for
+// the dissolve stage (ArticleDissolve.kt) - they must never disagree within one render.
+fun applyFilterAndSort(
+    articles: List<ArticleItem>,
+    config: WidgetConfig,
+    now: Long = System.currentTimeMillis(),
+): List<ArticleItem> {
     val filtered = articles.filter { article ->
         when (config.filter) {
             // A just-read article stays visible for UNREAD_GRACE_PERIOD_MS past its readAt,

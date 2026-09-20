@@ -21,3 +21,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 5
 - Settings now has "Add default feeds" (adds the built-in feeds you are missing, without duplicates) and "Reset to defaults" (replaces all your feeds with the built-in ones, after a confirmation); both take effect when you tap Save.
+
+## Note 6
+- In "Unread only", a just-read article now fades into dots before it disappears: its text turns half dotted, then fully dotted, during the last couple of seconds.

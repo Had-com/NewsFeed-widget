@@ -50,9 +50,11 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.newsfeed.widget.config.WidgetConfigActivity
 import com.newsfeed.widget.data.ArticleItem
+import com.newsfeed.widget.data.FilterMode
 import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.applyFilterAndSort
+import com.newsfeed.widget.data.dissolveArticle
 import com.newsfeed.widget.update.UpdateCheckWorker
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -157,7 +159,10 @@ private fun WidgetContent(isFocusWidget: Boolean) {
     // re-sorts the accumulated store by publishedAt and never re-applies the filter to
     // already-stored articles, so without this, config.sortOrder/config.filter had no
     // effect on what actually got displayed once an article survived one refresh cycle.
-    val availableArticles = applyFilterAndSort(articles.filter { feedMap.containsKey(it.feedId) }, config)
+    // One `now` for both the filter and the dissolve stage, so an article is never dissolved
+    // in a render that also drops it (or vice versa).
+    val now = System.currentTimeMillis()
+    val availableArticles = applyFilterAndSort(articles.filter { feedMap.containsKey(it.feedId) }, config, now)
 
     // Each row can carry a Glamour-theme headline bitmap and/or a thumbnail image, and
     // RemoteViews has a real total bitmap-memory budget for one widget update (this
@@ -232,7 +237,15 @@ private fun WidgetContent(isFocusWidget: Boolean) {
     val maxRowsCeiling = if (config.widgetTheme == "glamer") 60 else 300
     val maxRowsAllowed = (rowBudgetBytes / bytesPerRow).toInt().coerceIn(1, maxRowsCeiling)
 
+    // Dissolve effect: only under "Unread only", where a just-read article in its grace
+    // window is about to vanish - other filters and long-read articles are untouched
+    // (dissolveArticle is a no-op unless the article is read AND its readAt is under 5s old).
+    // Applied to the article itself so standard rows, Focus rows and the Focus enlarged view
+    // (all fed from displayArticles) dissolve identically.
     val displayArticles = availableArticles.take(visibleCount.coerceAtMost(maxRowsAllowed))
+        .let { rows ->
+            if (config.filter == FilterMode.UNREAD.key) rows.map { dissolveArticle(it, now) } else rows
+        }
     // Based on visibleCount (what's been requested), not displayArticles.size (what's
     // actually shown after clamping) — comparing the clamped size against maxRowsAllowed
     // was always false the moment a single "chunk" request met or exceeded the memory
