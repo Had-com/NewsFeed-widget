@@ -176,6 +176,39 @@ Quick confirmations that specific, previously-reported-and-fixed bugs haven't re
 
 ---
 
+## 14. Release gate (standing rule, set 2026-09-20)
+
+CI publishes every push to `main` as the rolling "latest" release that installed apps self-update from, so **a push that ships a new or changed user-facing feature is a release.** Before it:
+
+1. **Verify each new feature on the real device** with hard evidence — DataStore pulls (`run-as ... cat files/datastore/appWidget-<id>.preferences_pb`), screenshots, `uiautomator dump`, logcat — never "it compiles" or "the review passed".
+2. **Write/extend this plan** with exactly what was checked and how (one subsection per release below).
+3. **Check fully**: the feature itself, its edge cases, regressions in neighbouring features, **both widget types**, logcat clean.
+4. **Report** results to the user, including anything not verified. If the device is offline or a check is impossible, say so and do not call it release-ready.
+5. Security review before the push, and confirm the CI run is green after it.
+
+Docs-only / CI-only pushes are exempt from 1–4 but still need step 5's CI check.
+
+### Release log
+
+#### Batch builds #127–#139 (2026-09-11 → 2026-09-20)
+
+| Feature | What must be true | Verified how | Result |
+|---|---|---|---|
+| Unread-only 5s grace period | Just-read article stays ~5s then disappears, both widgets; `readAt` survives a refresh | DataStore + timed screenshots (2026-09-12) | ✅ |
+| Focus header cleanup + read on focus-away | No ▲▼✕; −/+ bigger; A marked read only when B tapped | DataStore (2026-09-12, 2026-09-20) | ✅ |
+| Mark read on expand-away (standard widget) | Press marks nothing; expanding another marks the previous; collapse marks nothing; description-less still marks on tap | DataStore + Unread-only timing (2026-09-20) | ✅ |
+| Release notes before update | Manual check shows dialog with unseen notes; Later persists seen id; notification-tap screen | Dialog + DataStore verified (2026-09-13); notification-tap screen not witnessed | ⚠️ partial — see below |
+| Share buttons | Per-article Share ↗ only when Open-in = Browser; footer Share dialog; no crash; narrow-width footer keeps ⚙ | On-device incl. failure-state narrow width (2026-09-13) | ✅ |
+| CI fix (setup-android replaced) | Builds pass and publish | Runs #137–#139 green | ✅ |
+| New default feeds (11, from Downloads/feeds.opml) | A brand-new widget starts with exactly these 11 feeds, Telegram ones fetch, no duplicates | Asset + built APK both have 11 outlines, one walla; runtime fresh-add NOT verified (would disturb home screen) | ⚠️ |
+| Release notes Note 2 + Note 3 visible in update dialog | Dialog lists both unseen bullets | Update dialog (build 139) listed Notes 1, 2, 3 | ✅ |
+| Read on move-away, all tap paths (`de130cb`) | Article marked read only when a different one is tapped, incl. description-less; Focus unchanged | Device: first tap/re-tap unread, tap other marks previous (DataStore readAt), Unread-only grace, refresh keeps state, Focus OK, logcat clean | ✅ |
+| Known: intermittent widget placeholder after reinstall | Glance `No session available` once after `adb install -r`; recovered on tap | Not reproduced further | ⚠️ |
+
+Known unverified: `UpdateRelayActivity` screen from a live notification tap (Android notification dedup made this untestable via adb).
+
+---
+
 ## Reporting
 
 For every ❌, capture: exact steps to reproduce, a screenshot, the widget theme/settings active at the time, and whether it reproduces on both widget types or just one. File findings as you go rather than batching them — several past bugs in this project were only caught because a specific repro was pinned down immediately rather than described vaguely after the fact.
