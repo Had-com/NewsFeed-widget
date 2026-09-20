@@ -14,3 +14,7 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 3
 - Articles are now marked read when you move on to another article, not the moment you tap one — so under "Unread only" the article you're reading no longer dims and vanishes while you're still on it.
+
+## Note 4
+- Fixed: articles without a description (most news flashes) are now also marked read only when you tap a different article, not the moment you tap them.
+- New default feeds: a brand-new widget now starts with an updated set of Hebrew news and AI feeds.
