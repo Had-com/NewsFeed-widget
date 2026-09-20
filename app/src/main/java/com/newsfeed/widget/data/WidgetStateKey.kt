@@ -33,7 +33,7 @@ object WidgetStateKey {
     // row keeps its normal size. Empty string = nothing focused. Cleared by resetTapState() when
     // a widget's tap mode is switched.
     val focusedArticleId = stringPreferencesKey("focused_article_id")
-    // Focus Mode only. How large the focused row renders, as a multiple of fontSize — live,
+    // Focus mode (tapMode = focus) only. How large the focused row renders, as a multiple of fontSize — live,
     // on-widget adjustable via +/- buttons on the focused row itself (AdjustFocusScaleCallback),
     // deliberately NOT a Settings-screen slider: this is meant to be
     // tuned in the moment, per article, without leaving the widget. Was a hardcoded 1.25f;

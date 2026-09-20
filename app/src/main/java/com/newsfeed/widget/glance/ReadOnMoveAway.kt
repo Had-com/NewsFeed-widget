@@ -8,7 +8,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /**
- * Standard widget: an article is marked read only when the user moves on to a different one,
+ * Expand mode (tapMode = expand): an article is marked read only when the user moves on to a different one,
  * not when pressed. Records [tappedId] as the last-tapped article and, if a different, still
  * unread article was tapped before it, flags that one read (isRead + readAt = [now]) in
  * [prefs]. Returns the id that was newly marked read, or null if nothing changed (first tap,

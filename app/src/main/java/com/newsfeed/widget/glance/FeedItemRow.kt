@@ -74,7 +74,7 @@ fun FeedItemRow(
     isDissolving: Boolean = false,
 ) {
     val context        = LocalContext.current
-    // Focus Mode only. Hoisted above isExpanded: Focus Mode has no separate expand/collapse
+    // Focus mode (tapMode = focus) only. Hoisted above isExpanded: Focus Mode has no separate expand/collapse
     // gesture (a tap always sets/clears focus, see toggleAction below) so the focused row —
     // already the sole thing enlarged and the visual center of attention — auto-expands into
     // its description/full-article controls instead of requiring a second, different action
@@ -148,7 +148,7 @@ fun FeedItemRow(
     val articleSize    = (11f * articleFontSize).sp
     // Thumbnail width: square based on font scale (independent of row height). Capped —
     // uncapped, this scales linearly with fontSize with no ceiling: already a latent risk on
-    // the standard flavor at the Font size slider's own top end (52 * 3.0 = 156dp), and made
+    // Expand mode at the Font size slider's own top end (52 * 3.0 = 156dp), and made
     // far more likely to actually be hit by Focus Mode, where fontSize is additionally
     // multiplied by focusScale (up to 2.5x) on the focused row — e.g. base 3.0 * focus 2.5 =
     // 7.5x, a 390dp thumbnail alone wider than the entire widget column, breaking the row
@@ -410,12 +410,12 @@ fun FeedItemRow(
                 // degrades far more gracefully at extreme widths (native wrap/ellipsis) than the
                 // custom bitmap layout does — kept as a guard for genuinely tiny placements now
                 // that NewsFeedWidget.sizeMode = Exact reports real widths instead of always 130dp.
-                // Focus Mode only: the focused row is the one place on the whole widget where
+                // Focus mode (tapMode = focus) only: the focused row is the one place on the whole widget where
                 // showing more of a long headline is worth its extra bitmap height — it's a
                 // single row, not all of them, so the memory cost stays bounded (also see
                 // NewsFeedWidget.kt's worstCaseRowScale, which already reserves budget for a
                 // taller focused-row bitmap).
-                // Tried and empirically disproved on real hardware (both flavors, confirmed via
+                // Tried and empirically disproved on real hardware (both tap modes, confirmed via
                 // screenshot, not just theory): RemoteViews.setTextViewText(CharSequence) with a
                 // Glance FontFamily("Playpen Sans Hebrew") DOES genuinely cross the process
                 // boundary as a android.text.style.TypefaceSpan(String) (traced via javap on the

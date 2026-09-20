@@ -245,7 +245,7 @@ private fun WidgetContent() {
     // a fraction of articles were ever reachable by scrolling, which read as a bug (and
     // was reported as one) rather than the accumulation feature it actually was.
     val unreadCount     = displayArticles.count { !it.isRead }
-    // Focus widget only (isFocusWidget) — position within what's actually rendered
+    // Focus mode only (tapMode = focus, isFocusWidget) — position within what's actually rendered
     // (displayArticles), so the "N / M" indicator always matches what's really on screen.
     val focusedIndex    = if (focusedArticleId.isNotBlank())
         displayArticles.indexOfFirst { it.id == focusedArticleId } else -1
@@ -430,7 +430,7 @@ private fun WidgetHeader(
             style = TextStyle(fontSize = 13.sp, fontFamily = FontFamily.SansSerif, color = GlanceTheme.colors.onSurfaceVariant),
         )
         Spacer(GlanceModifier.defaultWeight())
-        // Focus widget only (isFocusWidget — see FeedItemRow.kt's fontSize shadowing). Focus
+        // Focus mode only (tapMode = focus, isFocusWidget — see FeedItemRow.kt's fontSize shadowing). Focus
         // is set/cleared purely by tapping a row directly (SetFocusArticleCallback) — the
         // ▲/▼ step and ✕ clear buttons that used to live here were removed (explicit user
         // request: "remove the button, it's not needed" / "remove the step down or up
