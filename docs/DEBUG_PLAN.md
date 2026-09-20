@@ -260,6 +260,28 @@ Device RFCR91J237W, Android 15, One UI Home. Installed as versionCode 902 (the p
 
 BUG-021 fix: VERIFIED on device. Restore: widget 15 `config_json` byte-identical; all four datastore files (config, read_status, GlanceAppWidgetManager, release_notes) have md5 equal to the backup in `C:	k5\`; test widgets 20 and 21 removed.
 
+### Telegram rendering, worker guard, regression smoke (build 903 from HEAD e131be9, 2026-09-20)
+
+Device RFCR91J237W, Android 15, One UI Home. Installed as versionCode 903 over 902 (`-PbuildVersionCode=903`, no uninstall). Extra widget 22 added through the One UI picker, saved with default feeds, then removed.
+
+| Test | Result | Evidence |
+|---|---|---|
+| Fresh widget default feeds | PASS | Settings list: exactly 11 feeds, one walla, N12chat and N12_News present; DataStore had 40 Telegram articles (20 per channel), 204 total |
+| Telegram stored description (`2962a97`) | PASS | No Telegram article has its title inside its description; max description 160 chars (cap 4096); 200-char headlines end with an ellipsis and the overflow continues in the description |
+| Telegram row expand (First paragraph and Full) | PASS with note | Headline once, body only the remainder; no Load full article in Full mode either; a description-less post (N12_News) is not expandable and shows its full text in the title |
+| RSS Load full article | PASS | Full mode, ynet row: button present; after pressing it the description was kept (not replaced) and Open in browser appeared |
+| Worker guard (`d5bde3e`) | PASS | Refresh on widget 15: `WidgetWorker` SUCCESS; `NewsFeedRefresh` and `NewsFeedUpdateCheck` ENQUEUED before and after; after removing widget 22 both still ENQUEUED, 1 CLOCK_TICK alarm pending |
+| Remove extra widget | PASS | `logcat -b crash` empty, pid 1407 unchanged, `appWidget-22`/`appWidgetLayout-22` gone, `OrphanCleanupWorker` SUCCESS, `newsfeed_config` md5 identical to backup (whole file) |
+| Read on move-away, incl. description-less | PASS | First tap and collapse of the same row: still unread; tapping another row marked the previous one (DataStore `isRead`), description-less kan row too |
+| Unread only dissolve | PASS | Timed frames: normal to ~3.3 s, dots ~4.1 s, fewer dots 5.0/5.8 s, gone ~6.6 s; header count 26 -> 25 -> 26 |
+| Focus via second widget | PASS | Only the focused row enlarges, header 3/21 with - and +, + enlarges only that row, - restores |
+| Update dialog notes | NOT VERIFIED on device | Check now: "You're up to date (build 903)"; Notes 8 and 9 in `docs/RELEASE_NOTES.md` read correctly |
+| Logcat | PASS | No FATAL, no ANR, crash buffer empty throughout |
+
+Observations: (1) N12chat posts end with an `@N12chat` signature line, so every N12chat post is expandable with a body that is only that handle; a 1-2 line post is therefore not always non-expandable (N12_News is). (2) Tap-to-expand took about 1.7 to 2.5 s to show after an adb tap (frames at 1.0 s and 1.7 s unchanged), collapse about 1.7 s. (3) The header count briefly showed 3/19 while a focus row was enlarged (row budget), then returned to 21. (4) The read store is shared across widgets, so reading in the extra widget also hides those articles in widget 15 under Unread only.
+
+Restore: `newsfeed_config` md5 720a2dd2c3a48ed644fe6b3ca30ab984 identical to the backup in `C:	k6\`. `newsfeed_read_status` gained 3 read marks from widget 22 and was rewritten from the backup (force-stop, write, md5 3089e962... verified); the app was restarted with the exported CLOCK_TICK broadcast. Widget 15's own cached article list was refreshed by the required refresh test, so its expanded ynet article from before the run is no longer shown.
+
 ---
 
 ## Reporting
