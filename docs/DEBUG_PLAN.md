@@ -243,6 +243,23 @@ Restore statement: widget 15 ends with Show = Unread only, tap mode Expand (defa
 
 Known unverified: `UpdateRelayActivity` screen from a live notification tap (Android notification dedup made this untestable via adb).
 
+### BUG-021 fix verification (build 902 from HEAD b35ccbf, 2026-09-20)
+
+Device RFCR91J237W, Android 15, One UI Home. Installed as versionCode 902 (the plain build is versionCode 1 and is rejected as a downgrade over 901; no uninstall was done).
+
+| Test | Result | Evidence |
+|---|---|---|
+| N-30 remove extra widget, run 1 (widget 20, Focus, saved) | PASS | Before removal: `appWidget-20`, `appWidgetLayout-20`, `widget_20` key present. After: all gone; `logcat -b crash` empty; app pid 30127 unchanged; `OrphanCleanupWorker` SUCCESS |
+| N-30 run 2 (widget 21, default settings) | PASS | Same result; crash buffer empty, pid unchanged, worker SUCCESS (2 of 2, deterministic) |
+| Widget 15 untouched | PASS | `newsfeed_config` md5 identical to backup (whole file), `widget_15` value unchanged, still renders 10(10) Unread only; settings screen still shows Unread only / Expand in place |
+| Leftover files of removed ids | PASS | None remain. Stale `appWidgetLayout-16/18/19` left from earlier runs were also swept by the cleanup |
+| CLOCK_TICK alarm | PASS | Exactly one pending `CLOCK_TICK` alarm after each removal |
+| Periodic work | PASS | WorkManager db: `NewsFeedRefresh` (15 min) and `NewsFeedUpdateCheck` (24 h) ENQUEUED; refresh tap on widget 15 ran `WidgetWorker` SUCCESS |
+| In-app Bug reports | PASS | Still only the old entry (NullPointerException 1x, last seen build 901, 21:28); no new entry from build 902 |
+| Tap-mode Expand behavior on widget 15 | NOT VERIFIED | Not exercised, to avoid changing the user's read state |
+
+BUG-021 fix: VERIFIED on device. Restore: widget 15 `config_json` byte-identical; all four datastore files (config, read_status, GlanceAppWidgetManager, release_notes) have md5 equal to the backup in `C:	k5\`; test widgets 20 and 21 removed.
+
 ---
 
 ## Reporting
