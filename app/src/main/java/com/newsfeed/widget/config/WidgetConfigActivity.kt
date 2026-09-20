@@ -389,7 +389,16 @@ class WidgetConfigActivity : ComponentActivity() {
                     val result = mergeDefaultFeeds(config.feeds, defaults)
                     val existingIds = config.feeds.map { it.feedId }.toSet()
                     val added = result.merged.filter { it.feedId !in existingIds }
-                    config = config.copy(feeds = result.merged)
+                    // Recolor only the newly added feeds, preferring palette colors no existing
+                    // feed already uses so they stay visually distinct.
+                    val palette = feedAccentColors(config.widgetTheme)
+                    val free = ArrayDeque(palette.filter { c -> config.feeds.none { it.accentColor.equals(c, true) } })
+                    var fallback = config.feeds.size
+                    val recolored = result.merged.map { f ->
+                        if (f.feedId in existingIds) f
+                        else f.copy(accentColor = free.removeFirstOrNull() ?: palette[fallback++ % palette.size])
+                    }
+                    config = config.copy(feeds = recolored)
                     added.forEach { feedOrder.add(it.feedId) }
                     val msg = "Added ${result.addedCount} default feeds (${result.skippedCount} already present)"
                     statusMessage = msg
