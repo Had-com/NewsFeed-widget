@@ -1,5 +1,6 @@
 package com.newsfeed.widget.glance
 
+import androidx.compose.ui.graphics.toArgb
 import androidx.glance.material3.ColorProviders as buildColorProviders
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
