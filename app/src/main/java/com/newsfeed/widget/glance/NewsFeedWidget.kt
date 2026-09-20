@@ -53,6 +53,7 @@ import androidx.glance.text.TextStyle
 import com.newsfeed.widget.config.WidgetConfigActivity
 import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.FilterMode
+import com.newsfeed.widget.data.TapMode
 import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.applyFilterAndSort
@@ -85,7 +86,7 @@ class NewsFeedWidget : GlanceAppWidget() {
         // during this project's (English-locale) development actually showed.
         provideContent {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                WidgetContent(isFocusWidget = false)
+                WidgetContent()
             }
         }
     }
@@ -103,7 +104,7 @@ class NewsFeedFocusWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                WidgetContent(isFocusWidget = true)
+                WidgetContent()
             }
         }
     }
@@ -128,7 +129,7 @@ suspend fun updateNewsFeedWidget(context: Context, glanceId: GlanceId) {
 }
 
 @Composable
-private fun WidgetContent(isFocusWidget: Boolean) {
+private fun WidgetContent() {
     val prefs             = currentState<androidx.datastore.preferences.core.Preferences>()
     val configJson        = prefs[WidgetStateKey.configJson]
     val articlesJson      = prefs[WidgetStateKey.articles]
@@ -152,6 +153,11 @@ private fun WidgetContent(isFocusWidget: Boolean) {
     val config = configJson
         ?.let { runCatching { Json.decodeFromString<WidgetConfig>(it) }.getOrNull() }
         ?: WidgetConfig(widgetId = -1)
+
+    // Focus (tap-to-enlarge) is a per-widget setting, not a widget class: every placed widget
+    // renders through this one path and asks its own saved config. Kept under the old local
+    // name so FeedItemRow / WidgetHeader keep their existing isFocusWidget parameter.
+    val isFocusWidget = TapMode.fromKey(config.tapMode) == TapMode.FOCUS
 
     val articles: List<ArticleItem> = articlesJson
         ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
@@ -181,19 +187,15 @@ private fun WidgetContent(isFocusWidget: Boolean) {
     val scaledDensity2 = context2.resources.displayMetrics.scaledDensity
     val widthPx2       = ((LocalSize.current.width.value.coerceAtMost(350f) - 9f) * density2)
                               .toInt().coerceAtLeast(50)
-    // Focus Mode only — one row can render at up to focusScale× (default up to 2.5×) and
-    // every other row at focusBackgroundScale× (up to 1.0×, see WidgetConfigActivity.kt's
-    // "Background rows size" slider), neither of which is config.fontSize on its own. This
-    // budget calculation predates focus mode's per-row scale entirely and was never updated
-    // when that was added — it silently assumed every row was uniformly at config.fontSize,
-    // under-provisioning the moment a real focused row's bitmap grew past what had been
-    // reserved for it, eroding the safety margin this ceiling exists to protect (worst
-    // case, re-risking the exact "RemoteViews for widget update exceeds maximum bitmap
-    // memory usage" crash it was built to avoid). Taking the largest of the two scales as a
-    // uniform worst case is the same deliberately-overestimating shape as the "3-line worst
-    // case" comment below, just extended to cover the scale that can now apply to any row.
-    val worstCaseRowScale = if (isFocusWidget)
-        maxOf(focusScale, config.focusBackgroundScale, 1f) else 1f
+    // Focus mode only: the focused row can render at up to focusScale× (default 1.25×, up to
+    // 2.5×) config.fontSize. Every other row is at normal size (1×), since Focus no longer
+    // shrinks them, so a uniform worst case is the larger of focusScale and 1. This is the same
+    // deliberately-overestimating shape as the "3-line worst case" comment below: it protects
+    // against the "RemoteViews for widget update exceeds maximum bitmap memory usage" crash.
+    // (It could later be tightened to n-1 rows at 1× plus one at focusScale; that would change
+    // the on-screen row counts the on-device "Can't show content" fix was tuned against, so it
+    // is intentionally left as the uniform bound.)
+    val worstCaseRowScale = if (isFocusWidget) maxOf(focusScale, 1f) else 1f
     val headlineLineHeightPx = 13f * config.fontSize * worstCaseRowScale * scaledDensity2 * 1.2f
     // Worst case per row: a Glamour headline bitmap at AdjustFocusScaleCallback's shared
     // HEADLINE_MAX_LINES (8) — every row uses the same cap now, focused or not, see that
@@ -295,7 +297,7 @@ private fun WidgetContent(isFocusWidget: Boolean) {
             SideEffect {
                 resumeArticles.forEach { a ->
                     UnreadGracePeriod.scheduleRefresh(graceContext, graceGlanceId, a.id, a.readAt!!) { c, g ->
-                        if (isFocusWidget) NewsFeedFocusWidget().update(c, g) else NewsFeedWidget().update(c, g)
+                        NewsFeedWidget().update(c, g)
                     }
                 }
             }
@@ -363,7 +365,6 @@ private fun WidgetContent(isFocusWidget: Boolean) {
                                 themeVariant      = config.themeVariant,
                                 focusedArticleId  = focusedArticleId,
                                 focusScale        = focusScale,
-                                focusBackgroundScale = config.focusBackgroundScale,
                                 isFocusWidget     = isFocusWidget,
                                 isDissolving      = config.filter == FilterMode.UNREAD.key && isDissolving(article, now),
                             )

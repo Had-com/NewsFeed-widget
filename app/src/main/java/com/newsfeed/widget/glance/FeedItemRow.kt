@@ -42,6 +42,7 @@ import androidx.glance.unit.ColorProvider
 import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.FaviconHelper
 import com.newsfeed.widget.data.FeedConfig
+import com.newsfeed.widget.data.TapMode
 import com.newsfeed.widget.data.ThumbnailHelper
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -65,7 +66,6 @@ fun FeedItemRow(
     externalApp: String = "browser",
     focusedArticleId: String = "",
     focusScale: Float = AdjustFocusScaleCallback.DEFAULT_SCALE,
-    focusBackgroundScale: Float = 0.5f,
     isFocusWidget: Boolean = false,
     // True while this just-read article is dissolving (Unread only, see ArticleDissolve.kt):
     // its row shows only the dissolved title/description - no Load full article / Open article /
@@ -82,33 +82,25 @@ fun FeedItemRow(
     // way at all to read an article's paragraph or full text, only to resize its headline.
     val isFocused      = isFocusWidget && article.id == focusedArticleId
     val isExpanded     = article.id == expandedArticleId || isFocused
-    // Focus widget only (isFocusWidget — see NewsFeedFocusWidget vs. NewsFeedWidget).
-    // Shadows the fontSize parameter so every size derived from it below (headlineSize,
-    // thumbWidth, metaFontSize, ...) picks up the adjustment automatically, with no further
-    // changes needed through the rest of this function. Inactive (focusedArticleId blank, or
-    // a standard widget instance where isFocusWidget is false) is a complete no-op — every
-    // row renders at the widget's normal configured font size, exactly as before this feature
-    // existed. focusScale (the focused row's own multiplier) is live, on-widget adjustable via
-    // the +/- buttons below; focusBackgroundScale (every other row) is a Settings-screen
-    // slider (WidgetConfigActivity.kt) — deliberately different controls for different
-    // reasons: focus size is a per-article, in-the-moment adjustment, background size is a
-    // standing preference.
+    // Focus mode only (isFocusWidget, derived from WidgetConfig.tapMode). Only the focused row
+    // enlarges: rowFontScale() is focusScale for that row and exactly 1.0 for every other row
+    // (all rows when nothing is focused, and all rows in expand mode). The fontSize /
+    // articleFontSize shadows below pick that up, so every size derived from them (headlineSize,
+    // thumbWidth, metaFontSize, ...) follows automatically. focusScale is live, on-widget
+    // adjustable via the +/- header buttons (AdjustFocusScaleCallback), per article.
     // Captured before the shadow below reassigns fontSize — needed so metaScaleFontSize (right
     // after) can still see the pre-focus-scale value.
+    val rowScale = rowFontScale(isFocusWidget, article.id == focusedArticleId, focusedArticleId.isNotBlank(), focusScale)
     val baseFontSize = fontSize
     @Suppress("NAME_SHADOWING")
-    val fontSize = if (isFocusWidget && focusedArticleId.isNotBlank()) {
-        if (article.id == focusedArticleId) fontSize * focusScale else fontSize * focusBackgroundScale
-    } else fontSize
+    val fontSize = fontSize * rowScale
     // articleFontSize is deliberately its own independent setting from fontSize (see its own
     // param doc) — meaning it was NOT covered by the fontSize shadow above, so the expanded
     // article/description body text never grew or shrank with Focus Mode's zoom at all, only
-    // the headline did. Reported and confirmed. Mirrors the exact same focus/background scale
+    // the headline did. Reported and confirmed. Mirrors the exact same focus scale
     // logic as fontSize, just applied to this separate value too.
     @Suppress("NAME_SHADOWING")
-    val articleFontSize = if (isFocusWidget && focusedArticleId.isNotBlank()) {
-        if (article.id == focusedArticleId) articleFontSize * focusScale else articleFontSize * focusBackgroundScale
-    } else articleFontSize
+    val articleFontSize = articleFontSize * rowScale
     // The meta row (timestamp/feed name/favicon circle) uses this instead of fontSize directly.
     // fontSize can grow up to 2.5x on the focused row (focusScale), but the row's physical
     // width does not grow with it — the widget's own width is fixed. Reported and confirmed:
@@ -116,10 +108,7 @@ fun FeedItemRow(
     // needed more horizontal space than the row had, spilling the feed name/icon off the left
     // edge instead of wrapping or clipping cleanly. Coercing to baseFontSize caps the meta row
     // at its normal size regardless of focus scale — it's supporting metadata, not the primary
-    // content being zoomed into, so it has no reason to grow past normal. Background rows'
-    // *shrinking* (focusBackgroundScale, e.g. 0.5x) is unaffected by this — coerceAtMost only
-    // clamps the upper end, so those rows still shrink their meta row along with everything
-    // else, exactly as before.
+    // content being zoomed into, so it has no reason to grow past normal.
     val metaScaleFontSize = fontSize.coerceAtMost(baseFontSize)
     val accentProvider = if (useThemeColors) {
         GlanceTheme.colors.primary
@@ -189,13 +178,14 @@ fun FeedItemRow(
     // for these articles specifically, was the sole reason to expand in the first place.
     // Focus Mode replaces expand-on-tap entirely: a tap sets/clears the focus target instead
     // (see SetFocusArticleCallback) — expanding into description text doesn't make sense
-    // alongside shrinking every other row to browse by size, so this branch is checked first
+    // alongside enlarging one row to browse by size, so this branch is checked first
     // and, when isFocusWidget is true, wins regardless of description content.
-    val toggleAction = if (isFocusWidget)
+    val tapAction = tapActionFor(if (isFocusWidget) TapMode.FOCUS else TapMode.EXPAND, article.description.isNotBlank())
+    val toggleAction = if (tapAction == TapAction.SET_FOCUS)
         actionRunCallback<SetFocusArticleCallback>(
             actionParametersOf(SetFocusArticleCallback.ARTICLE_ID_KEY to article.id)
         )
-    else if (article.description.isNotBlank())
+    else if (tapAction == TapAction.TOGGLE_EXPAND)
         actionRunCallback<ToggleExpandCallback>(
             actionParametersOf(ToggleExpandCallback.ARTICLE_ID_KEY to article.id)
         )

@@ -59,7 +59,7 @@ class SetFocusArticleCallback : ActionCallback {
             }
         }
         articleLosingFocusId?.let { ReadStatusStore(context).markRead(it) }
-        NewsFeedFocusWidget().update(context, glanceId)
-        UnreadGracePeriod.scheduleRefresh(context, glanceId, articleLosingFocusId, markedAt) { c, g -> NewsFeedFocusWidget().update(c, g) }
+        NewsFeedWidget().update(context, glanceId)
+        UnreadGracePeriod.scheduleRefresh(context, glanceId, articleLosingFocusId, markedAt) { c, g -> NewsFeedWidget().update(c, g) }
     }
 }
