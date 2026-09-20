@@ -1,5 +1,7 @@
 ﻿package com.newsfeed.widget.glance
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.getAppWidgetState
@@ -17,10 +19,12 @@ import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.ConfigBackup
 import com.newsfeed.widget.data.ReadStatusStore
 import com.newsfeed.widget.data.NewsFeedRepository
+import com.newsfeed.widget.data.OrphanCleanup
 import com.newsfeed.widget.data.WidgetConfigStore
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.mergeFreshArticles
 import com.newsfeed.widget.data.retainWithPerFeedGuarantee
+import com.newsfeed.widget.update.UpdateCheckWorker
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -38,6 +42,25 @@ class WidgetWorker(
         val readIds   = ReadStatusStore(context).readIdsFlow().first()
         val manager   = GlanceAppWidgetManager(context)
         val widgetIds = manager.getGlanceIds(NewsFeedWidget::class.java)
+
+        // Housekeeping: drop config/backup/Glance-state left by ids that are gone (notably the
+        // removed NewsFeed Focus widgets, which vanish on update without any callback). The live
+        // set is the UNION of the system list for our provider and Glance's own list, so a
+        // failure of either lookup can only make the live set larger (= fewer deletions). If the
+        // union is empty the sweep is a no-op (never "everything is an orphan"), and only when
+        // BOTH sources agree nothing is placed do we stop the shared periodic jobs (placing a
+        // widget again re-arms them via NewsFeedWidgetReceiver.onEnabled()).
+        val systemIds = runCatching {
+            AppWidgetManager.getInstance(context)
+                .getAppWidgetIds(ComponentName(context, NewsFeedWidgetReceiver::class.java)).toSet()
+        }.getOrDefault(emptySet())
+        val liveIds = systemIds + widgetIds.map { manager.getAppWidgetId(it) }
+        OrphanCleanup.sweep(context, liveIds)
+        if (liveIds.isEmpty()) {
+            cancel(context)
+            UpdateCheckWorker.cancel(context)
+            return Result.success()
+        }
 
         for (glanceId in widgetIds) {
             val appWidgetId = manager.getAppWidgetId(glanceId)

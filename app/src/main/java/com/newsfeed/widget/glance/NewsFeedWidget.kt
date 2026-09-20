@@ -51,6 +51,7 @@ import androidx.glance.text.TextStyle
 import com.newsfeed.widget.config.WidgetConfigActivity
 import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.FilterMode
+import com.newsfeed.widget.data.OrphanCleanup
 import com.newsfeed.widget.data.TapMode
 import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetStateKey
@@ -610,6 +611,18 @@ class NewsFeedWidgetReceiver : GlanceAppWidgetReceiver() {
         WidgetWorker.cancel(context)
         UpdateCheckWorker.cancel(context)
         cancelClockTick(context)
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        // Glance's own receiver removes the per-widget Glance state file; drop the saved config
+        // and its backup too, so they no longer leak for every widget the user removes.
+        val ids = appWidgetIds.toSet()
+        val pending = goAsync()
+        MainScope().launch {
+            try { OrphanCleanup.removeIds(context, ids) }
+            finally { pending.finish() }
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {

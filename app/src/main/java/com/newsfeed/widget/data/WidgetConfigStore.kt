@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -29,6 +30,11 @@ class WidgetConfigStore(private val context: Context) {
             prefs[keyFor(config.widgetId)] = json.encodeToString(config)
         }
     }
+
+    /** Every widget id that currently has a saved config entry (keys named widget_<id>). */
+    suspend fun knownWidgetIds(): Set<Int> =
+        context.dataStore.data.first().asMap().keys
+            .mapNotNull { widgetIdFromConfigKey(it.name) }.toSet()
 
     suspend fun delete(widgetId: Int) {
         context.dataStore.edit { prefs ->

@@ -40,6 +40,14 @@ object ConfigBackup {
         }
     }
 
+    suspend fun delete(context: Context, widgetId: Int) {
+        context.backupDataStore.edit { prefs -> prefs.remove(keyFor(widgetId)) }
+    }
+
+    suspend fun knownIds(context: Context): Set<Int> =
+        context.backupDataStore.data.first().asMap().keys
+            .mapNotNull { widgetIdFromConfigKey(it.name) }.toSet()
+
     // Called on every WidgetWorker refresh cycle, not just right after an update — cheap
     // (a single extra DataStore read when feeds are already present is a no-op) and it means
     // this recovers automatically the next time this widget refreshes after ANY event that
