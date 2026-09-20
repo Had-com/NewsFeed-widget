@@ -981,3 +981,24 @@ footer Share button opens the two-option dialog without crashing on both widget 
 each option shares the correct URL, and that dismissing the dialog without picking anything
 returns cleanly with nothing stuck on screen; confirmed the narrow-width footer overflow fix
 above.
+
+## BUG-020 — Telegram articles did not load fully; "Load full article" replaced the post with page chrome
+
+**Status:** Fixed (code + unit tests; on-device verification pending — see QA `E-04` Telegram sub-case, `M-39`).
+
+Reported live: "Telegram articles do not load fully when I press Load full article."
+
+**Root cause:** two parts. (1) A Telegram post permalink (`https://t.me/<channel>/<id>`) is a
+JS shell with no post text (no `<p>`, no `tgme_widget_message_text`, no `og:description`), so
+`FetchFullArticleCallback` scraped only page chrome ("Download Context Embed View In Channel
+…") and overwrote the good description with it — it never checked the result was better than
+what was already shown. (2) `TelegramFeedParser` put the first two lines in the title and only
+the rest (`take(2000)`) in the description, so 1–2 line posts had an empty description (no
+expand, no button) and long posts were cut well under Telegram's 4096-char limit.
+
+**Fix:** `TelegramFeedParser` now keeps the COMPLETE post text (title lines included, up to
+4096 chars) in the description; the title is unchanged. Telegram URLs are never fetched
+(`isTelegramPostUrl` / `isTelegramUrl`) and the "Load full article" button is hidden for them
+(`canLoadFullArticle`); Full mode shows the whole description instead. For every other feed,
+`chooseFullArticleText` keeps the current text when the fetch is blank, an error, a Telegram
+URL, or under half the length of a >200-char current text.

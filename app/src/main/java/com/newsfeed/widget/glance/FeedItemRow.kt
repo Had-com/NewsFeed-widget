@@ -812,10 +812,23 @@ fun FeedItemRow(
                     } else {
                         if (article.description.isNotBlank()) {
                             Spacer(GlanceModifier.height(4.dp))
-                            val clipped = article.description.take(400).trimEnd()
-                            DescriptionText(clipped, maxLines = 10)
+                            // Telegram: the description IS the full post (nothing to fetch), so
+                            // Full mode shows all of it. Glamour renders through a bitmap, so it is
+                            // bounded to one CHUNK_CHARS chunk with a taller budget; other themes
+                            // render plain Text and show everything (max 4096).
+                            if (!canLoadFullArticle(article.articleUrl) && article.articleUrl.isNotBlank()) {
+                                DescriptionText(
+                                    article.description.trimEnd(),
+                                    maxLines = 200,
+                                    maxChars = FetchFullArticleCallback.CHUNK_CHARS,
+                                    heightBudgetPx = 2400f,
+                                )
+                            } else {
+                                val clipped = article.description.take(400).trimEnd()
+                                DescriptionText(clipped, maxLines = 10)
+                            }
                         }
-                        if (!isDissolving && article.articleUrl.isNotBlank()) {
+                        if (!isDissolving && canLoadFullArticle(article.articleUrl)) {
                             Spacer(GlanceModifier.height(6.dp))
                             Text(
                                 text = "Load full article ↓",

@@ -62,8 +62,19 @@ class FetchFullArticleCallback : ActionCallback {
             updateNewsFeedWidget(context, glanceId)
         }
 
-        // Fetch the full article in the background; update again when done
-        val content = withContext(Dispatchers.IO) { fetchContent(articleUrl) }
+        // Telegram post pages are JS shells with no post text (scraping them yields page
+        // chrome); the description already holds the whole post, so never fetch.
+        if (com.newsfeed.widget.data.TelegramFeedParser.isTelegramUrl(articleUrl)) return
+
+        // Fetch the full article in the background; update again when done. The result is
+        // only used if it is actually better than what is already shown (see
+        // chooseFullArticleText); errors keep the existing text and, as before, still show
+        // the error only when there was no description to fall back on.
+        val fetched = withContext(Dispatchers.IO) { fetchContent(articleUrl) }
+        val content = if (description.isBlank() && fetched.startsWith(FULL_ARTICLE_ERROR_PREFIX))
+            fetched
+        else
+            chooseFullArticleText(description, fetched, articleUrl)
 
         updateAppWidgetState(context, glanceId) { prefs ->
             prefs[WidgetStateKey.fullArticleId]   = articleId

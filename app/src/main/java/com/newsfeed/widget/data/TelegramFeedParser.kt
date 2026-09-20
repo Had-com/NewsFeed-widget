@@ -39,6 +39,25 @@ object TelegramFeedParser {
 
     private fun previewUrl(channel: String) = "https://t.me/s/$channel"
 
+    // https://t.me/<channel>/<id> (optionally /s/<channel>/<id>), trailing slash / query ok.
+    private val POST_URL_REGEX = Regex(
+        """^(?:https?://)?(?:t\.me|telegram\.me)/(?:s/)?[A-Za-z0-9_]+/\d+/?(?:[?#].*)?$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val TELEGRAM_HOST_REGEX = Regex(
+        """^(?:https?://)?(?:t\.me|telegram\.me)(?:[/?#]|$)""",
+        RegexOption.IGNORE_CASE
+    )
+
+    /** True for a single-post permalink. Its page is a JS shell with no post text. */
+    fun isTelegramPostUrl(url: String): Boolean = POST_URL_REGEX.matches(url.trim())
+
+    /** True for any t.me / telegram.me URL. */
+    fun isTelegramUrl(url: String): Boolean = TELEGRAM_HOST_REGEX.containsMatchIn(url.trim())
+
+    // Telegram's own maximum message length.
+    private const val MAX_POST_CHARS = 4096
+
     private val DATA_POST_REGEX = Regex("""data-post="([A-Za-z0-9_]+)/(\d+)"""")
     private val TIME_REGEX = Regex("""<time[^>]*\bdatetime="([^"]+)"""")
     private val TEXT_OPEN_TAG_REGEX = Regex(
@@ -196,7 +215,9 @@ object TelegramFeedParser {
             // extra hard break instead of a natural wrap.
             val titleLineCount = minOf(lines.size, 2)
             val title = if (lines.isEmpty()) feedDisplayName else lines.take(titleLineCount).joinToString(" ")
-            val description = lines.drop(titleLineCount).joinToString("\n").take(2000)
+            // The description holds the COMPLETE post text (title lines included): a post
+            // permalink page has no text to fetch, so this is the only source for "full".
+            val description = lines.joinToString("\n").take(MAX_POST_CHARS)
             ArticleItem(
                 id = raw.id,
                 feedId = feedId,

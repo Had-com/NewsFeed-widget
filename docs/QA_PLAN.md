@@ -290,9 +290,9 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | J Settings persistence / backup / multi-widget | 14 | 2 | 10 | 2 |
 | K Self-update & release notes | 19 | 3 | 15 | 1 |
 | L Robustness | 20 | 2 | 14 | 4 |
-| M Regression cases for past bugs | 38 | 6 | 31 | 1 |
+| M Regression cases for past bugs | 39 | 6 | 32 | 1 |
 | N Applies once Focus-as-setting ships | 25 | 10 | 15 | 0 |
-| **Total** | **296** | **48** | **229** | **19** |
+| **Total** | **297** | **48** | **230** | **19** |
 
 Plus the two pairwise tables (50 configurations each, run through `H-24` and `N-22`).
 
@@ -386,7 +386,7 @@ Section 6 of Settings ("FEED ORDER & STYLE") plus ADD FEED and FIND FEEDS.
 | C-02 | P1 | Atom feed (`<entry>`, `published`/`updated`, `content`/`summary`) ⇒ parsed with title, time, description | UI | none |
 | C-03 | P1 | Hebrew feeds (ynet, walla, globes, kan) and rotter.net ⇒ fetched (browser-like headers), no garbled characters, including rotter.net whose charset is only in `<meta charset>` | UI, SS | none |
 | C-04 | P0 | Add Telegram channels typed as `@ch`, `t.me/ch`, `https://t.me/ch`, `telegram.me/ch`, `t.me/s/ch`, `https://t.me/s/ch`, `T.ME/ch` ⇒ each is recognised as Telegram (not "Could not load feed"), title is the real channel title (not the handle), feedId = `https://t.me/s/<ch>`. **Record** the known gap: `http://t.me/s/ch` and `telegram.me/s/ch` still hit the old failure | UI, DS | UT:TelegramFeedParserTest |
-| C-05 | P1 | Telegram posts ⇒ first two lines joined into one headline, rest = description; photo-only post falls back to the channel name as title; permalink is the article URL and id; timestamps correct; images load in IMG mode | UI, SS, DS | UT:TelegramFeedParserTest |
+| C-05 | P1 | Telegram posts ⇒ first two lines joined into one headline, description = the COMPLETE post text (title lines included, up to 4096 chars; BUG-020); photo-only post falls back to the channel name as title; permalink is the article URL and id; timestamps correct; images load in IMG mode | UI, SS, DS | UT:TelegramFeedParserTest |
 | C-06 | P1 | Add a private/invite link (`t.me/joinchat/…`, `t.me/+…`) and a non-existent channel ⇒ not accepted as a channel; inline error, no crash | UI, LC | UT:TelegramFeedParserTest |
 | C-07 | P1 | Refresh a Telegram feed twice ⇒ no duplicate articles (id = permalink); history grows only with new posts | DS | none |
 | C-08 | P1 | Add a feed that has a large backlog ⇒ first fetch pulls up to 300 items; subsequent refreshes take the 50 newest; a known feed's fetch-time cap is 10 per feed in the fetch batch, while the accumulated store keeps up to 300 | DS (count per feedId) | none |
@@ -442,7 +442,7 @@ the separate NewsFeed Focus widget.
 | E-01 | P0 | Tap an article that has a description ⇒ expands inline (description, plus **Open article →** and, when Open-in = Browser, **Share ↗**; in Full mode **Load full article ↓**); tap it again ⇒ collapses; expanding another collapses the first (one at a time) | UI, DS (`expanded_article_id`) | none |
 | E-02 | P1 | IMG-mode feed expanded ⇒ 120 dp header image above the text; TXT-mode ⇒ none | SS | none |
 | E-03 | P1 | Tap an article with **no description** (rotter.net, ynet flash) ⇒ nothing expands, no Open/Share links, native press ripple only | UI, VIS | none |
-| E-04 | P0 | Expanded-article length **Subtitle only** ⇒ ≤ 100 chars + `…`; **First paragraph** ⇒ ≤ 400; **Full article** ⇒ shows the description first; tap **Load full article ↓** ⇒ replaced by the fetched page body (two-phase); each mode matches the Settings preview | SS, DS (`full_article_*`) | none |
+| E-04 | P0 | Expanded-article length **Subtitle only** ⇒ ≤ 100 chars + `…`; **First paragraph** ⇒ ≤ 400; **Full article** ⇒ shows the description first; tap **Load full article ↓** ⇒ replaced by the fetched page body (two-phase); each mode matches the Settings preview. **Telegram sub-case (BUG-020):** on a Telegram post (1-line and 5+-line) expand in each mode ⇒ Subtitle ≤ 100 + `…`, First paragraph ≤ 400, Full shows the whole post text; **no** Load full article button on Telegram posts; a 1-line post still expands to its text; never shows "Download Context Embed View In Channel" page chrome | SS, DS (`full_article_*`) | none |
 | E-05 | P1 | Full mode on a clutter-heavy site and on a Hebrew site (ynet) and rotter.net ⇒ real body only (no nav/ads/related links), no charset mangling, correct RTL | SS | none |
 | E-06 | P1 | Full mode **Load more ↓** ⇒ 1200-char chunks, each with **Open in browser ↗**, stops cleanly at the article end or the memory/8-chunk cap with no dangling button; in non-Glamour the whole fetched text renders at once | SS, UI, LC | none |
 | E-07 | P0 | **Open article →** with Open-in = Browser ⇒ default browser opens the article URL; with Open-in = **Share sheet** ⇒ chooser titled "Share article" with the URL | VIS, LC | none |
@@ -721,6 +721,7 @@ Ledger: [Appendix A](#appendix-a--cases-added-because-of-a-bug).
 | M-36 | P1 | **Cleartext (HTTP) feeds silently yield nothing** (BUG-010, open) ⇒ record status ↔ B-06 | UI | none |
 | M-37 | P1 | **Time reported wrong / new articles "not on time"** (BUG-004/005/007, not reproduced) ⇒ one article's time matches the feed's `pubDate`; a manual refresh inserts new articles within seconds ↔ C-01 | DS | none |
 | M-38 | P0 | **Unit tests not run by CI**: `testDebugUnitTest` passes locally for the build under test (all `app/src/test` classes) | UT | all test files |
+| M-39 | P1 | **Telegram "Load full article" replaced the post with page chrome** (BUG-020): a `t.me/<ch>/<id>` page is a JS shell ⇒ Telegram posts never offer or run a page fetch; Full mode shows the whole post text (up to 4096 chars, one 1200-char chunk in Glamour); a fetch on any feed never replaces the shown text with blank/error/much-shorter text ↔ E-04, C-05 | SS, UI | UT:TelegramFeedParserTest, FullArticleTextTest |
 
 ---
 
@@ -810,6 +811,7 @@ status recorded in `docs/BUGS.md` / `DEBUG_PLAN.md` when this plan was written (
 | BW not monochrome / white text | Favicons + banner keep colour | Known gap | M-34, H-08 | Known |
 | Config required before placement (0e8cea6) | Widget placed without config | `configure` activity | M-35, A-08 | Fixed |
 | Unit tests not gated by CI | CI only runs `assembleDebug` | Manual `testDebugUnitTest` | M-38 | Process gap |
+| BUG-020 | Telegram posts did not load fully; "Load full article" replaced the text with page chrome | Post page is a JS shell; description now holds the whole post, no fetch for Telegram, fetch result guarded by `chooseFullArticleText` | M-39, E-04, C-05 | Fixed |
 
 ---
 

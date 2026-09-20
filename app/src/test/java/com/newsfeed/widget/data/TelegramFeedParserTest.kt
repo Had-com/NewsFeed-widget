@@ -254,8 +254,9 @@ class TelegramFeedParserTest {
     fun `parseArticles joins first two lines as title when the message has exactly two lines`() {
         // Live bug report: a collapsed widget row built from only the first line looked
         // too thin for a typical multi-line Telegram post. Message 101 has exactly two
-        // lines, so both are now consumed by the title and none are left for the
-        // description.
+        // lines, so both are consumed by the title. Since the Telegram full-text fix the
+        // description ALSO holds the complete post text (the post is its own "full article",
+        // and a page fetch cannot supply it), so a 2-line post is still expandable.
         val articles = TelegramFeedParser.parseArticles(
             feedId = "https://t.me/s/testchannel",
             feedDisplayName = "Test Channel",
@@ -263,7 +264,7 @@ class TelegramFeedParserTest {
             maxItems = 10,
         )
         assertEquals("First line of post 101 Second line with more detail.", articles[0].title)
-        assertEquals("", articles[0].description)
+        assertEquals("First line of post 101\nSecond line with more detail.", articles[0].description)
     }
 
     @Test
@@ -283,7 +284,51 @@ class TelegramFeedParserTest {
             maxItems = 10,
         )
         assertEquals("Line one of post 301 Line two of post 301", articles[0].title)
-        assertEquals("Line three of post 301", articles[0].description)
+        // Deliberate change: description is the COMPLETE post text (incl. the two title
+        // lines), not just the remainder, so "Full" mode can show the whole post.
+        assertEquals("Line one of post 301\nLine two of post 301\nLine three of post 301", articles[0].description)
+    }
+
+    @Test
+    fun `parseArticles keeps a long post up to Telegram's 4096 char limit in the description`() {
+        val long = "x".repeat(4500)
+        val html = """
+            <div class="tgme_widget_message" data-post="testchannel/302" data-view="abc">
+                <div class="tgme_widget_message_text js-message_text" dir="auto">Head<br/>$long</div>
+                <time class="time" datetime="2026-09-07T12:00:00+00:00">12:00</time>
+            </div>
+        """.trimIndent()
+        val a = TelegramFeedParser.parseArticles("f", "Ch", html, 10)[0]
+        assertEquals(4096, a.description.length)
+        // Title (first two lines joined) is still capped at 200 for display.
+        assertEquals(200, a.title.length)
+        assertEquals(true, a.title.startsWith("Head x"))
+    }
+
+    @Test
+    fun `parseArticles gives a one-line post a description equal to its text`() {
+        val html = """
+            <div class="tgme_widget_message" data-post="testchannel/303" data-view="abc">
+                <div class="tgme_widget_message_text js-message_text" dir="auto">Only line</div>
+                <time class="time" datetime="2026-09-07T12:00:00+00:00">12:00</time>
+            </div>
+        """.trimIndent()
+        val a = TelegramFeedParser.parseArticles("f", "Ch", html, 10)[0]
+        assertEquals("Only line", a.title)
+        assertEquals("Only line", a.description)
+    }
+
+    @Test
+    fun `isTelegramPostUrl recognises post permalinks only`() {
+        assertEquals(true, TelegramFeedParser.isTelegramPostUrl("https://t.me/N12_News/47114"))
+        assertEquals(true, TelegramFeedParser.isTelegramPostUrl("t.me/ch/123"))
+        assertEquals(true, TelegramFeedParser.isTelegramPostUrl("https://telegram.me/ch/5/"))
+        assertEquals(true, TelegramFeedParser.isTelegramPostUrl("http://t.me/ch/123?single"))
+        assertEquals(false, TelegramFeedParser.isTelegramPostUrl("https://t.me/s/ch"))
+        assertEquals(false, TelegramFeedParser.isTelegramPostUrl("https://t.me/ch"))
+        assertEquals(false, TelegramFeedParser.isTelegramPostUrl("https://example.com/ch/123"))
+        assertEquals(false, TelegramFeedParser.isTelegramPostUrl("https://nott.me/ch/123"))
+        assertEquals(false, TelegramFeedParser.isTelegramPostUrl(""))
     }
 
     @Test

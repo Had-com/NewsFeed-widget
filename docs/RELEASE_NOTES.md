@@ -27,3 +27,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 7
 - The fade-out now turns the text to dots and erases them from the end before the article disappears.
+
+## Note 8
+- Telegram posts now show their full text when expanded, and "Load full article" no longer replaces a post with unrelated page text.
