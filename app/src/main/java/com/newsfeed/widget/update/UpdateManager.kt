@@ -18,7 +18,6 @@ import androidx.core.content.FileProvider
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import com.newsfeed.widget.BuildConfig
 import com.newsfeed.widget.data.ConfigBackup
-import com.newsfeed.widget.glance.NewsFeedFocusWidget
 import com.newsfeed.widget.glance.NewsFeedWidget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -106,8 +105,7 @@ object UpdateManager {
         // doc comment for why this exists even though a normal same-signature update already
         // preserves all app data on its own.
         val widgetIds = GlanceAppWidgetManager(context).let { manager ->
-            manager.getGlanceIds(NewsFeedWidget::class.java).map { manager.getAppWidgetId(it) } +
-                manager.getGlanceIds(NewsFeedFocusWidget::class.java).map { manager.getAppWidgetId(it) }
+            manager.getGlanceIds(NewsFeedWidget::class.java).map { manager.getAppWidgetId(it) }
         }
         ConfigBackup.backupAll(context, widgetIds)
 

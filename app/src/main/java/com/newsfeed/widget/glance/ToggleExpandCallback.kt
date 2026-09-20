@@ -8,7 +8,7 @@ import androidx.glance.appwidget.state.updateAppWidgetState
 import com.newsfeed.widget.data.ReadStatusStore
 import com.newsfeed.widget.data.WidgetStateKey
 
-// Standard widget only. Tapping a row expands it inline (only one article expanded at a time);
+// Expand mode only. Tapping a row expands it inline (only one article expanded at a time);
 // tapping the expanded row again collapses it.
 //
 // Read is flagged on the previously tapped article once the user taps a DIFFERENT one - not the

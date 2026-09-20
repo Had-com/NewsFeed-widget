@@ -7,7 +7,7 @@ import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.state.updateAppWidgetState
 import com.newsfeed.widget.data.WidgetStateKey
 
-// Focus Mode only (BuildConfig.FOCUS_MODE build flavor). Wired to "−"/"+" buttons in the
+// Focus mode only (WidgetConfig.tapMode == "focus"). Wired to "−"/"+" buttons in the
 // widget header (NewsFeedWidget.kt's WidgetHeader) — a real pinch-to-zoom gesture is not
 // possible here: RemoteViews widgets receive no raw touch events at all, multi-touch included,
 // only discrete clicks on pre-declared regions (the same platform wall the drag-magnifier idea

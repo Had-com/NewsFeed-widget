@@ -14,20 +14,12 @@ class BootReceiver : BroadcastReceiver() {
         val pending = goAsync()
         MainScope().launch {
             try {
-                val manager     = GlanceAppWidgetManager(context)
-                val standardIds = manager.getGlanceIds(NewsFeedWidget::class.java)
-                val focusIds    = manager.getGlanceIds(NewsFeedFocusWidget::class.java)
-                if (standardIds.isNotEmpty()) {
+                val widgetIds = GlanceAppWidgetManager(context).getGlanceIds(NewsFeedWidget::class.java)
+                if (widgetIds.isNotEmpty()) {
                     NewsFeedWidgetReceiver.scheduleClockTick(context)
-                }
-                if (focusIds.isNotEmpty()) {
-                    NewsFeedFocusWidgetReceiver.scheduleClockTick(context)
-                }
-                // Previously only WidgetWorker was rescheduled here — UpdateCheckWorker
-                // silently never resumed its daily check after a device reboot until a
-                // widget was removed and re-added. Fixed as part of making this
-                // multi-widget-aware anyway.
-                if (standardIds.isNotEmpty() || focusIds.isNotEmpty()) {
+                    // UpdateCheckWorker used to silently never resume its daily check after a
+                    // device reboot until a widget was removed and re-added; reschedule both
+                    // periodic jobs here.
                     WidgetWorker.ensureScheduled(context)
                     UpdateCheckWorker.schedule(context)
                 }

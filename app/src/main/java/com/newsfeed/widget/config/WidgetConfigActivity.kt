@@ -86,8 +86,6 @@ import com.newsfeed.widget.data.WidgetConfigStore
 import com.newsfeed.widget.data.TapMode
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.glance.NewsFeedWidget
-import com.newsfeed.widget.glance.NewsFeedFocusWidget
-import com.newsfeed.widget.glance.NewsFeedFocusWidgetReceiver
 import com.newsfeed.widget.glance.resetTapState
 import com.newsfeed.widget.glance.tapModeChanged
 import com.newsfeed.widget.glance.updateNewsFeedWidget
@@ -541,14 +539,11 @@ class WidgetConfigActivity : ComponentActivity() {
                                                 if (tapModeChanged(loadedAtSave, final.tapMode)) resetTapState(prefs)
                                             }
                                             // updateNewsFeedWidget() initialises the Glance DataStore
-                                            // subscription for whichever widget type this instance
-                                            // actually is; updateAll() on both classes ensures every
-                                            // placed widget of either type re-renders (matches the
-                                            // existing "refresh everything, not just this one"
-                                            // behavior from before two widget types existed).
+                                            // subscription for this widget instance; updateAll() then
+                                            // re-renders every placed widget (matches the existing
+                                            // "refresh everything, not just this one" behavior).
                                             updateNewsFeedWidget(this@WidgetConfigActivity, glanceId)
                                             NewsFeedWidget().updateAll(this@WidgetConfigActivity)
-                                            NewsFeedFocusWidget().updateAll(this@WidgetConfigActivity)
                                         }
                                         WidgetWorker.refreshNow(this@WidgetConfigActivity)
                                         setResult(RESULT_OK, Intent().apply { putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId) })

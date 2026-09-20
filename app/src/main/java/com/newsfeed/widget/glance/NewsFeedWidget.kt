@@ -3,7 +3,6 @@ package com.newsfeed.widget.glance
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
@@ -24,7 +23,6 @@ import androidx.glance.LocalSize
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
@@ -93,39 +91,12 @@ class NewsFeedWidget : GlanceAppWidget() {
 }
 
 /**
- * The Focus widget — same rendering path as NewsFeedWidget (WidgetContent below), just with
- * isFocusWidget = true. See the merge-focus-mode design spec for why this exists as a second
- * GlanceAppWidget instead of, say, a per-widget-instance config toggle: it needs to be a
- * separate entry in the system's "Add widget" picker, which requires a separate provider.
- */
-class NewsFeedFocusWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
-
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        provideContent {
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                WidgetContent()
-            }
-        }
-    }
-}
-
-/**
- * Re-renders whichever widget instance owns [glanceId] — resolving NewsFeedWidget vs.
- * NewsFeedFocusWidget by checking which receiver that appWidgetId is actually registered to,
- * rather than assuming. Needed by any ActionCallback reachable from BOTH widget types'
- * composables (as opposed to one only ever wired up under isFocusWidget == true or == false):
- * calling the wrong class's update() would render that class's layout for an appWidgetId that
- * belongs to the other one.
+ * Re-renders the widget instance owning [glanceId]. Kept as a single named entry point for the
+ * ActionCallbacks and the settings screen. There is only one widget class now (Focus is a
+ * per-widget setting, see WidgetConfig.tapMode), so there is no provider lookup.
  */
 suspend fun updateNewsFeedWidget(context: Context, glanceId: GlanceId) {
-    val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(glanceId)
-    val provider = AppWidgetManager.getInstance(context).getAppWidgetInfo(appWidgetId)?.provider
-    if (provider?.className == NewsFeedFocusWidgetReceiver::class.java.name) {
-        NewsFeedFocusWidget().update(context, glanceId)
-    } else {
-        NewsFeedWidget().update(context, glanceId)
-    }
+    NewsFeedWidget().update(context, glanceId)
 }
 
 @Composable
@@ -139,10 +110,9 @@ private fun WidgetContent() {
     val fullArticleId     = prefs[WidgetStateKey.fullArticleId]     ?: ""
     val fullArticleText   = prefs[WidgetStateKey.fullArticleText]   ?: ""
     val fullArticleShown  = prefs[WidgetStateKey.fullArticleShownChars] ?: FetchFullArticleCallback.CHUNK_CHARS
-    // Focus widget only (isFocusWidget) — see FeedItemRow.kt's fontSize shadowing.
-    // Reading it unconditionally here is harmless for a standard widget instance: the key is
-    // simply never written to (SetFocusArticleCallback is only ever wired up when
-    // isFocusWidget is true), so it stays blank forever there.
+    // Focus mode only (isFocusWidget, i.e. config.tapMode == "focus") — see FeedItemRow.kt's
+    // row scaling. Read unconditionally: in Expand mode the key is simply blank (it is cleared
+    // by resetTapState() whenever a widget's tap mode changes).
     val focusedArticleId  = prefs[WidgetStateKey.focusedArticleId] ?: ""
     // Focus Mode only — live, on-widget-adjustable via +/- buttons on the focused row
     // itself (AdjustFocusScaleCallback), not a Settings-screen slider. Absent means
@@ -154,9 +124,8 @@ private fun WidgetContent() {
         ?.let { runCatching { Json.decodeFromString<WidgetConfig>(it) }.getOrNull() }
         ?: WidgetConfig(widgetId = -1)
 
-    // Focus (tap-to-enlarge) is a per-widget setting, not a widget class: every placed widget
-    // renders through this one path and asks its own saved config. Kept under the old local
-    // name so FeedItemRow / WidgetHeader keep their existing isFocusWidget parameter.
+    // Focus (tap-to-enlarge) is a per-widget setting, not a widget class: every widget renders
+    // through this one path and reads its own saved config.tapMode.
     val isFocusWidget = TapMode.fromKey(config.tapMode) == TapMode.FOCUS
 
     val articles: List<ArticleItem> = articlesJson
@@ -636,18 +605,10 @@ class NewsFeedWidgetReceiver : GlanceAppWidgetReceiver() {
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        // Two receivers now share WidgetWorker/UpdateCheckWorker's periodic jobs (one per
-        // app, not per widget type) — Android calls onDisabled() when THIS receiver's own
-        // widget count hits zero, not when every widget in the app is gone. Cancelling the
-        // shared jobs unconditionally here would kill background refresh/update-checking for
-        // a still-placed Focus widget the moment the last standard widget is removed.
-        val focusWidgetsRemain = AppWidgetManager.getInstance(context)
-            .getAppWidgetIds(ComponentName(context, NewsFeedFocusWidgetReceiver::class.java))
-            .isNotEmpty()
-        if (!focusWidgetsRemain) {
-            WidgetWorker.cancel(context)
-            UpdateCheckWorker.cancel(context)
-        }
+        // NewsFeedWidgetReceiver is the only receiver, so its widget count reaching zero
+        // means no widget of the app is left: stop the shared periodic jobs.
+        WidgetWorker.cancel(context)
+        UpdateCheckWorker.cancel(context)
         cancelClockTick(context)
     }
 
@@ -683,72 +644,6 @@ class NewsFeedWidgetReceiver : GlanceAppWidgetReceiver() {
         private fun clockPi(context: Context) = PendingIntent.getBroadcast(
             context, RC_CLOCK,
             Intent(ACTION_CLOCK_TICK, null, context, NewsFeedWidgetReceiver::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-    }
-}
-
-/**
- * The Focus widget's receiver — same shape as NewsFeedWidgetReceiver: shares
- * WidgetWorker/UpdateCheckWorker's periodic jobs, guarded the same way against cancelling
- * them while the OTHER widget type is still placed; its own independent CLOCK_TICK alarm
- * under a distinct action string and request code so the two receivers' PendingIntents never
- * collide.
- */
-class NewsFeedFocusWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget = NewsFeedFocusWidget()
-
-    override fun onEnabled(context: Context) {
-        super.onEnabled(context)
-        WidgetWorker.ensureScheduled(context)
-        UpdateCheckWorker.schedule(context)
-        scheduleClockTick(context)
-    }
-
-    override fun onDisabled(context: Context) {
-        super.onDisabled(context)
-        val standardWidgetsRemain = AppWidgetManager.getInstance(context)
-            .getAppWidgetIds(ComponentName(context, NewsFeedWidgetReceiver::class.java))
-            .isNotEmpty()
-        if (!standardWidgetsRemain) {
-            WidgetWorker.cancel(context)
-            UpdateCheckWorker.cancel(context)
-        }
-        cancelClockTick(context)
-    }
-
-    override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        if (intent.action == ACTION_CLOCK_TICK) {
-            val pending = goAsync()
-            MainScope().launch {
-                try { NewsFeedFocusWidget().updateAll(context) }
-                finally { pending.finish() }
-            }
-            scheduleClockTick(context)
-        }
-    }
-
-    companion object {
-        const val ACTION_CLOCK_TICK = "com.newsfeed.widget.CLOCK_TICK_FOCUS"
-        private const val RC_CLOCK  = 1002
-
-        fun scheduleClockTick(context: Context) {
-            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            am.setAndAllowWhileIdle(
-                AlarmManager.RTC,
-                System.currentTimeMillis() + 60_000L,
-                clockPi(context),
-            )
-        }
-
-        private fun cancelClockTick(context: Context) {
-            (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(clockPi(context))
-        }
-
-        private fun clockPi(context: Context) = PendingIntent.getBroadcast(
-            context, RC_CLOCK,
-            Intent(ACTION_CLOCK_TICK, null, context, NewsFeedFocusWidgetReceiver::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }

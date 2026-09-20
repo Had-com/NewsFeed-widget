@@ -88,9 +88,9 @@ fun FeedItemRow(
     // articleFontSize shadows below pick that up, so every size derived from them (headlineSize,
     // thumbWidth, metaFontSize, ...) follows automatically. focusScale is live, on-widget
     // adjustable via the +/- header buttons (AdjustFocusScaleCallback), per article.
-    // Captured before the shadow below reassigns fontSize — needed so metaScaleFontSize (right
-    // after) can still see the pre-focus-scale value.
     val rowScale = rowFontScale(isFocusWidget, article.id == focusedArticleId, focusedArticleId.isNotBlank(), focusScale)
+    // Captured before the shadow below reassigns fontSize — needed so metaScaleFontSize (further
+    // down) can still see the pre-focus-scale value.
     val baseFontSize = fontSize
     @Suppress("NAME_SHADOWING")
     val fontSize = fontSize * rowScale
@@ -194,9 +194,9 @@ fun FeedItemRow(
             actionParametersOf(NoOpTapFeedbackCallback.ARTICLE_ID_KEY to article.id)
         )
 
-    // isFocused itself is hoisted above isExpanded now (see that val's own comment). The size
-    // difference (1.25x vs 0.5x, see the fontSize shadowing above) is the main "which row is
-    // focused" signal, but relying on relative size alone asks the eye to compare against
+    // isFocused itself is hoisted above isExpanded now (see that val's own comment). The
+    // enlarged size (see the fontSize shadowing above) is the main "which row is focused"
+    // signal, but relying on relative size alone asks the eye to compare against
     // neighbors instead of just recognizing the one row directly — a flat background tint
     // answers that at a glance, independent of what's next to it.
 

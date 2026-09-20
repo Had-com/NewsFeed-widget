@@ -37,11 +37,7 @@ class WidgetWorker(
         val repo      = NewsFeedRepository(context)
         val readIds   = ReadStatusStore(context).readIdsFlow().first()
         val manager   = GlanceAppWidgetManager(context)
-        // Both widget types share this one periodic refresh job (see NewsFeedWidgetReceiver/
-        // NewsFeedFocusWidgetReceiver's onEnabled/onDisabled) — a placed Focus widget needs
-        // its articles refreshed here too, not just standard ones.
-        val widgetIds = manager.getGlanceIds(NewsFeedWidget::class.java) +
-                        manager.getGlanceIds(NewsFeedFocusWidget::class.java)
+        val widgetIds = manager.getGlanceIds(NewsFeedWidget::class.java)
 
         for (glanceId in widgetIds) {
             val appWidgetId = manager.getAppWidgetId(glanceId)
@@ -88,7 +84,6 @@ class WidgetWorker(
         }
 
         NewsFeedWidget().updateAll(context)
-        NewsFeedFocusWidget().updateAll(context)
         return Result.success()
     }
 

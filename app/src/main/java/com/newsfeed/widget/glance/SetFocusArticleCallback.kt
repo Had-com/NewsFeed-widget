@@ -12,10 +12,9 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-// Focus Mode only (BuildConfig.FOCUS_MODE build flavor — see FeedItemRow.kt's fontSize
-// shadowing). Tapping a row sets it as the focused article, shrinking every other displayed
-// row; tapping the already-focused row again clears focus, returning all rows to the normal
-// configured size.
+// Focus mode only (WidgetConfig.tapMode == "focus", see FeedItemRow.kt's row scaling).
+// Tapping a row sets it as the focused article (that row enlarges; every other row keeps its
+// normal size); tapping the already-focused row again clears focus.
 //
 // Read is flagged on the article LOSING focus, once the user has actually moved on to
 // another one — not the moment an article is tapped, which was too early (reported live: the
