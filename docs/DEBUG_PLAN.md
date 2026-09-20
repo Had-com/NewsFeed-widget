@@ -207,6 +207,7 @@ Docs-only / CI-only pushes are exempt from 1–4 but still need step 5's CI chec
 | Default feeds controls (Add / Reset) (`5bbd263`,`8474b57`) | Add merges without duplicates, idempotent; Reset confirms and replaces with 11; drafts until Save | Device: 6 added/5 skipped, 2nd tap 0/11, Reset dialog Cancel/Reset, no persist without Save, Save persists, config restored. Colors only verified from code | ✅ (⚠️ colors) |
 | Known: removed feeds' articles linger in cache after Save (BUG-003) | Not fixed, cosmetic/unclear | Observed 48 orphan articles ~10s after Save | ⚠️ |
 | Dissolve before removal (`0be0ea3`) | Just-read article: normal 2.5s, half dots, all dots, gone; only under Unread only; standard + Focus | Timed screenshots: PASS all; renders fire ~0.5s late (gone ~5.9s); title shrinks/row collapses at dissolve stages (cosmetic) | ✅ |
+| Dots-then-erase dissolve + timing anchored to readAt (`e139cb5`,`6adfd3b`) | Full dots at 2.5s, 2/3 at 3.33s, 1/3 at 4.17s, gone ~5.6s; slow rows don't skip stages | Device timed frames + logcat: PASS all (heavy Kan row, light row, 2 articles, Focus, All, updates ≤5/article). Known: reinstall mid-dissolve can leave a row dotted; rows below jump up | ✅ |
 
 Known unverified: `UpdateRelayActivity` screen from a live notification tap (Android notification dedup made this untestable via adb).
 
