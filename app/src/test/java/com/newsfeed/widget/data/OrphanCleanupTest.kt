@@ -47,4 +47,30 @@ class OrphanCleanupTest {
         assertNull(widgetIdFromStateFileName("appWidget-.preferences_pb"))
         assertNull(widgetIdFromStateFileName("newsfeed_config.preferences_pb"))
     }
+
+    @Test
+    fun `widget id is parsed from a Glance layout cache file name`() {
+        assertEquals(16, widgetIdFromLayoutFileName("appWidgetLayout-16.preferences_pb"))
+        assertEquals(16, widgetIdFromLayoutFileName("appWidgetLayout-16"))
+        assertNull(widgetIdFromLayoutFileName("appWidgetLayout-"))
+        assertNull(widgetIdFromLayoutFileName("appWidgetLayout-x.preferences_pb"))
+        assertNull(widgetIdFromLayoutFileName("appWidgetLayout-16.tmp"))
+        assertNull(widgetIdFromLayoutFileName("../appWidgetLayout-16"))
+        assertNull(widgetIdFromLayoutFileName("appWidgetLayout-1/../2"))
+        assertNull(widgetIdFromLayoutFileName("appWidget-16.preferences_pb"))
+    }
+
+    @Test
+    fun `either Glance file kind yields its id, anything else null`() {
+        assertEquals(3, widgetIdFromGlanceFileName("appWidget-3.preferences_pb"))
+        assertEquals(4, widgetIdFromGlanceFileName("appWidgetLayout-4.preferences_pb"))
+        assertNull(widgetIdFromGlanceFileName("newsfeed_config.preferences_pb"))
+    }
+
+    @Test
+    fun `layout file ids of live widgets are never orphaned`() {
+        val known = setOf(16, 18, 19) // ids seen from state/layout file scan
+        assertEquals(setOf(18, 19), orphanedIds(known, live = setOf(16)))
+        assertTrue(orphanedIds(known, live = emptySet()).isEmpty())
+    }
 }

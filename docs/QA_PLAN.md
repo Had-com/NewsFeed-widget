@@ -270,9 +270,9 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 
 ### Smoke subset — P0 cases in sections A–M
 
-38 rows = **35 distinct executions** (`M-01`, `M-02`, `M-10` are the same execution as `F-01/F-02`, `F-04`, `F-12`), ≈ 45–60 min for A–M (≈ 60–80 min with section N). `E-20` and `F-08` are the Focus-mode cases. Section N adds 11 more P0 cases (`N-01…N-07`, `N-09`, `N-14`, `N-18`, `N-27`), so the Smoke subset is 49 rows.
+39 rows = **35 distinct executions** (`M-01`, `M-02`, `M-10`, `M-40` are the same execution as `F-01/F-02`, `F-04`, `F-12`, `N-30`), ≈ 45–60 min for A–M (≈ 60–80 min with section N). `E-20` and `F-08` are the Focus-mode cases. Section N adds 12 more P0 cases (`N-01…N-07`, `N-09`, `N-14`, `N-18`, `N-27`, `N-30`), so the Smoke subset is 51 rows.
 
-`A-01`, `B-01`, `B-05`, `B-07`, `C-01`, `C-04`, `C-15`, `D-03`, `D-17`, `E-01`, `E-04`, `E-07`, `E-09`, `E-20`, `F-01`, `F-02`, `F-04`, `F-08`, `F-09`, `F-12`, `G-05`, `G-M05`, `H-01`, `I-02`, `I-07`, `J-05`, `J-06`, `K-01`, `K-03`, `K-12`, `L-01`, `L-12`, `M-01`, `M-02`, `M-09`, `M-10`, `M-11`, `M-38`
+`A-01`, `B-01`, `B-05`, `B-07`, `C-01`, `C-04`, `C-15`, `D-03`, `D-17`, `E-01`, `E-04`, `E-07`, `E-09`, `E-20`, `F-01`, `F-02`, `F-04`, `F-08`, `F-09`, `F-12`, `G-05`, `G-M05`, `H-01`, `I-02`, `I-07`, `J-05`, `J-06`, `K-01`, `K-03`, `K-12`, `L-01`, `L-12`, `M-01`, `M-02`, `M-09`, `M-10`, `M-11`, `M-38`, `M-40`
 
 **Case counts** (rows in the tables above; `G` includes the 12 matrix rows):
 
@@ -290,9 +290,9 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | J Settings persistence / backup / multi-widget | 14 | 2 | 10 | 2 |
 | K Self-update & release notes | 19 | 3 | 15 | 1 |
 | L Robustness | 20 | 2 | 14 | 4 |
-| M Regression cases for past bugs | 39 | 6 | 32 | 1 |
-| N Focus as a setting & state cleanup | 29 | 11 | 18 | 0 |
-| **Total** | **301** | **49** | **233** | **19** |
+| M Regression cases for past bugs | 40 | 7 | 32 | 1 |
+| N Focus as a setting & state cleanup | 30 | 12 | 18 | 0 |
+| **Total** | **303** | **51** | **233** | **19** |
 
 Plus the two pairwise tables (50 configurations each, run through `H-24` and `N-22`).
 
@@ -721,6 +721,7 @@ Ledger: [Appendix A](#appendix-a--cases-added-because-of-a-bug).
 | M-37 | P1 | **Time reported wrong / new articles "not on time"** (BUG-004/005/007, not reproduced) ⇒ one article's time matches the feed's `pubDate`; a manual refresh inserts new articles within seconds ↔ C-01 | DS | none |
 | M-38 | P0 | **Unit tests not run by CI**: `testDebugUnitTest` passes locally for the build under test (all `app/src/test` classes) | UT | all test files |
 | M-39 | P1 | **Telegram "Load full article" replaced the post with page chrome** (BUG-020): a `t.me/<ch>/<id>` page is a JS shell ⇒ Telegram posts never offer or run a page fetch; Full mode shows the whole post text (up to 4096 chars, one 1200-char chunk in Glamour); a fetch on any feed never replaces the shown text with blank/error/much-shorter text ↔ E-04, C-05 | SS, UI | UT:TelegramFeedParserTest, FullArticleTextTest |
+| M-40 | P0 | **Removing a widget crashed the app process** (BUG-021): `onDeleted` called `goAsync()` a second time (Glance's super already took it) ⇒ null ⇒ NPE ⇒ no crash in `adb logcat -b crash`; config/backup/`appWidget-`/`appWidgetLayout-` files of the removed id disappear, other widgets untouched ↔ N-30 (same execution), J-13 | LC, DS | UT:OrphanCleanupTest |
 
 ---
 
@@ -769,6 +770,7 @@ Existing unit tests: `TapRoutingTest`, `WidgetConfigTapModeTest`, `OrphanCleanup
 | N-27 | P0 | **The sweep never deletes a live widget's state.** With one Expand and one Focus widget placed (distinct settings), run refreshes (Save, footer refresh, reboot) ⇒ both `appWidget-<id>` files and both `widget_<id>` keys in `newsfeed_config` and `newsfeed_config_backup` are still present after each run, and both widgets keep their own settings and articles (no fallback to defaults); an id known to only one store (e.g. a config key without a state file) is not treated as dead while its widget is live | DS, UI | UT:OrphanCleanupTest (`a live id is never orphaned no matter how many stores know it`) |
 | N-28 | P1 | **Empty live-set guard.** When the system reports no live widget ids (last widget just removed, or ids unavailable) the sweep deletes nothing beyond the removed widget's own `onDeleted` cleanup: plant a stray `appWidget-99999` file, remove the last widget ⇒ the stray file is **not** swept while the live set is empty (only the removed widget's own files go); place a widget again ⇒ the next refresh then sweeps the stray file | DS, JS | UT:OrphanCleanupTest (`an empty live set never orphans anything`) |
 | N-29 | P1 | **Mode switch reset is per widget.** Widgets A and B both have an article expanded/focused; switch **only A** (Expand→Focus, Save) ⇒ A's `expanded_article_id`, `last_tapped_article_id`, `focused_article_id`, `focus_scale` are cleared and no `isRead` changed; **B's** four keys and its config are untouched; Save A again without changing the mode ⇒ no further reset | DS | UT:TapRoutingTest (`resetTapState`, `tapModeChanged`) |
+| N-30 | P0 | **Removing a widget does not crash (BUG-021).** Long-press a NewsFeed widget, Remove ⇒ `adb logcat -b crash` is empty (no `NullPointerException` from `NewsFeedWidgetReceiver.onDeleted`); within ~15 s its `widget_<id>` config key, backup key, `appWidget-<id>` and `appWidgetLayout-<id>` files in `files/datastore` are gone; every other widget keeps its config, state and layout files and still renders. Repeat with the last remaining widget | LC, DS | UT:OrphanCleanupTest (file-name parsing / orphan rules only; the crash path is broadcast plumbing) |
 
 ---
 
@@ -819,6 +821,7 @@ status recorded in `docs/BUGS.md` / `DEBUG_PLAN.md` when this plan was written (
 | Config required before placement (0e8cea6) | Widget placed without config | `configure` activity | M-35, A-08 | Fixed |
 | Unit tests not gated by CI | CI only runs `assembleDebug` | Manual `testDebugUnitTest` | M-38 | Process gap |
 | BUG-020 | Telegram posts did not load fully; "Load full article" replaced the text with page chrome | Post page is a JS shell; description now holds the whole post, no fetch for Telegram, fetch result guarded by `chooseFullArticleText` | M-39, E-04, C-05 | Fixed |
+| BUG-021 | Removing any widget crashed the app (NPE in `onDeleted`, second `goAsync()`); `appWidgetLayout-<id>` files never cleaned | Cleanup now enqueued as a WorkManager job (`OrphanCleanupWorker`), no `goAsync`; layout files added to the orphan scan | M-40, N-30, J-13 | Fixed (on-device verification pending) |
 
 ---
 

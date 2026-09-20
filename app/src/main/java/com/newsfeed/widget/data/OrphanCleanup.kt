@@ -28,6 +28,19 @@ private val STATE_FILE = Regex("""appWidget-(\d+)\.preferences_pb""")
 internal fun widgetIdFromStateFileName(name: String): Int? =
     STATE_FILE.matchEntire(name)?.groupValues?.get(1)?.toIntOrNull()
 
+private val LAYOUT_FILE = Regex("""appWidgetLayout-(\d+)(?:\.preferences_pb)?""")
+
+/**
+ * `appWidgetLayout-<id>[.preferences_pb]` (Glance's per-widget layout cache) -> id, or null.
+ * Integer-only capture, whole-name match: no path separators or other names can ever match.
+ */
+internal fun widgetIdFromLayoutFileName(name: String): Int? =
+    LAYOUT_FILE.matchEntire(name)?.groupValues?.get(1)?.toIntOrNull()
+
+/** Any Glance per-widget file (state or layout cache) -> its widget id, or null. */
+internal fun widgetIdFromGlanceFileName(name: String): Int? =
+    widgetIdFromStateFileName(name) ?: widgetIdFromLayoutFileName(name)
+
 /**
  * Removes per-widget leftovers for widget ids that no longer exist. Two entry points:
  *  - [removeIds]: the receiver's onDeleted(); drops the saved config and its backup
@@ -70,7 +83,7 @@ object OrphanCleanup {
     private fun stateDir(context: Context) = File(context.filesDir, "datastore")
 
     private fun stateFileIds(context: Context): Set<Int> =
-        stateDir(context).listFiles()?.mapNotNull { widgetIdFromStateFileName(it.name) }?.toSet()
+        stateDir(context).listFiles()?.mapNotNull { widgetIdFromGlanceFileName(it.name) }?.toSet()
             ?: emptySet()
 
     private suspend fun delete(context: Context, ids: Set<Int>, includeGlanceState: Boolean) {
@@ -80,6 +93,9 @@ object OrphanCleanup {
             store.delete(id)
             ConfigBackup.delete(context, id)
             if (includeGlanceState) File(stateDir(context), "appWidget-$id.preferences_pb").delete()
+            // Glance never removes its layout cache; ids are Ints so the names cannot traverse.
+            File(stateDir(context), "appWidgetLayout-$id.preferences_pb").delete()
+            File(stateDir(context), "appWidgetLayout-$id").delete()
         }
     }
 

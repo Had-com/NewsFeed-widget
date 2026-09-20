@@ -1002,3 +1002,23 @@ expand, no button) and long posts were cut well under Telegram's 4096-char limit
 (`canLoadFullArticle`); Full mode shows the whole description instead. For every other feed,
 `chooseFullArticleText` keeps the current text when the fetch is blank, an error, a Telegram
 URL, or under half the length of a >200-char current text.
+
+## BUG-021 — Removing any NewsFeed widget crashed the app process
+
+**Status:** Fixed (code + unit tests; on-device verification pending — see QA `N-30`, `M-40`). Numbering matches DEBUG_PLAN §14 / QA_PLAN (BUGS.md next free number was 021).
+
+Found by on-device QA of the Focus-as-setting build (commit 03936f3): long-press widget, Remove
+=> `FATAL EXCEPTION: NullPointerException` in `NewsFeedWidgetReceiver.onDeleted` (`adb logcat -b crash`).
+
+**Root cause:** `onDeleted` (added in cd610ba) called `goAsync()` after `super.onDeleted()`.
+Glance's `GlanceAppWidgetReceiver.onDeleted` already took the broadcast's `PendingResult`, so the
+second `goAsync()` returned null and `pending.finish()` threw. The orphan cleanup itself finished
+before the crash. Second finding: Glance's `appWidgetLayout-<id>` cache files in `files/datastore`
+were never deleted.
+
+**Fix:** `onDeleted` no longer touches `goAsync()`. After `super.onDeleted()` it enqueues a
+`OneTimeWorkRequest` (`OrphanCleanupWorker`, ids passed as an IntArray in inputData) that runs
+`OrphanCleanup.removeIds`, wrapped in `runCatching`. The periodic `WidgetWorker` sweep remains the
+safety net. The orphan scan and deletion now also cover `appWidgetLayout-<id>[.preferences_pb]`
+(integer-only parse, live ids never deleted, empty-live-set guard unchanged). Tests:
+`OrphanCleanupTest`. Regression cases: `N-30`, `M-40`.

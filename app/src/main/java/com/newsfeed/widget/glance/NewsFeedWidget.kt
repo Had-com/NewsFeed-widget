@@ -59,6 +59,7 @@ import com.newsfeed.widget.data.applyFilterAndSort
 import com.newsfeed.widget.data.dissolveArticle
 import com.newsfeed.widget.data.isDissolving
 import com.newsfeed.widget.data.UNREAD_GRACE_PERIOD_MS
+import com.newsfeed.widget.data.OrphanCleanupWorker
 import com.newsfeed.widget.update.UpdateCheckWorker
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -617,12 +618,9 @@ class NewsFeedWidgetReceiver : GlanceAppWidgetReceiver() {
         super.onDeleted(context, appWidgetIds)
         // Glance's own receiver removes the per-widget Glance state file; drop the saved config
         // and its backup too, so they no longer leak for every widget the user removes.
-        val ids = appWidgetIds.toSet()
-        val pending = goAsync()
-        MainScope().launch {
-            try { OrphanCleanup.removeIds(context, ids) }
-            finally { pending.finish() }
-        }
+        // NEVER call goAsync() here: Glance's own onDeleted (super) already took the broadcast's
+        // PendingResult, so a second call returns null (BUG-021 crash). Hand off to WorkManager.
+        runCatching { OrphanCleanupWorker.enqueue(context, appWidgetIds) }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
