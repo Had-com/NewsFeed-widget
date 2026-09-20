@@ -208,6 +208,7 @@ Docs-only / CI-only pushes are exempt from 1–4 but still need step 5's CI chec
 | Known: removed feeds' articles linger in cache after Save (BUG-003) | Not fixed, cosmetic/unclear | Observed 48 orphan articles ~10s after Save | ⚠️ |
 | Dissolve before removal (`0be0ea3`) | Just-read article: normal 2.5s, half dots, all dots, gone; only under Unread only; standard + Focus | Timed screenshots: PASS all; renders fire ~0.5s late (gone ~5.9s); title shrinks/row collapses at dissolve stages (cosmetic) | ✅ |
 | Dots-then-erase dissolve + timing anchored to readAt (`e139cb5`,`6adfd3b`) | Full dots at 2.5s, 2/3 at 3.33s, 1/3 at 4.17s, gone ~5.6s; slow rows don't skip stages | Device timed frames + logcat: PASS all (heavy Kan row, light row, 2 articles, Focus, All, updates ≤5/article). Known: reinstall mid-dissolve can leave a row dotted; rows below jump up | ✅ |
+| Dissolving row hides action buttons; dissolve resumes after process restart (`bdf1d8a`) | No Load/Open/Share on a dissolving row; row not stuck dotted after kill; bounded updates | Device: buttons hidden in 24 frames; kill -9 at +1.7s/+3.4s/+60s + CLOCK_TICK re-render → row gone, ≤3 updates, none after. Known: after `am force-stop`, tapping the host placeholder once left the dotted row until next tap (Glance `No session available`, same quirk as after reinstall); without a re-render trigger a killed process can't self-wake | ✅ (⚠️ force-stop) |
 
 Known unverified: `UpdateRelayActivity` screen from a live notification tap (Android notification dedup made this untestable via adb).
 
