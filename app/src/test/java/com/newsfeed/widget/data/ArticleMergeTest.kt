@@ -79,4 +79,17 @@ class ArticleMergeTest {
         assertEquals(200L, result[0].publishedAt)
         assertEquals(500L, result[0].readAt)
     }
+
+    @Test
+    fun `a fresh article with a longer description replaces the stored one by id`() {
+        // Telegram posts now carry up to 4096 chars of description; a refresh must upgrade an
+        // already-stored copy that only had the old, shorter text.
+        val existing = listOf(article("t1").copy(description = "short"))
+        val fresh = listOf(article("t1").copy(description = "short and then a much longer body"))
+
+        val result = mergeFreshArticles(fresh, existing)
+
+        assertEquals(1, result.size)
+        assertEquals("short and then a much longer body", result[0].description)
+    }
 }

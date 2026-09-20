@@ -802,8 +802,8 @@ fun FeedItemRow(
                     } else {
                         if (article.description.isNotBlank()) {
                             Spacer(GlanceModifier.height(4.dp))
-                            // Telegram: the description IS the full post (nothing to fetch), so
-                            // Full mode shows all of it. Glamour renders through a bitmap, so it is
+                            // Telegram: the description is the rest of the post after the headline
+                            // (nothing to fetch), so Full mode shows all of it as-is. Glamour renders through a bitmap, so it is
                             // bounded to one CHUNK_CHARS chunk with a taller budget; other themes
                             // render plain Text and show everything (max 4096).
                             if (!canLoadFullArticle(article.articleUrl) && article.articleUrl.isNotBlank()) {

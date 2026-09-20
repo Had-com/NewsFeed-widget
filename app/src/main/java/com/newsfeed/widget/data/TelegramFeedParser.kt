@@ -58,6 +58,24 @@ object TelegramFeedParser {
     // Telegram's own maximum message length.
     private const val MAX_POST_CHARS = 4096
 
+    // Display cap for a headline; text beyond it moves to the description (nothing is dropped).
+    private const val MAX_TITLE_CHARS = 200
+
+    /**
+     * Cuts [joined] (longer than [MAX_TITLE_CHARS]) at the cap on a word boundary, appending
+     * "..." to the head (the head incl. the ellipsis is <= the cap); the rest is the overflow.
+     * An unbroken run with no space in range is hard-cut, never inside a surrogate pair.
+     */
+    private fun splitTitleOverflow(joined: String): Pair<String, String> {
+        val window = joined.take(MAX_TITLE_CHARS - 1)
+        var cut = window.lastIndexOf(' ')
+        if (cut <= 0) {
+            cut = window.length
+            if (cut > 0 && Character.isHighSurrogate(window[cut - 1])) cut--
+        }
+        return (joined.substring(0, cut).trimEnd() + "…") to joined.substring(cut).trim()
+    }
+
     private val DATA_POST_REGEX = Regex("""data-post="([A-Za-z0-9_]+)/(\d+)"""")
     private val TIME_REGEX = Regex("""<time[^>]*\bdatetime="([^"]+)"""")
     private val TEXT_OPEN_TAG_REGEX = Regex(
@@ -193,7 +211,8 @@ object TelegramFeedParser {
     /**
      * Turns a fetched t.me/s/<channel> page into the same ArticleItem shape every other
      * feed type produces. A post's message text's first two lines become the title, the
-     * rest becomes the description; a photo-only post with no caption text falls back to
+     * rest (only) becomes the description - title text over the display cap spills to the start of
+     * the description so nothing is lost or duplicated; a photo-only post with no caption text falls back to
      * [feedDisplayName] as its title instead of being silently dropped (an empty title
      * would otherwise be treated the same as a blank RSS <title> and skipped downstream).
      */
@@ -214,17 +233,26 @@ object TelegramFeedParser {
             // that already wraps long text on its own - a literal "\n" here would force an
             // extra hard break instead of a natural wrap.
             val titleLineCount = minOf(lines.size, 2)
-            val title = if (lines.isEmpty()) feedDisplayName else lines.take(titleLineCount).joinToString(" ")
-            // The description holds the COMPLETE post text (title lines included): a post
-            // permalink page has no text to fetch, so this is the only source for "full".
-            val description = lines.joinToString("\n").take(MAX_POST_CHARS)
+            val joined = lines.take(titleLineCount).joinToString(" ")
+            val remainder = lines.drop(titleLineCount).joinToString("\n")
+            // The description is ONLY what the title does not show (no repeated headline):
+            // the rest of the post, preceded by any title text that overflowed the display cap,
+            // so title + description is the whole post exactly once. See splitTitleOverflow().
+            val (title, description) = when {
+                lines.isEmpty() -> feedDisplayName to ""
+                joined.length <= MAX_TITLE_CHARS -> joined to remainder
+                else -> {
+                    val (head, overflow) = splitTitleOverflow(joined)
+                    head to (if (remainder.isEmpty()) overflow else overflow + "\n" + remainder)
+                }
+            }
             ArticleItem(
                 id = raw.id,
                 feedId = feedId,
                 feedName = feedDisplayName,
-                title = title.take(200),
+                title = title,
                 articleUrl = raw.articleUrl,
-                description = description,
+                description = description.take(MAX_POST_CHARS),
                 imageUrl = raw.imageUrl,
                 publishedAt = raw.publishedAt,
                 isRead = false,

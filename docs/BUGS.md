@@ -992,16 +992,21 @@ Reported live: "Telegram articles do not load fully when I press Load full artic
 JS shell with no post text (no `<p>`, no `tgme_widget_message_text`, no `og:description`), so
 `FetchFullArticleCallback` scraped only page chrome ("Download Context Embed View In Channel
 …") and overwrote the good description with it — it never checked the result was better than
-what was already shown. (2) `TelegramFeedParser` put the first two lines in the title and only
-the rest (`take(2000)`) in the description, so 1–2 line posts had an empty description (no
-expand, no button) and long posts were cut well under Telegram's 4096-char limit.
+what was already shown. (2) The 4096-char Telegram limit was cut to 2000 in the description, and a title over the
+200-char display cap silently lost its overflow.
 
-**Fix:** `TelegramFeedParser` now keeps the COMPLETE post text (title lines included, up to
-4096 chars) in the description; the title is unchanged. Telegram URLs are never fetched
-(`isTelegramPostUrl` / `isTelegramUrl`) and the "Load full article" button is hidden for them
-(`canLoadFullArticle`); Full mode shows the whole description instead. For every other feed,
-`chooseFullArticleText` keeps the current text when the fetch is blank, an error, a Telegram
-URL, or under half the length of a >200-char current text.
+**Fix:** `TelegramFeedParser` keeps the original split: title = first two lines joined,
+description = the REST of the post only (no headline text repeated; an interim version that put
+the whole post in the description duplicated the headline and turned 1-2 line posts into pure-
+duplication toggle rows, reverted). Nothing is lost: the description cap is 4096 (Telegram's max);
+a joined title over 200 chars is cut on a word boundary with `…` and its overflow moves to the start
+of the description, so title + description is the full post exactly once. Posts with no remainder
+keep an empty description (no expand row). Telegram URLs are never fetched (`isTelegramPostUrl` /
+`isTelegramUrl`) and "Load full article" is hidden for them (`canLoadFullArticle`) since the post
+text is already complete. For every other feed, `chooseFullArticleText` keeps the current text when
+the fetch is blank, an error, a Telegram URL, or under half the length of a >200-char current text.
+Already-stored older Telegram articles keep their stored text until they scroll out of the t.me
+preview window (a fresh fetch replaces a stored article by id, see `mergeFreshArticles`).
 
 ## BUG-021 — Removing any NewsFeed widget crashed the app process
 

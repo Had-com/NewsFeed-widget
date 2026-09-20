@@ -250,13 +250,23 @@ class TelegramFeedParserTest {
         assertEquals("&#9999999;", TelegramFeedParser.stripTelegramHtml("&#9999999;"))
     }
 
+    // Telegram split (restored after the c718e74 regression): title = first two lines joined,
+    // description = the REST of the post only, so expanding a row never repeats the headline.
+    // Nothing is lost: a title over the 200-char display cap is cut at a word boundary with an
+    // ellipsis and its overflow moves to the START of the description. Posts with no remainder
+    // keep an empty description (no expand row), as originally.
+    private fun postHtml(id: Int, body: String) = """
+        <div class="tgme_widget_message" data-post="testchannel/$id" data-view="abc">
+            <div class="tgme_widget_message_text js-message_text" dir="auto">$body</div>
+            <time class="time" datetime="2026-09-07T12:00:00+00:00">12:00</time>
+        </div>
+    """.trimIndent()
+
+    private fun parseOne(body: String) =
+        TelegramFeedParser.parseArticles("f", "Ch", postHtml(300, body), 10)[0]
+
     @Test
     fun `parseArticles joins first two lines as title when the message has exactly two lines`() {
-        // Live bug report: a collapsed widget row built from only the first line looked
-        // too thin for a typical multi-line Telegram post. Message 101 has exactly two
-        // lines, so both are consumed by the title. Since the Telegram full-text fix the
-        // description ALSO holds the complete post text (the post is its own "full article",
-        // and a page fetch cannot supply it), so a 2-line post is still expandable.
         val articles = TelegramFeedParser.parseArticles(
             feedId = "https://t.me/s/testchannel",
             feedDisplayName = "Test Channel",
@@ -264,58 +274,73 @@ class TelegramFeedParserTest {
             maxItems = 10,
         )
         assertEquals("First line of post 101 Second line with more detail.", articles[0].title)
-        assertEquals("First line of post 101\nSecond line with more detail.", articles[0].description)
+        // Empty description again: the whole post is the title, no expand row, no duplication.
+        assertEquals("", articles[0].description)
     }
 
     @Test
-    fun `parseArticles takes only the first two lines as title when more lines remain`() {
-        val html = """
-            <div class="tgme_widget_message_wrap">
-            <div class="tgme_widget_message" data-post="testchannel/301" data-view="abc">
-                <div class="tgme_widget_message_text js-message_text" dir="auto">Line one of post 301<br/>Line two of post 301<br/>Line three of post 301</div>
-                <time class="time" datetime="2026-09-07T12:00:00+00:00">12:00</time>
-            </div>
-            </div>
-        """.trimIndent()
-        val articles = TelegramFeedParser.parseArticles(
-            feedId = "https://t.me/s/testchannel",
-            feedDisplayName = "Test Channel",
-            html = html,
-            maxItems = 10,
-        )
-        assertEquals("Line one of post 301 Line two of post 301", articles[0].title)
-        // Deliberate change: description is the COMPLETE post text (incl. the two title
-        // lines), not just the remainder, so "Full" mode can show the whole post.
-        assertEquals("Line one of post 301\nLine two of post 301\nLine three of post 301", articles[0].description)
-    }
-
-    @Test
-    fun `parseArticles keeps a long post up to Telegram's 4096 char limit in the description`() {
-        val long = "x".repeat(4500)
-        val html = """
-            <div class="tgme_widget_message" data-post="testchannel/302" data-view="abc">
-                <div class="tgme_widget_message_text js-message_text" dir="auto">Head<br/>$long</div>
-                <time class="time" datetime="2026-09-07T12:00:00+00:00">12:00</time>
-            </div>
-        """.trimIndent()
-        val a = TelegramFeedParser.parseArticles("f", "Ch", html, 10)[0]
-        assertEquals(4096, a.description.length)
-        // Title (first two lines joined) is still capped at 200 for display.
-        assertEquals(200, a.title.length)
-        assertEquals(true, a.title.startsWith("Head x"))
-    }
-
-    @Test
-    fun `parseArticles gives a one-line post a description equal to its text`() {
-        val html = """
-            <div class="tgme_widget_message" data-post="testchannel/303" data-view="abc">
-                <div class="tgme_widget_message_text js-message_text" dir="auto">Only line</div>
-                <time class="time" datetime="2026-09-07T12:00:00+00:00">12:00</time>
-            </div>
-        """.trimIndent()
-        val a = TelegramFeedParser.parseArticles("f", "Ch", html, 10)[0]
+    fun `parseArticles gives a one-line post its full text as title and an empty description`() {
+        val a = parseOne("Only line")
         assertEquals("Only line", a.title)
-        assertEquals("Only line", a.description)
+        assertEquals("", a.description)
+    }
+
+    @Test
+    fun `parseArticles keeps a title of exactly 200 chars uncut`() {
+        val line = "y".repeat(200)
+        val a = parseOne(line)
+        assertEquals(line, a.title)
+        assertEquals("", a.description)
+    }
+
+    @Test
+    fun `parseArticles description is only the remainder when three or more lines`() {
+        val a = parseOne("Line one<br/>Line two<br/>Line three<br/>Line four<br/>Line five")
+        assertEquals("Line one Line two", a.title)
+        assertEquals("Line three\nLine four\nLine five", a.description)
+    }
+
+    @Test
+    fun `parseArticles moves title overflow to the start of the description on a word boundary`() {
+        val words = (1..60).joinToString(" ") { "word$it" } // well over 200 chars, one line
+        val a = parseOne("$words<br/>Second<br/>Third")
+        assertEquals(true, a.title.length <= 200)
+        assertEquals(true, a.title.endsWith("…"))
+        val head = a.title.removeSuffix("…")
+        // cut on a word boundary: the title never ends mid-word
+        assertEquals(true, words.startsWith(head))
+        assertEquals(' ', words[head.length])
+        // overflow first, then the remaining lines
+        assertEquals(true, a.description.endsWith("\nThird"))
+        val overflow = a.description.substringBefore("\n")
+        assertEquals(words.substring(head.length).trim() + " Second", overflow)
+    }
+
+    @Test
+    fun `parseArticles cuts a single unbroken over-long first line without losing characters`() {
+        val a = parseOne("z".repeat(500))
+        assertEquals(true, a.title.length <= 200)
+        assertEquals(500, a.title.removeSuffix("…").length + a.description.length)
+    }
+
+    @Test
+    fun `parseArticles caps a 4500 char post at 4096 in the description`() {
+        val a = parseOne("Head<br/>Second<br/>" + "x".repeat(4500))
+        assertEquals("Head Second", a.title)
+        assertEquals(4096, a.description.length)
+    }
+
+    @Test
+    fun `parseArticles never duplicates text between title and description`() {
+        val lines = listOf("Alpha headline", "Bravo second", "Charlie body", "Delta body")
+        val a = parseOne(lines.joinToString("<br/>"))
+        val combined = a.title + "\n" + a.description
+        lines.forEach { assertEquals(1, Regex(Regex.escape(it)).findAll(combined).count()) }
+        // and with a cut title: every word of the post appears exactly once, in order
+        val words = (1..80).joinToString(" ") { "w$it" }
+        val b = parseOne("$words<br/>tail")
+        val all = (b.title.removeSuffix("…") + " " + b.description.replace("\n", " ")).split(" ").filter { it.isNotBlank() }
+        assertEquals((1..80).map { "w$it" } + "tail", all)
     }
 
     @Test

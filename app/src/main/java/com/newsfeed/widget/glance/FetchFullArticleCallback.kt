@@ -63,7 +63,7 @@ class FetchFullArticleCallback : ActionCallback {
         }
 
         // Telegram post pages are JS shells with no post text (scraping them yields page
-        // chrome); the description already holds the whole post, so never fetch.
+        // chrome); the post text is already complete (title + description), so never fetch.
         if (com.newsfeed.widget.data.TelegramFeedParser.isTelegramUrl(articleUrl)) return
 
         // Fetch the full article in the background; update again when done. The result is
