@@ -204,6 +204,9 @@ Docs-only / CI-only pushes are exempt from 1–4 but still need step 5's CI chec
 | Release notes Note 2 + Note 3 visible in update dialog | Dialog lists both unseen bullets | Update dialog (build 139) listed Notes 1, 2, 3 | ✅ |
 | Read on move-away, all tap paths (`de130cb`) | Article marked read only when a different one is tapped, incl. description-less; Focus unchanged | Device: first tap/re-tap unread, tap other marks previous (DataStore readAt), Unread-only grace, refresh keeps state, Focus OK, logcat clean | ✅ |
 | Known: intermittent widget placeholder after reinstall | Glance `No session available` once after `adb install -r`; recovered on tap | Not reproduced further | ⚠️ |
+| Default feeds controls (Add / Reset) (`5bbd263`,`8474b57`) | Add merges without duplicates, idempotent; Reset confirms and replaces with 11; drafts until Save | Device: 6 added/5 skipped, 2nd tap 0/11, Reset dialog Cancel/Reset, no persist without Save, Save persists, config restored. Colors only verified from code | ✅ (⚠️ colors) |
+| Known: removed feeds' articles linger in cache after Save (BUG-003) | Not fixed, cosmetic/unclear | Observed 48 orphan articles ~10s after Save | ⚠️ |
+| Dissolve before removal (`0be0ea3`) | Just-read article: normal 2.5s, half dots, all dots, gone; only under Unread only; standard + Focus | Timed screenshots: PASS all; renders fire ~0.5s late (gone ~5.9s); title shrinks/row collapses at dissolve stages (cosmetic) | ✅ |
 
 Known unverified: `UpdateRelayActivity` screen from a live notification tap (Android notification dedup made this untestable via adb).
 
