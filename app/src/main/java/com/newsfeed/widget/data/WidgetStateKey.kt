@@ -12,6 +12,9 @@ object WidgetStateKey {
     val lastRefreshTime   = longPreferencesKey("last_refresh_time")
     val lastRefreshFailed = booleanPreferencesKey("last_refresh_failed")
     val expandedArticleId = stringPreferencesKey("expanded_article_id")
+    // Standard widget only: the article the user tapped most recently, whether or not it expands.
+    // Read is flagged on it when a different article is tapped next (see markPreviousTappedRead).
+    val lastTappedArticleId = stringPreferencesKey("last_tapped_article_id")
     val fullArticleId     = stringPreferencesKey("full_article_id")
     val fullArticleText   = stringPreferencesKey("full_article_text")
     // How many characters of fullArticleText are currently revealed for Glamour's chunked

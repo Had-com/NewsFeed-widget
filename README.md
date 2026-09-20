@@ -71,7 +71,7 @@ The "Open article in" setting controls where the Open button sends you:
 - **Browser** — opens in your default web browser (default)
 - **Share sheet** — share the article URL to any app
 
-An article is **marked as read** once you move on to another one (expanding a different article, or focusing a different one on the Focus widget) — not the moment you press it. Articles with no description have nothing to expand, so tapping one marks it read immediately.
+An article is **marked as read** once you move on to another one (expanding a different article, or focusing a different one on the Focus widget) — not the moment you press it. Articles with no description have nothing to expand, but follow the same rule: they are marked read when you tap a different article.
 
 ### Sort options
 | Option | Description |
