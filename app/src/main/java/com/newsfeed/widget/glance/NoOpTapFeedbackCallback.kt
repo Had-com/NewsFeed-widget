@@ -13,7 +13,10 @@ import com.newsfeed.widget.data.ReadStatusStore
 // leaving the row non-clickable (which drops Android's built-in press ripple entirely, so a
 // tap would look and feel unresponsive), this is wired to the row's .clickable() instead of
 // ToggleExpandCallback — the tap still gets the native ripple/press feedback, it just doesn't
-// expand anything or navigate anywhere.
+// expand anything or navigate anywhere. The one visible side effect: if a different article is
+// currently expanded it is collapsed right away (see collapseExpandedOnOtherTap), matching the
+// "one expanded article at a time" rule, so the layout settles on this tap instead of shifting
+// when the previous article later dissolves out of Unread only.
 //
 // It participates in the same last-tapped tracking as ToggleExpandCallback: an article with
 // nothing to expand is still "the one you're on", and it is marked read when you tap a
@@ -28,14 +31,16 @@ class NoOpTapFeedbackCallback : ActionCallback {
         val articleId = parameters[ARTICLE_ID_KEY] ?: return
         val markedAt = System.currentTimeMillis()
         var markedReadId: String? = null
+        var collapsed = false
         updateAppWidgetState(context, glanceId) { prefs ->
+            collapsed = collapseExpandedOnOtherTap(prefs, articleId)
             markedReadId = markPreviousTappedRead(prefs, articleId, markedAt)
         }
         markedReadId?.let { ReadStatusStore(context).markRead(it) }
         // Only re-render when something actually changed (the previous article's unread dot
-        // cleared) — a plain tap changes nothing visible, and the native press ripple already
-        // fired regardless.
-        if (markedReadId != null) NewsFeedWidget().update(context, glanceId)
+        // cleared, or the expanded article collapsed) — otherwise a plain tap changes nothing
+        // visible, and the native press ripple already fired regardless.
+        if (markedReadId != null || collapsed) NewsFeedWidget().update(context, glanceId)
         UnreadGracePeriod.scheduleRefresh(context, glanceId, markedReadId, markedAt) { c, g -> NewsFeedWidget().update(c, g) }
     }
 }

@@ -270,9 +270,9 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 
 ### Smoke subset — P0 cases in sections A–M
 
-39 rows = **35 distinct executions** (`M-01`, `M-02`, `M-10`, `M-40` are the same execution as `F-01/F-02`, `F-04`, `F-12`, `N-30`), ≈ 45–60 min for A–M (≈ 60–80 min with section N). `E-20` and `F-08` are the Focus-mode cases. Section N adds 12 more P0 cases (`N-01…N-07`, `N-09`, `N-14`, `N-18`, `N-27`, `N-30`), so the Smoke subset is 51 rows.
+41 rows = **36 distinct executions** (`M-01`, `M-02`, `M-10`, `M-40`, `M-41` are the same execution as `F-01/F-02`, `F-04`, `F-12`, `N-30`, `F-23`), ≈ 45–60 min for A–M (≈ 60–80 min with section N). `E-20` and `F-08` are the Focus-mode cases. Section N adds 12 more P0 cases (`N-01…N-07`, `N-09`, `N-14`, `N-18`, `N-27`, `N-30`), so the Smoke subset is 53 rows.
 
-`A-01`, `B-01`, `B-05`, `B-07`, `C-01`, `C-04`, `C-15`, `D-03`, `D-17`, `E-01`, `E-04`, `E-07`, `E-09`, `E-20`, `F-01`, `F-02`, `F-04`, `F-08`, `F-09`, `F-12`, `G-05`, `G-M05`, `H-01`, `I-02`, `I-07`, `J-05`, `J-06`, `K-01`, `K-03`, `K-12`, `L-01`, `L-12`, `M-01`, `M-02`, `M-09`, `M-10`, `M-11`, `M-38`, `M-40`
+`A-01`, `B-01`, `B-05`, `B-07`, `C-01`, `C-04`, `C-15`, `D-03`, `D-17`, `E-01`, `E-04`, `E-07`, `E-09`, `E-20`, `F-01`, `F-02`, `F-04`, `F-08`, `F-09`, `F-12`, `F-23`, `G-05`, `G-M05`, `H-01`, `I-02`, `I-07`, `J-05`, `J-06`, `K-01`, `K-03`, `K-12`, `L-01`, `L-12`, `M-01`, `M-02`, `M-09`, `M-10`, `M-11`, `M-38`, `M-40`, `M-41`
 
 **Case counts** (rows in the tables above; `G` includes the 12 matrix rows):
 
@@ -283,16 +283,16 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | C Fetching & sources (incl. Telegram) | 20 | 3 | 15 | 2 |
 | D Display & layout | 20 | 2 | 17 | 1 |
 | E Reading (expand / focus / open / share) | 21 | 5 | 16 | 0 |
-| F Read state & Unread-only grace / dissolve | 22 | 6 | 13 | 3 |
+| F Read state & Unread-only grace / dissolve | 23 | 7 | 13 | 3 |
 | G Sort / filter (incl. matrix M1) | 22 | 2 | 20 | 0 |
 | H Appearance / theme / fonts | 26 | 1 | 24 | 1 |
 | I Refresh / worker / timers / boot | 13 | 2 | 10 | 1 |
 | J Settings persistence / backup / multi-widget | 14 | 2 | 10 | 2 |
 | K Self-update & release notes | 19 | 3 | 15 | 1 |
 | L Robustness | 20 | 2 | 14 | 4 |
-| M Regression cases for past bugs | 40 | 7 | 32 | 1 |
+| M Regression cases for past bugs | 41 | 8 | 32 | 1 |
 | N Focus as a setting & state cleanup | 31 | 12 | 19 | 0 |
-| **Total** | **304** | **51** | **234** | **19** |
+| **Total** | **306** | **53** | **234** | **19** |
 
 Plus the two pairwise tables (50 configurations each, run through `H-24` and `N-22`).
 
@@ -467,7 +467,7 @@ Unless a case says Focus, cases run on a widget set to **When I tap an article: 
 
 Rules under test. **Expand mode:** pressing an article marks nothing; when a **different** article is tapped,
 the previously tapped one is marked read (`isRead=true`, `readAt=now`); re-tap/collapse marks nothing; an already-read
-article is never re-stamped; description-less articles follow the same rule. **Focus mode:** the article
+article is never re-stamped; description-less articles follow the same rule, and tapping a description-less article collapses a different expanded article at once (`F-23`). By design the previously tapped article is marked read on that tap and, under Unread only, leaves the list ≈ 5 s later; a background refresh may separately push an unread article out of the visible 10 rows (observation, not a defect). **Focus mode:** the article
 **losing** focus is marked when focus moves to another article; clearing focus marks nothing. **Unread only:** a
 just-read article stays 5 s: normal text to 2.5 s → all dots 2.5–3.33 s → 2/3 of the dots 3.33–4.17 s → 1/3 of
 the dots 4.17–5 s → removed (observed ≈ 5.6–5.9 s wall time because renders fire ≈ 0.5 s late). Dissolve applies **only**
@@ -497,6 +497,7 @@ under "Unread only".
 | F-20 | P2 | Read state across widgets ⇒ reading an article in widget 1 marks the same id read in widget 2 **on its next refresh** (global read-id store), not instantly | DS | none |
 | F-21 | P2 | Rapid tap storm A,B,A,B,C on rows ⇒ final state consistent (each moved-away article read once), no crash | DS, LC | none |
 | F-22 | P2 | Reinstall (`install -r`) or Save Settings mid-dissolve ⇒ record whether a row can stay dotted until the next tap (known, cosmetic); rows below jump up when the row disappears | TS | none |
+| F-23 | P0 | **Description-less tap while another article is expanded** (Expand mode, Show = Unread only): expand P (has description), then tap description-less A (rotter/ynet flash) ⇒ P **collapses immediately** on that tap (`expanded_article_id` becomes empty, `last_tapped_article_id` = A, P `isRead:true` with `readAt`); layout is settled at once and does not shift again. Wait ≥ 6 s (P dissolves and leaves after ≈ 5 s, by design), then tap the **same on-screen spot** again ⇒ it hits A again (`last_tapped_article_id` still A, A **not** marked read); nothing else vanishes except P. Also tap A first with nothing expanded ⇒ no re-render/no change. Focus mode unaffected (a tap only sets/clears focus). Method: DS pull of `last_tapped_article_id` / `expanded_article_id` / `articles_json` before and after each tap plus timed frames (TS) around tap 1 and tap 2; reference run `C:	\qa7\S3c_r1` (before fix: P stayed expanded, A slid up ~520 px, second tap hit B and A vanished) | DS, TS | UT:CollapseExpandedOnOtherTapTest |
 
 ---
 
@@ -722,6 +723,7 @@ Ledger: [Appendix A](#appendix-a--cases-added-because-of-a-bug).
 | M-38 | P0 | **Unit tests not run by CI**: `testDebugUnitTest` passes locally for the build under test (all `app/src/test` classes) | UT | all test files |
 | M-39 | P1 | **Telegram "Load full article" replaced the post with page chrome** (BUG-020): a `t.me/<ch>/<id>` page is a JS shell ⇒ Telegram posts never offer or run a page fetch; the headline (first two lines, cut at 200 chars on a word boundary with `…` and the overflow moved to the description) plus a description of the rest of the post only (up to 4096 chars, one 1200-char chunk in Glamour), no duplicated text; older stored Telegram articles keep their stored text until they leave the t.me preview window; a fetch on any feed never replaces the shown text with blank/error/much-shorter text ↔ E-04, C-05 | SS, UI | UT:TelegramFeedParserTest, FullArticleTextTest |
 | M-40 | P0 | **Removing a widget crashed the app process** (BUG-021): `onDeleted` called `goAsync()` a second time (Glance's super already took it) ⇒ null ⇒ NPE ⇒ no crash in `adb logcat -b crash`; config/backup/`appWidget-`/`appWidgetLayout-` files of the removed id disappear, other widgets untouched ↔ N-30 (same execution), J-13 | LC, DS | UT:OrphanCleanupTest |
+| M-41 | P0 | **Tapping the same article twice made another article disappear** (BUG-022): `NoOpTapFeedbackCallback` (description-less article) never cleared `expanded_article_id`, so a previously expanded P stayed open above A, was marked read and dissolved out under Unread only, sliding A up under the finger; the second tap hit B and A was marked read and vanished ⇒ see F-23 (same execution); `expanded_article_id` never points at a different article than the last-tapped after a description-less tap ↔ E-03, F-04 | DS, TS | UT:CollapseExpandedOnOtherTapTest |
 
 ---
 
@@ -823,6 +825,7 @@ status recorded in `docs/BUGS.md` / `DEBUG_PLAN.md` when this plan was written (
 | Unit tests not gated by CI | CI only runs `assembleDebug` | Manual `testDebugUnitTest` | M-38 | Process gap |
 | BUG-020 | Telegram posts did not load fully; "Load full article" replaced the text with page chrome | Post page is a JS shell; description now holds the whole post, no fetch for Telegram, fetch result guarded by `chooseFullArticleText` | M-39, E-04, C-05 | Fixed |
 | BUG-021 | Removing any widget crashed the app (NPE in `onDeleted`, second `goAsync()`); `appWidgetLayout-<id>` files never cleaned | Cleanup now enqueued as a WorkManager job (`OrphanCleanupWorker`), no `goAsync`; layout files added to the orphan scan | M-40, N-30, J-13 | Fixed (on-device verification pending) |
+| BUG-022 | Tapping twice on the same description-less article made another article disappear (expanded P stayed open, dissolved seconds later, rows slid under the finger; 2nd tap hit B, A vanished) | `collapseExpandedOnOtherTap` called from `NoOpTapFeedbackCallback`: tapping any different article collapses the expanded one at once. By design: the previously tapped article is marked read and leaves Unread only ≈ 5 s later. Separate observation: a background refresh can push an unread article out of the visible 10 rows | F-23, M-41 | Fixed (device re-verify pending) |
 
 ---
 

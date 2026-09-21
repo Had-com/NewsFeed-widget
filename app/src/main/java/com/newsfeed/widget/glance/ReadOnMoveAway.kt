@@ -35,3 +35,20 @@ internal fun markPreviousTappedRead(
     )
     return prev
 }
+
+/**
+ * Expand mode keeps at most one article expanded. A tap on a description-less article never
+ * expands anything (NoOpTapFeedbackCallback), so without this the previously expanded article
+ * would stay open above it; it is marked read on that same tap and, under Unread only, dissolves
+ * seconds later - the rows below then slide up under the user's finger. Collapsing it right away
+ * makes the layout settle on the tap itself.
+ *
+ * Clears the expanded id only when it is non-blank and differs from [tappedId] (the toggle in
+ * ToggleExpandCallback owns the same-article case). Returns true if it cleared something.
+ */
+internal fun collapseExpandedOnOtherTap(prefs: MutablePreferences, tappedId: String): Boolean {
+    val expanded = prefs[WidgetStateKey.expandedArticleId] ?: ""
+    if (expanded.isBlank() || expanded == tappedId) return false
+    prefs[WidgetStateKey.expandedArticleId] = ""
+    return true
+}

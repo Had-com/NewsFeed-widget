@@ -1027,3 +1027,17 @@ were never deleted.
 safety net. The orphan scan and deletion now also cover `appWidgetLayout-<id>[.preferences_pb]`
 (integer-only parse, live ids never deleted, empty-live-set guard unchanged). Tests:
 `OrphanCleanupTest`. Regression cases: `N-30`, `M-40`.
+
+## BUG-022 — Tapping twice on the same article made another article disappear
+
+**Status:** Fixed (code + unit tests; on-device re-verification pending — see QA `F-23`, `M-41`).
+
+**Symptom:** In Expand mode with Show = Unread only, tapping a description-less article A (flash item) and, a few seconds later, tapping the same screen position again made a different article vanish.
+
+**Root cause (verified on device, evidence `C:\t\qa7\S3c_r1`, `S3c_r2`):** `NoOpTapFeedbackCallback` (used for articles with no description) never cleared `expandedArticleId`, unlike `ToggleExpandCallback`. A previously expanded article P therefore stayed expanded above A. P was marked read on tap 1 (read-on-move-away) and, under Unread only, dissolved and was removed 2.5-5 s later, sliding A up ~520 px under the finger. The second tap at the same position (>= 3.8 s later) landed on another article B: B became last-tapped and A was marked read and vanished. `expanded_article_id` could also point at an article no longer in the list.
+
+**Fix:** `collapseExpandedOnOtherTap(prefs, tappedId)` (ReadOnMoveAway.kt) clears the expanded id when it is non-blank and differs from the tapped article; `NoOpTapFeedbackCallback` calls it inside its state update and re-renders when something was marked read OR collapsed. The layout now settles on tap 1. `ToggleExpandCallback` is unchanged (it already collapses the previous one) and Focus mode never routes to the no-op callback. Tests: `CollapseExpandedOnOtherTapTest`.
+
+**By design (not a bug):** the previously tapped article is marked read on the next tap and leaves Unread only about 5 s later.
+
+**Separate observation (not fixed here):** a background refresh can push an unread article out of the visible 10 rows, which can also look like an article disappearing.

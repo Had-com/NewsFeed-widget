@@ -109,3 +109,52 @@ class ReadOnMoveAwayTest {
         assertEquals("b", prefs[WidgetStateKey.lastTappedArticleId])
     }
 }
+
+class CollapseExpandedOnOtherTapTest {
+
+    private fun prefsExpanded(id: String?) = mutablePreferencesOf().also {
+        if (id != null) it[WidgetStateKey.expandedArticleId] = id
+    }
+
+    @Test
+    fun `no expanded article changes nothing`() {
+        val prefs = prefsExpanded(null)
+        assertFalse(collapseExpandedOnOtherTap(prefs, "a"))
+        assertNull(prefs[WidgetStateKey.expandedArticleId])
+    }
+
+    @Test
+    fun `blank expanded id is left alone`() {
+        val prefs = prefsExpanded("")
+        assertFalse(collapseExpandedOnOtherTap(prefs, "a"))
+        assertEquals("", prefs[WidgetStateKey.expandedArticleId])
+    }
+
+    @Test
+    fun `tapping the expanded article itself does not touch it`() {
+        val prefs = prefsExpanded("a")
+        assertFalse(collapseExpandedOnOtherTap(prefs, "a"))
+        assertEquals("a", prefs[WidgetStateKey.expandedArticleId])
+    }
+
+    @Test
+    fun `tapping a different article collapses the expanded one`() {
+        val prefs = prefsExpanded("p")
+        assertTrue(collapseExpandedOnOtherTap(prefs, "a"))
+        assertEquals("", prefs[WidgetStateKey.expandedArticleId])
+    }
+
+    @Test
+    fun `blank tapped id still collapses a different expanded article`() {
+        val prefs = prefsExpanded("p")
+        assertTrue(collapseExpandedOnOtherTap(prefs, ""))
+        assertEquals("", prefs[WidgetStateKey.expandedArticleId])
+    }
+
+    @Test
+    fun `second call is a no-op once collapsed`() {
+        val prefs = prefsExpanded("p")
+        assertTrue(collapseExpandedOnOtherTap(prefs, "a"))
+        assertFalse(collapseExpandedOnOtherTap(prefs, "a"))
+    }
+}
