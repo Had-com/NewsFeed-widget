@@ -304,6 +304,21 @@ Device measurement (`C:	\qa9\summary_rows.json`): every read-marking tap schedul
 
 Fix: `ToggleExpandCallback`, `NoOpTapFeedbackCallback` and `SetFocusArticleCallback` now read the saved config (`configJson`) inside their existing state update and call `scheduleRefresh` only when `shouldScheduleGraceRefreshForConfig()` is true (filter key = `unread`; missing/undecodable config keeps the old behaviour of scheduling). The render-time resume in `NewsFeedWidget` was already Unread-only. Switching to Unread only mid-grace is covered by that resume on the next render. Tests: `GraceRefreshPolicyTest`; QA case `I-14`. On-device re-verification pending.
 
+### 14.z Build 905 verification: grace refreshes only under Unread only (c58baa2), 2026-09-21
+
+Device RFCR91J237W (Android 15, One UI Home), widget 15, `logcat -v epoch`, `updateAppWidget` counted per read-marking tap (tap A, then tap B so A is marked read; each run = two taps, 9-11 s apart).
+
+| Scenario | Renders per tap | Follow-ups at +2.6/3.4/4.3/5.1 s | grace_check_tick rewrites | Result |
+|---|---|---|---|---|
+| Show = All | 1 (whole run: 2) | none | none (appWidget-15 mtime changes only at the tap) | PASS |
+| Show = Read only | 1 (whole run: 2) | none | none | PASS |
+| Show = Unread only | 5 (1 + 4) at about +1.5/+3.3/+4.2/+5.1/+5.9 s (first tap) | yes | yes (4) | PASS |
+| Unread only dissolve | frames: normal, full dots (+3.6 s), shrinking dots (+5.0/+5.7 s), gone (+6.4 s, count 10(10) to 9(10) to 10(10)) | | | PASS |
+| All, mark A, switch to Unread only + Save at about +2.2 s | A stays visible until the post-Save render (+5.4 s), then shows at full-dots, gone by about +6.7 s | | | PASS |
+| Unread only, mark A, switch to All + Save at about +3.4 s | dissolve stops, All list rendered at +6.2 s with no dots, no crash | | | PASS |
+
+Notes: Save triggers a feed refresh, so the widget re-render after Save lags 1.4-3.2 s on this device (GC and DNS in logcat), during which the pre-Save frame stays visible (a dissolving row can still show dots after Save to All). Read only cannot mark an unread article (none visible), so its count comes from a tap that marked the stale previously-tapped article. Read-on-move-away semantics unchanged; logcat FATAL/ANR: none, crash buffer empty. Single widget only, so Focus-mode two-widget check skipped.
+
 ---
 
 ## Reporting
