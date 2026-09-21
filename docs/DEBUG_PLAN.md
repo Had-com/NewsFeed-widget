@@ -282,6 +282,22 @@ Observations: (1) N12chat posts end with an `@N12chat` signature line, so every 
 
 Restore: `newsfeed_config` md5 720a2dd2c3a48ed644fe6b3ca30ab984 identical to the backup in `C:	k6\`. `newsfeed_read_status` gained 3 read marks from widget 22 and was rewritten from the backup (force-stop, write, md5 3089e962... verified); the app was restarted with the exported CLOCK_TICK broadcast. Widget 15's own cached article list was refreshed by the required refresh test, so its expanded ynet article from before the run is no longer shown.
 
+### 14.x Build 904 verification: BUG-022 (collapse on description-less tap), 2026-09-21
+
+Setup: Unread only, Expand mode, expanded article P above a description-less ynet flash A (P = ynet "Gil" article, last_tapped = P). Harness: continuous screenshots + uiautomator dumps + DataStore snapshots.
+
+| Scenario | Result | Evidence |
+|---|---|---|
+| S3c run 1 (taps 0 / 3.8 s, same position) | PASS (fix) | Tap 1: last_tapped = A, expanded cleared, P isRead (readAt +105 ms). Layout settled once at ~1.5 s (A moved up ~440 px). No large slide at ~5 s; P left Unread only at ~5.7-6.1 s and the rows below shifted down 127 px (list clamped at its end). Tap 2 fell in the gap above "Load more": no action, no mark |
+| S3c run 2 (taps 0 / 6.5 s, same position) | Expected consequence, not a regression | A had already moved up, so the same screen position now hits the row below (rotter B): B last_tapped, A marked read and left. Tapping A at its new position (run 4, y 1200 at 3.8 s) keeps last_tapped = A and A unread |
+| S1 (description A, taps 0 / 1.2 s) | PASS | A expands at ~1.0 s, collapses after tap 2, P read at tap 1 and gone ~5 s |
+| S2 (double tap 0.3 s, description-less A) | PASS | last_tapped = A, A not read |
+| S3 (description-less, no expanded article, taps 0 / 1.2 s) | PASS | last_tapped set, no visual change, no reads |
+| Show = All | PASS | Tap on description-less A collapses P, layout settles at ~0.65 s, nothing vanishes |
+| Logcat | PASS | No FATAL, no ANR, crash buffer empty |
+
+Observations: after tap 1 the layout shift is not instant (tap to updateAppWidget about 1.5 s in Unread only); the position of A changes at that render, so a second tap at the OLD screen position lands on a different row. This is inherent to collapsing an expanded row above the tapped one. Restore: `newsfeed_config` md5 720a2dd2c3a48ed644fe6b3ca30ab984, widget 15 datastores rewritten from the backup.
+
 ---
 
 ## Reporting
