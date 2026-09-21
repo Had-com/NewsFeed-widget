@@ -6,6 +6,8 @@ import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.state.updateAppWidgetState
 import com.newsfeed.widget.data.ReadStatusStore
+import com.newsfeed.widget.data.WidgetStateKey
+import com.newsfeed.widget.data.shouldScheduleGraceRefreshForConfig
 
 // For articles whose RSS provides no <description> at all (e.g. ynet's "מבזקים" flash
 // ticker, rotter.net's forum feed — see NewsFeedRepository.kt) there is nothing to expand
@@ -21,7 +23,8 @@ import com.newsfeed.widget.data.ReadStatusStore
 // It participates in the same last-tapped tracking as ToggleExpandCallback: an article with
 // nothing to expand is still "the one you're on", and it is marked read when you tap a
 // different article, expandable or not (see markPreviousTappedRead) - never on its own press.
-// Marking sets readAt and schedules a grace-period refresh, same as the other callbacks.
+// Marking sets readAt and, under Unread only, schedules the grace/dissolve refreshes, same as
+// the other callbacks (under All / Read only nothing dissolves, so nothing extra is scheduled).
 class NoOpTapFeedbackCallback : ActionCallback {
     companion object {
         val ARTICLE_ID_KEY = ActionParameters.Key<String>("articleId")
@@ -32,15 +35,18 @@ class NoOpTapFeedbackCallback : ActionCallback {
         val markedAt = System.currentTimeMillis()
         var markedReadId: String? = null
         var collapsed = false
+        var scheduleGrace = true
         updateAppWidgetState(context, glanceId) { prefs ->
             collapsed = collapseExpandedOnOtherTap(prefs, articleId)
             markedReadId = markPreviousTappedRead(prefs, articleId, markedAt)
+            scheduleGrace = shouldScheduleGraceRefreshForConfig(prefs[WidgetStateKey.configJson])
         }
         markedReadId?.let { ReadStatusStore(context).markRead(it) }
         // Only re-render when something actually changed (the previous article's unread dot
         // cleared, or the expanded article collapsed) — otherwise a plain tap changes nothing
         // visible, and the native press ripple already fired regardless.
         if (markedReadId != null || collapsed) NewsFeedWidget().update(context, glanceId)
-        UnreadGracePeriod.scheduleRefresh(context, glanceId, markedReadId, markedAt) { c, g -> NewsFeedWidget().update(c, g) }
+        // Dissolve/removal only exist under Show = Unread only; skip the 4 delayed renders otherwise.
+        if (scheduleGrace) UnreadGracePeriod.scheduleRefresh(context, glanceId, markedReadId, markedAt) { c, g -> NewsFeedWidget().update(c, g) }
     }
 }

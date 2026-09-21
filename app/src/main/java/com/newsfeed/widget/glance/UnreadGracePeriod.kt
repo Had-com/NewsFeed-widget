@@ -17,6 +17,13 @@ import kotlinx.coroutines.launch
 // one per dissolve stage (the text turning into dots, then being erased from the end, see data/ArticleDissolve.kt) and a
 // final one once the grace period elapses - otherwise the article would linger visible until
 // some unrelated future refresh instead of actually disappearing after 5 seconds.
+//
+// ONLY under Show = Unread only: under All / Read only nothing dissolves or is removed, so these
+// renders would change nothing on screen (measured on device: 5 renders per tap instead of 1).
+// The tap callbacks therefore call this only when shouldScheduleGraceRefreshForConfig() says so
+// (data/ArticleDissolve.kt), and the render-time resume in NewsFeedWidget.kt is already gated on
+// the Unread filter. Switching to Unread only while an article is inside its 5 s window needs no
+// callback: the next render (the config save re-renders) runs that resume and schedules it.
 object UnreadGracePeriod {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

@@ -1041,3 +1041,10 @@ safety net. The orphan scan and deletion now also cover `appWidgetLayout-<id>[.p
 **By design (not a bug):** the previously tapped article is marked read on the next tap and leaves Unread only about 5 s later.
 
 **Separate observation (not fixed here):** a background refresh can push an unread article out of the visible 10 rows, which can also look like an article disappearing.
+
+
+## Performance note (not a bug) — grace/dissolve refreshes ran under every Show filter
+
+**Status:** Fixed (code + unit tests; on-device re-verification pending — see QA `I-14`).
+
+Every read-marking tap scheduled 4 delayed full re-renders (+2.6/3.4/4.3/5.1 s) even under Show = All / Read only, where the dissolve and the 5 s removal do not exist, so they changed nothing visible (5 renders per tap instead of 1). They are now scheduled only under Unread only (`shouldScheduleGraceRefreshForConfig`, tests `GraceRefreshPolicyTest`). Details: `docs/DEBUG_PLAN.md` 14.y.

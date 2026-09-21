@@ -1,5 +1,7 @@
 package com.newsfeed.widget.data
 
+import kotlinx.serialization.decodeFromString
+
 /**
  * Staged "dissolve" for a just-read article under Show = "Unread only", shown during the
  * last part of its UNREAD_GRACE_PERIOD_MS window: all text turns into middle dots, then the
@@ -91,3 +93,22 @@ fun remainingRefreshDelays(markedAt: Long, now: Long): List<Long> {
 /** True while a read article is in a dissolve stage (its row must then hide action buttons). */
 fun isDissolving(article: ArticleItem, now: Long): Boolean =
     article.isRead && dissolveStage(article.readAt, now) > 0
+
+/**
+ * The dissolve stages and the 5 s removal only exist under Show = "Unread only" (see
+ * ArticleSorting.applyFilterAndSort and NewsFeedWidget's dissolveArticle gating). Under All or
+ * Read only the delayed follow-up renders would change nothing on screen, so they are only
+ * scheduled for that filter.
+ */
+fun shouldScheduleGraceRefresh(filterKey: String?): Boolean = filterKey == FilterMode.UNREAD.key
+
+/**
+ * Same decision from the widget's saved config JSON (WidgetStateKey.configJson). A missing or
+ * undecodable config schedules anyway: an unneeded refresh is harmless, a lost dissolve is not.
+ */
+fun shouldScheduleGraceRefreshForConfig(configJson: String?): Boolean {
+    val config = configJson?.let {
+        runCatching { kotlinx.serialization.json.Json.decodeFromString<WidgetConfig>(it) }.getOrNull()
+    } ?: return true
+    return shouldScheduleGraceRefresh(config.filter)
+}

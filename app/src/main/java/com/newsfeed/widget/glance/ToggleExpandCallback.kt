@@ -7,6 +7,7 @@ import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.state.updateAppWidgetState
 import com.newsfeed.widget.data.ReadStatusStore
 import com.newsfeed.widget.data.WidgetStateKey
+import com.newsfeed.widget.data.shouldScheduleGraceRefreshForConfig
 
 // Expand mode only. Tapping a row expands it inline (only one article expanded at a time);
 // tapping the expanded row again collapses it.
@@ -34,13 +35,16 @@ class ToggleExpandCallback : ActionCallback {
         // Stamped into readAt AND used as the base for the dissolve/removal refresh delays.
         val markedAt = System.currentTimeMillis()
         var markedReadId: String? = null
+        var scheduleGrace = true
         updateAppWidgetState(context, glanceId) { prefs ->
             val current = prefs[WidgetStateKey.expandedArticleId] ?: ""
             prefs[WidgetStateKey.expandedArticleId] = if (current != articleId) articleId else ""
             markedReadId = markPreviousTappedRead(prefs, articleId, markedAt)
+            scheduleGrace = shouldScheduleGraceRefreshForConfig(prefs[WidgetStateKey.configJson])
         }
         markedReadId?.let { ReadStatusStore(context).markRead(it) }
         NewsFeedWidget().update(context, glanceId)
-        UnreadGracePeriod.scheduleRefresh(context, glanceId, markedReadId, markedAt) { c, g -> NewsFeedWidget().update(c, g) }
+        // Dissolve/removal only exist under Show = Unread only; skip the 4 delayed renders otherwise.
+        if (scheduleGrace) UnreadGracePeriod.scheduleRefresh(context, glanceId, markedReadId, markedAt) { c, g -> NewsFeedWidget().update(c, g) }
     }
 }

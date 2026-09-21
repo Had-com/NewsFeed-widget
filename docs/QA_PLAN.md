@@ -286,13 +286,13 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | F Read state & Unread-only grace / dissolve | 23 | 7 | 13 | 3 |
 | G Sort / filter (incl. matrix M1) | 22 | 2 | 20 | 0 |
 | H Appearance / theme / fonts | 26 | 1 | 24 | 1 |
-| I Refresh / worker / timers / boot | 13 | 2 | 10 | 1 |
+| I Refresh / worker / timers / boot | 14 | 2 | 11 | 1 |
 | J Settings persistence / backup / multi-widget | 14 | 2 | 10 | 2 |
 | K Self-update & release notes | 19 | 3 | 15 | 1 |
 | L Robustness | 20 | 2 | 14 | 4 |
 | M Regression cases for past bugs | 41 | 8 | 32 | 1 |
 | N Focus as a setting & state cleanup | 31 | 12 | 19 | 0 |
-| **Total** | **306** | **53** | **234** | **19** |
+| **Total** | **307** | **53** | **235** | **19** |
 
 Plus the two pairwise tables (50 configurations each, run through `H-24` and `N-22`).
 
@@ -598,6 +598,7 @@ Glamour ignores per-feed font and B/I/U (bitmap headlines).
 | I-11 | P1 | Read-triggered re-renders ⇒ no polling: ≤ 4 updates per article marked read under Unread only; no updates after removal | LC | UT:GraceRefreshRegistryTest |
 | I-12 | P1 | Countdown alarm survives Doze (`setAndAllowWhileIdle`), may lag; card still updates after unlock | UI | none |
 | I-13 | P2 | 11 feeds on Wi-Fi ⇒ full refresh completes in a reasonable time (< 30 s) and thumbnails for the newest 30 are cached | LC | none |
+| I-14 | P1 | **Grace/dissolve refreshes only under Unread only** (perf; device finding 2026-09-21, see DEBUG_PLAN 14.y): tap-to-mark-read with Show = **All**, then **Read only**, in both Expand and Focus mode ⇒ at most **1** `updateAppWidget` per tap (the callback's own render) and `grace_check_tick` in the DS pull does **not** change; no +2.6/3.4/4.3/5.1 s re-renders. Same tap under Show = **Unread only** ⇒ 1 + up to 4 renders (dissolve stages, removal) exactly as F-09. Also: switch the filter from All to Unread only while an article is inside its 5 s window (readAt < 5 s old) ⇒ the config-save render resumes the dissolve/removal schedule (render-time SideEffect), article still dissolves and leaves. Method: LC/`dumpsys appwidget` or `adb logcat` count of `updateAppWidget` per tap plus DS `grace_check_tick` before/after, TS for the Unread-only run | LC, DS, TS | UT:GraceRefreshPolicyTest |
 
 ---
 

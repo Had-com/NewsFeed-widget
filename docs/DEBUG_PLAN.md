@@ -298,6 +298,12 @@ Setup: Unread only, Expand mode, expanded article P above a description-less yne
 
 Observations: after tap 1 the layout shift is not instant (tap to updateAppWidget about 1.5 s in Unread only); the position of A changes at that render, so a second tap at the OLD screen position lands on a different row. This is inherent to collapsing an expanded row above the tapped one. Restore: `newsfeed_config` md5 720a2dd2c3a48ed644fe6b3ca30ab984, widget 15 datastores rewritten from the backup.
 
+### 14.y Perf finding: extra grace/dissolve renders under All / Read only, 2026-09-21
+
+Device measurement (`C:	\qa9\summary_rows.json`): every read-marking tap scheduled 4 extra full widget re-renders (+2.6 / 3.4 / 4.3 / 5.1 s, each also rewriting `grace_check_tick`) via `UnreadGracePeriod.scheduleRefresh`, regardless of the Show filter. The dissolve and the 5 s removal only exist under Show = Unread only, so under All / Read only those renders changed nothing on screen: 5 renders per tap instead of the 1 needed (wasted work and battery). Not a functional bug.
+
+Fix: `ToggleExpandCallback`, `NoOpTapFeedbackCallback` and `SetFocusArticleCallback` now read the saved config (`configJson`) inside their existing state update and call `scheduleRefresh` only when `shouldScheduleGraceRefreshForConfig()` is true (filter key = `unread`; missing/undecodable config keeps the old behaviour of scheduling). The render-time resume in `NewsFeedWidget` was already Unread-only. Switching to Unread only mid-grace is covered by that resume on the next render. Tests: `GraceRefreshPolicyTest`; QA case `I-14`. On-device re-verification pending.
+
 ---
 
 ## Reporting

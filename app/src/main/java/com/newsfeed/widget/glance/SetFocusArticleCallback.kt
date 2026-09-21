@@ -8,6 +8,7 @@ import androidx.glance.appwidget.state.updateAppWidgetState
 import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.ReadStatusStore
 import com.newsfeed.widget.data.WidgetStateKey
+import com.newsfeed.widget.data.shouldScheduleGraceRefreshForConfig
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -34,7 +35,9 @@ class SetFocusArticleCallback : ActionCallback {
         // doesn't apply to them.
         val markedAt = System.currentTimeMillis()
         var articleLosingFocusId: String? = null
+        var scheduleGrace = true
         updateAppWidgetState(context, glanceId) { prefs ->
+            scheduleGrace = shouldScheduleGraceRefreshForConfig(prefs[WidgetStateKey.configJson])
             val current = prefs[WidgetStateKey.focusedArticleId] ?: ""
             val movingToAnotherArticle = current.isNotBlank() && current != articleId
             prefs[WidgetStateKey.focusedArticleId] = if (current == articleId) "" else articleId
@@ -59,6 +62,7 @@ class SetFocusArticleCallback : ActionCallback {
         }
         articleLosingFocusId?.let { ReadStatusStore(context).markRead(it) }
         NewsFeedWidget().update(context, glanceId)
-        UnreadGracePeriod.scheduleRefresh(context, glanceId, articleLosingFocusId, markedAt) { c, g -> NewsFeedWidget().update(c, g) }
+        // Dissolve/removal only exist under Show = Unread only; skip the 4 delayed renders otherwise.
+        if (scheduleGrace) UnreadGracePeriod.scheduleRefresh(context, glanceId, articleLosingFocusId, markedAt) { c, g -> NewsFeedWidget().update(c, g) }
     }
 }
