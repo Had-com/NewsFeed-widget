@@ -202,10 +202,89 @@ class TelegramFeedParserTest {
     }
 
     @Test
-    fun `stripTelegramHtml removes link tags but keeps their text`() {
+    fun `stripTelegramHtml keeps a link's URL alongside its label text`() {
+        // BUG-023: the old behaviour ("See this article") silently discarded the href,
+        // leaving no way to reach the linked page. Chosen format: "label (URL)".
+        assertEquals(
+            "See this article (https://example.com)",
+            TelegramFeedParser.stripTelegramHtml("""See <a href="https://example.com">this article</a>"""),
+        )
+    }
+
+    @Test
+    fun `stripTelegramHtml preserves a real Telegram post's trailing link on its own line`() {
+        // Verified live against https://t.me/s/N12_News (BUG-023): a post ending in a <br>
+        // then a "קישור לכתבה" (link to the article) anchor. Both the label and the URL must
+        // survive, on the line the <br> started.
+        val raw = "עדכון מהשטח.<br/><a href=\"https://www.mako.co.il/news-military/2026_q3/Article-abc123.htm\">קישור לכתבה</a>"
+        assertEquals(
+            "עדכון מהשטח.\nקישור לכתבה (https://www.mako.co.il/news-military/2026_q3/Article-abc123.htm)",
+            TelegramFeedParser.stripTelegramHtml(raw),
+        )
+    }
+
+    @Test
+    fun `stripTelegramHtml does not duplicate an auto-linked bare URL`() {
+        // Telegram auto-links a bare URL typed in a post, so label == href verbatim.
+        // "https://x.com/y (https://x.com/y)" would be a useless duplicate.
+        assertEquals(
+            "See https://x.com/y for details",
+            TelegramFeedParser.stripTelegramHtml(
+                """See <a href="https://x.com/y">https://x.com/y</a> for details"""
+            ),
+        )
+    }
+
+    @Test
+    fun `stripTelegramHtml inserts the bare URL when the link text is empty or whitespace`() {
+        assertEquals(
+            "See https://example.com for details",
+            TelegramFeedParser.stripTelegramHtml(
+                """See <a href="https://example.com">   </a> for details"""
+            ),
+        )
+    }
+
+    @Test
+    fun `stripTelegramHtml preserves every URL when a post has multiple links`() {
+        assertEquals(
+            "First (https://a.example) and Second (https://b.example)",
+            TelegramFeedParser.stripTelegramHtml(
+                """<a href="https://a.example">First</a> and <a href="https://b.example">Second</a>"""
+            ),
+        )
+    }
+
+    @Test
+    fun `stripTelegramHtml strips a formatting tag inside link text but keeps the label and URL`() {
+        assertEquals(
+            "text (https://example.com)",
+            TelegramFeedParser.stripTelegramHtml(
+                """<a href="https://example.com"><b>text</b></a>"""
+            ),
+        )
+    }
+
+    @Test
+    fun `stripTelegramHtml leaves the rest of the message intact when an anchor has no closing tag`() {
+        // Malformed markup (missing </a>): the anchor regex requires a closing tag and simply
+        // doesn't match, so this falls through to the generic tag-strip pass, which removes
+        // just the opening <a href="..."> tag itself (like any other unrecognized tag) and
+        // keeps every character that follows it - never throws, never corrupts the rest.
+        assertEquals(
+            "Before after",
+            TelegramFeedParser.stripTelegramHtml("""Before <a href="https://example.com">after"""),
+        )
+    }
+
+    @Test
+    fun `stripTelegramHtml leaves link text alone when the anchor has no href`() {
+        // Malformed/unsupported markup (no href attribute): the anchor regex doesn't match,
+        // so this behaves exactly like the old bold/italic case - tag stripped, text kept,
+        // no URL to preserve since none was given.
         assertEquals(
             "See this article",
-            TelegramFeedParser.stripTelegramHtml("""See <a href="https://example.com">this article</a>"""),
+            TelegramFeedParser.stripTelegramHtml("""See <a class="internal">this article</a>"""),
         )
     }
 
@@ -341,6 +420,26 @@ class TelegramFeedParserTest {
         val b = parseOne("$words<br/>tail")
         val all = (b.title.removeSuffix("…") + " " + b.description.replace("\n", " ")).split(" ").filter { it.isNotBlank() }
         assertEquals((1..80).map { "w$it" } + "tail", all)
+    }
+
+    @Test
+    fun `parseArticles keeps a post's link URL alive through title and description`() {
+        // BUG-023 end-to-end: the URL must survive stripTelegramHtml AND the title/description
+        // split, landing somewhere in the stored article, not just in the intermediate string.
+        val a = parseOne(
+            "Breaking news headline<br/><a href=\"https://example.com/story\">קישור לכתבה</a>"
+        )
+        val combined = a.title + "\n" + a.description
+        assertEquals(true, combined.contains("https://example.com/story"))
+        // still never duplicates: the URL appears exactly once across title+description
+        assertEquals(1, Regex(Regex.escape("https://example.com/story")).findAll(combined).count())
+    }
+
+    @Test
+    fun `parseArticles caps a post at 4096 even after a link is expanded to include its URL`() {
+        val a = parseOne("Head<br/>Second<br/>" + "x".repeat(4400) + """<a href="https://example.com/very-long-story-path">link</a>""")
+        assertEquals("Head Second", a.title)
+        assertEquals(4096, a.description.length)
     }
 
     @Test

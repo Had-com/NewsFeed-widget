@@ -1042,6 +1042,15 @@ safety net. The orphan scan and deletion now also cover `appWidgetLayout-<id>[.p
 
 **Separate observation (not fixed here):** a background refresh can push an unread article out of the visible 10 rows, which can also look like an article disappearing.
 
+## BUG-023 — Telegram post links were silently discarded, leaving no way to reach the linked page
+
+**Status:** Fixed (code + unit tests; on-device re-verification pending).
+
+**Symptom:** A Telegram post ending in an inline link (e.g. `<br/><a href="https://www.mako.co.il/...">קישור לכתבה</a>`, verified live against `https://t.me/s/N12_News`) showed the link's label text ("קישור לכתבה") in the stored article, but the actual URL was gone — it never appeared anywhere in the title or description, so there was no way to open the linked page from the widget.
+
+**Root cause:** `TelegramFeedParser.stripTelegramHtml` replaced `<br>` with `\n` and then stripped every remaining HTML tag with a generic `ANY_TAG_REGEX = Regex("<[^>]+>")`. That generic strip has no concept of an anchor's `href` attribute — it deletes the whole `<a href="URL">` opening tag (URL included) and the closing `</a>`, keeping only whatever plain text sat between them. Pre-existing since `75065cf` (the original Telegram scraper); not a regression from the later `2962a97` rewrite. The existing test `stripTelegramHtml removes link tags but keeps their text` locked in this lossy behaviour.
+
+**Fix:** `stripTelegramHtml` now runs a new `rewriteAnchors()` pass **before** the generic `<br>`/tag stripping. It matches only a well-formed `<a href="URL">label</a>` (double-quoted href, real closing tag) and rewrites it to `label (URL)` — the chosen, documented format. Two cases avoid a useless result: a label identical to the URL (Telegram auto-linking a bare URL) keeps the URL once, not duplicated; an empty/whitespace-only label keeps the bare URL alone. A malformed anchor (no href, `href=""`, or missing closing tag) is left as-is / falls through to the generic tag-strip, exactly as before — no crash, no corruption of the rest of the message. The rewrite uses the label's raw (still-tagged) inner HTML, so a nested formatting tag (e.g. `<b>`) or `<br>` inside the label is still cleaned up by the normal stripping pass that runs over the whole result afterward. The existing 4096-char (`MAX_POST_CHARS`) description cap still applies unchanged (verified with a new test: a link expanding a post past the cap is still capped at exactly 4096). Tests: `TelegramFeedParserTest` (8 new/updated cases, including a real-world mako.co.il case and an end-to-end `parseArticles` case proving the URL survives into the stored article's title+description without duplication).
 
 ## Performance note (not a bug) — grace/dissolve refreshes ran under every Show filter
 

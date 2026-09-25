@@ -169,13 +169,54 @@ object TelegramFeedParser {
     private val ANY_TAG_REGEX = Regex("<[^>]+>")
     private val NUMERIC_ENTITY_REGEX = Regex("&#(\\d+);")
 
+    // Only matches a well-formed <a href="...">...</a> with a double-quoted href and a real
+    // closing tag. DOT_MATCHES_ALL so a <br> or another tag inside the link text doesn't stop
+    // the match early. Deliberately narrow: a malformed anchor (no href, single-quoted href,
+    // or a missing closing tag) simply doesn't match and falls through to ANY_TAG_REGEX below,
+    // which strips just the unrecognized tag and leaves the surrounding text untouched - never
+    // throws, never corrupts the rest of the message (BUG-023).
+    private val ANCHOR_REGEX = Regex(
+        """<a\s+href="([^"]*)"[^>]*>(.*?)</a>""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+
+    /**
+     * Rewrites every well-formed `<a href="URL">label</a>` into `label (URL)` (BUG-023: the
+     * old behaviour threw the href away entirely, keeping only the visible label text, so a
+     * Telegram post's "קישור לכתבה" (link to the article) link became unreachable). Two
+     * special cases avoid a useless or ugly result:
+     * - label text identical to the URL (Telegram auto-links a bare URL) -> the URL once, not
+     *   "https://x (https://x)".
+     * - empty/whitespace-only label (an anchor with no visible text) -> the bare URL alone.
+     * An anchor with a blank href="" is left completely alone (no "label ()").
+     *
+     * Runs BEFORE the generic tag-strip pass so the label is rewritten using its raw,
+     * still-tagged inner HTML (kept verbatim in the output) - any inner formatting tag (e.g.
+     * `<b>`) or nested `<br>` in the label is then cleaned up by the normal br/tag-strip pass
+     * that already runs over the whole result afterward, instead of needing its own handling
+     * here.
+     */
+    private fun rewriteAnchors(text: String): String = ANCHOR_REGEX.replace(text) { match ->
+        val href = match.groupValues[1].trim()
+        val labelRaw = match.groupValues[2]
+        if (href.isEmpty()) return@replace match.value
+        val labelVisible = labelRaw.replace(BR_TAG_REGEX, " ").replace(ANY_TAG_REGEX, "").trim()
+        when {
+            labelVisible.isEmpty() -> href
+            labelVisible == href -> href
+            else -> "$labelRaw ($href)"
+        }
+    }
+
     /**
      * Strips Telegram's own inline HTML (only ever <br>, <b>, <i>, <a> in practice) and
      * decodes HTML entities, without pulling in android.text.Html - this keeps the whole
-     * parser Android-framework-free and unit-testable in a plain JVM test.
+     * parser Android-framework-free and unit-testable in a plain JVM test. A link
+     * (`<a href="URL">label</a>`) is rewritten to `label (URL)` first (see [rewriteAnchors])
+     * so the URL - otherwise silently discarded - survives into the plain-text result.
      */
     fun stripTelegramHtml(rawText: String): String {
-        val withoutTags = rawText
+        val withoutTags = rewriteAnchors(rawText)
             .replace(BR_TAG_REGEX, "\n")
             .replace(ANY_TAG_REGEX, "")
         // &amp; decodes LAST among the named entities (right before the numeric pass),
