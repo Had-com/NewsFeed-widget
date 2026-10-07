@@ -204,8 +204,64 @@ object TelegramFeedParser {
         when {
             labelVisible.isEmpty() -> href
             labelVisible == href -> href
+            isChannelSelfLink(labelVisible, href) -> labelRaw
             else -> "$labelRaw ($href)"
         }
+    }
+
+    private val HANDLE_LABEL_REGEX = Regex("""^@([A-Za-z0-9_]+)$""")
+    private val CHANNEL_HOME_URL_REGEX = Regex(
+        """^https?://(?:t\.me|telegram\.me)/([A-Za-z0-9_]+)/?$""",
+        RegexOption.IGNORE_CASE
+    )
+
+    /**
+     * True for a channel linking to itself: label `@N12chat` with href `https://t.me/N12chat`
+     * (same channel, case-insensitive). That signature carries no information, so only the
+     * handle is kept (BUG-025). A different channel, or a link to a specific post
+     * (t.me/N12chat/123), is a real link and keeps its URL.
+     */
+    private fun isChannelSelfLink(labelVisible: String, href: String): Boolean {
+        val handle = HANDLE_LABEL_REGEX.matchEntire(labelVisible)?.groupValues?.get(1) ?: return false
+        val channel = CHANNEL_HOME_URL_REGEX.matchEntire(href)?.groupValues?.get(1) ?: return false
+        return handle.equals(channel, ignoreCase = true)
+    }
+
+    // "label (URL)" as produced by rewriteAnchors. The URL is matched lazily up to a ")" that
+    // is followed by whitespace, sentence punctuation, end of text or a non-ASCII character (so
+    // a Hebrew letter right after the paren still ends it), which lets a URL that itself
+    // contains parentheses (wikipedia ..._(x)) survive intact.
+    private val PAREN_URL_REGEX = Regex(
+        """[ \t]*\(((?:https?|tg)://\S+?)\)(?=[\s.,;:!?]|$|[^\x00-\x7F])""",
+        RegexOption.IGNORE_CASE
+    )
+    private val BARE_URL_REGEX = Regex("""(?:https?|tg)://\S+""", RegexOption.IGNORE_CASE)
+    private val MULTI_SPACE_REGEX = Regex("""[ \t]{2,}""")
+
+    /**
+     * Removes every `(URL)` and bare URL from one line of text and returns the cleaned line
+     * (label text kept, spacing tidied) together with the removed URLs in order of appearance.
+     * A bare URL's trailing sentence punctuation (and an unbalanced ")") is not part of the URL
+     * and stays in the text.
+     */
+    private fun pullOutUrls(line: String): Pair<String, List<String>> {
+        val urls = mutableListOf<String>()
+        var out = PAREN_URL_REGEX.replace(line) { m -> urls += m.groupValues[1]; "" }
+        out = BARE_URL_REGEX.replace(out) { m ->
+            var url = m.value
+            var tail = ""
+            while (url.isNotEmpty()) {
+                val last = url.last()
+                val strip = last in ".,;:!?" ||
+                    (last == ')' && url.count { it == ')' } > url.count { it == '(' })
+                if (!strip) break
+                tail = last + tail
+                url = url.dropLast(1)
+            }
+            urls += url
+            tail
+        }
+        return out.replace(MULTI_SPACE_REGEX, " ").trim() to urls
     }
 
     /**
@@ -256,6 +312,8 @@ object TelegramFeedParser {
      * the description so nothing is lost or duplicated; a photo-only post with no caption text falls back to
      * [feedDisplayName] as its title instead of being silently dropped (an empty title
      * would otherwise be treated the same as a blank RSS <title> and skipped downstream).
+     * URLs in the title lines never stay in the title: the label stays, the URL moves to the end
+     * of the description (BUG-025, see below).
      */
     fun parseArticles(
         feedId: String,
@@ -274,31 +332,61 @@ object TelegramFeedParser {
             // that already wraps long text on its own - a literal "\n" here would force an
             // extra hard break instead of a natural wrap.
             val titleLineCount = minOf(lines.size, 2)
-            val joined = lines.take(titleLineCount).joinToString(" ")
+            // BUG-025: a URL in the title (e.g. N12_News' trailing "קישור לכתבה (https://...)")
+            // is a long unbroken word that made the whole headline bitmap auto-shrink to a
+            // tiny size. Keep URLs OUT of the title lines: the label text stays, the URL moves
+            // to the end of the description (one per line, de-duplicated, order kept) where it
+            // renders in the body and does not shrink anything. URLs further down the post
+            // (description lines) stay inline where the author put them.
+            val titleUrls = mutableListOf<String>()
+            val titleLines = lines.take(titleLineCount).mapNotNull { line ->
+                val (clean, urls) = pullOutUrls(line)
+                titleUrls += urls
+                clean.ifBlank { null }
+            }
+            val joined = titleLines.joinToString(" ")
             val remainder = lines.drop(titleLineCount).joinToString("\n")
             // The description is ONLY what the title does not show (no repeated headline):
             // the rest of the post, preceded by any title text that overflowed the display cap,
             // so title + description is the whole post exactly once. See splitTitleOverflow().
-            val (title, description) = when {
-                lines.isEmpty() -> feedDisplayName to ""
+            val (title, bodyText) = when {
+                // Nothing left of the title lines but URLs (a post that is just a link) gets the
+                // same fallback as a photo-only post - the channel name - so the row is not
+                // dropped for an empty title; the URL(s) become the description below.
+                joined.isEmpty() -> feedDisplayName to remainder
                 joined.length <= MAX_TITLE_CHARS -> joined to remainder
                 else -> {
                     val (head, overflow) = splitTitleOverflow(joined)
                     head to (if (remainder.isEmpty()) overflow else overflow + "\n" + remainder)
                 }
             }
+            val description = appendMovedUrls(bodyText, titleUrls)
             ArticleItem(
                 id = raw.id,
                 feedId = feedId,
                 feedName = feedDisplayName,
                 title = title,
                 articleUrl = raw.articleUrl,
-                description = description.take(MAX_POST_CHARS),
+                description = description,
                 imageUrl = raw.imageUrl,
                 publishedAt = raw.publishedAt,
                 isRead = false,
             )
         }
+    }
+
+    /**
+     * [body] followed by [urls] (de-duplicated, order kept, skipping any URL [body] already
+     * contains), one per line, capped at [MAX_POST_CHARS]. The cap trims the body, never the
+     * moved URLs, so a link is not lost on a post that already fills the description.
+     */
+    private fun appendMovedUrls(body: String, urls: List<String>): String {
+        val extra = urls.distinct().filter { !body.contains(it) }
+        if (extra.isEmpty()) return body.take(MAX_POST_CHARS)
+        val block = extra.joinToString("\n")
+        if (body.isEmpty()) return block.take(MAX_POST_CHARS)
+        val room = (MAX_POST_CHARS - block.length - 1).coerceAtLeast(0)
+        return (body.take(room).trimEnd() + "\n" + block).take(MAX_POST_CHARS)
     }
 
     /** The channel's own display name, shown as its header on the t.me/s/ page itself. */

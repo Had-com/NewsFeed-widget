@@ -193,9 +193,16 @@ object TextBitmapHelper {
             // any fontSize/focusScale, at the cost of the effective size self-limiting once
             // words stop fitting — reported as a real bug (mid-word breaks visible at large
             // Focus Mode sizes), not accepted as an inherent size/width tradeoff.
-            val widestWordPx = renderText.split(Regex("\\s+"))
-                .filter { it.isNotEmpty() }
-                .maxOfOrNull { paint.measureText(it) } ?: 0f
+            // URL tokens (http:// / https://) are deliberately NOT counted (BUG-025): a long
+            // link (e.g. a Telegram post's article URL shown in the expanded body) is one huge
+            // "word", and counting it shrank the ENTIRE text to a tiny size just to keep a URL
+            // unbroken - which nobody needs, since a URL reads fine wrapped by characters.
+            // StaticLayout already breaks an over-long word character-by-character, so an
+            // excluded URL simply wraps. This only ever makes the chosen size LARGER (never
+            // smaller), and the bitmap's memory is still bounded exactly as before: width is
+            // safeWidth and height is capped by maxLines (+ safeTextSizePx's 90px ceiling), so
+            // the RemoteViews memory budget math above is unaffected. See UrlTokens.
+            val widestWordPx = UrlTokens.widestWordIgnoringUrls(renderText) { paint.measureText(it) }
             if (widestWordPx > safeWidth) {
                 // 0.90f, not just enough to cancel floating-point rounding: a browser/canvas
                 // pre-check of this same algorithm (Feed Fidelity Check artifact) showed 2 of 11

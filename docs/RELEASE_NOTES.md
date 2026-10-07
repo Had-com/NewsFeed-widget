@@ -35,7 +35,7 @@ soft-wrapped bullet gets silently truncated at the first line break.
 - NewsFeed Focus is now a setting: in widget settings choose "When I tap an article" and pick "Expand in place" or "Focus (enlarge)". The separate NewsFeed Focus widget is gone, so a Focus widget already on your home screen disappears when you update: add the standard NewsFeed widget and choose Focus. In Focus mode only the article you tap enlarges, and the other rows keep their normal size.
 
 ## Note 10
-- Fixed: a Telegram post's link (e.g. "קישור לכתבה") now shows its web address along with the label, so you can actually reach the linked page — it used to vanish, leaving only the label text.
+- Fixed: a Telegram post's link (e.g. "קישור לכתבה") now keeps its web address, so you can actually reach the linked page — it used to vanish, leaving only the label text. The headline shows just the label (e.g. "קישור לכתבה"); the address appears under the headline when you expand the post, and long addresses wrap without shrinking the text.
 
 ## Note 11
 - Fixed: in Focus mode the zoom you set with − / + is now remembered, instead of snapping back to the default every time you tap another article.

@@ -289,6 +289,43 @@ class TelegramFeedParserTest {
     }
 
     @Test
+    fun `stripTelegramHtml drops a channel's own self-link signature but keeps the handle`() {
+        // BUG-025: N12chat posts end with <a href="https://t.me/N12chat">@N12chat</a>. After
+        // BUG-023 that became "@N12chat (https://t.me/N12chat)" - a pointless signature. The
+        // channel linking to itself carries no information, so only the handle stays.
+        assertEquals(
+            "Update here\n@N12chat",
+            TelegramFeedParser.stripTelegramHtml(
+                """Update here<br/><a href="https://t.me/N12chat">@N12chat</a>"""
+            ),
+        )
+    }
+
+    @Test
+    fun `stripTelegramHtml recognises the self-link case-insensitively and with a trailing slash`() {
+        assertEquals(
+            "@N12chat",
+            TelegramFeedParser.stripTelegramHtml("""<a href="https://T.ME/n12CHAT/">@N12chat</a>"""),
+        )
+        assertEquals(
+            "@N12chat",
+            TelegramFeedParser.stripTelegramHtml("""<a href="http://telegram.me/N12chat">@N12chat</a>"""),
+        )
+    }
+
+    @Test
+    fun `stripTelegramHtml keeps the URL when an at-handle links to a different channel or a post`() {
+        assertEquals(
+            "@other (https://t.me/N12chat)",
+            TelegramFeedParser.stripTelegramHtml("""<a href="https://t.me/N12chat">@other</a>"""),
+        )
+        assertEquals(
+            "@N12chat (https://t.me/N12chat/123)",
+            TelegramFeedParser.stripTelegramHtml("""<a href="https://t.me/N12chat/123">@N12chat</a>"""),
+        )
+    }
+
+    @Test
     fun `stripTelegramHtml decodes basic HTML entities`() {
         assertEquals(
             """Tom & Jerry said "hi" <ok>""",
@@ -411,10 +448,18 @@ class TelegramFeedParserTest {
 
     @Test
     fun `parseArticles never duplicates text between title and description`() {
+        // BUG-025 note: the one deliberate exception to "text stays where it is" is a URL in
+        // the title lines - it is MOVED (not copied) to the end of the description, while its
+        // label stays in the title. So the label and the URL each still appear exactly once.
         val lines = listOf("Alpha headline", "Bravo second", "Charlie body", "Delta body")
         val a = parseOne(lines.joinToString("<br/>"))
         val combined = a.title + "\n" + a.description
         lines.forEach { assertEquals(1, Regex(Regex.escape(it)).findAll(combined).count()) }
+        val withLink = parseOne("Alpha headline <a href=\"https://example.com/p\">the label</a><br/>Bravo second<br/>Charlie body")
+        val both = withLink.title + "\n" + withLink.description
+        assertEquals(1, Regex(Regex.escape("the label")).findAll(both).count())
+        assertEquals(1, Regex(Regex.escape("https://example.com/p")).findAll(both).count())
+        assertEquals(false, withLink.title.contains("https://"))
         // and with a cut title: every word of the post appears exactly once, in order
         val words = (1..80).joinToString(" ") { "w$it" }
         val b = parseOne("$words<br/>tail")
@@ -433,6 +478,113 @@ class TelegramFeedParserTest {
         assertEquals(true, combined.contains("https://example.com/story"))
         // still never duplicates: the URL appears exactly once across title+description
         assertEquals(1, Regex(Regex.escape("https://example.com/story")).findAll(combined).count())
+    }
+
+    // ---- BUG-025: URLs never in the headline; they move to the description ----
+
+    private val MAKO = "https://www.mako.co.il/news-military/2026_q3/Article-abc123.htm"
+
+    @Test
+    fun `parseArticles keeps a trailing link's URL out of the title and puts it in the description`() {
+        // (a) short post with a trailing link, as N12_News posts them.
+        val a = parseOne("עדכון מהשטח.<br/><a href=\"$MAKO\">קישור לכתבה</a>")
+        assertEquals("עדכון מהשטח. קישור לכתבה", a.title)
+        assertEquals(MAKO, a.description)
+    }
+
+    @Test
+    fun `parseArticles removes a URL from a one-line title and keeps the label`() {
+        val a = parseOne("Breaking <a href=\"https://example.com/s\">read more</a>")
+        assertEquals("Breaking read more", a.title)
+        assertEquals("https://example.com/s", a.description)
+    }
+
+    @Test
+    fun `parseArticles appends title URLs after the existing description in order and dedupes`() {
+        val a = parseOne(
+            "<a href=\"https://a.example/1\">one</a> and <a href=\"https://b.example/2\">two</a><br/>" +
+                "<a href=\"https://a.example/1\">again</a><br/>Body line<br/>Last line"
+        )
+        assertEquals("one and two again", a.title)
+        assertEquals("Body line\nLast line\nhttps://a.example/1\nhttps://b.example/2", a.description)
+    }
+
+    @Test
+    fun `parseArticles leaves a link in the description body inline`() {
+        // (b) long multi-line post, link in the middle: only TITLE lines are cleaned; the body
+        // keeps its text exactly as is (the body renders without shrinking, see TextBitmapHelper).
+        val a = parseOne(
+            "Head<br/>Second<br/>Third <a href=\"https://example.com/mid\">mid link</a> text<br/>Fourth"
+        )
+        assertEquals("Head Second", a.title)
+        assertEquals("Third mid link (https://example.com/mid) text\nFourth", a.description)
+    }
+
+    @Test
+    fun `parseArticles does not re-append a title URL the description already contains`() {
+        val a = parseOne(
+            "Head <a href=\"https://example.com/x\">link</a><br/>Second<br/>See https://example.com/x here"
+        )
+        assertEquals("Head link Second", a.title)
+        assertEquals("See https://example.com/x here", a.description)
+    }
+
+    @Test
+    fun `parseArticles handles an auto-linked bare URL in the title`() {
+        val a = parseOne("Read <a href=\"https://x.com/y\">https://x.com/y</a> now")
+        assertEquals("Read now", a.title)
+        assertEquals("https://x.com/y", a.description)
+    }
+
+    @Test
+    fun `parseArticles handles a plain-text URL that Telegram did not anchor`() {
+        val a = parseOne("Look https://x.com/y?a=1&amp;b=2.")
+        assertEquals("Look .", a.title)
+        assertEquals("https://x.com/y?a=1&b=2", a.description)
+    }
+
+    @Test
+    fun `parseArticles falls back to the channel name for a post whose only content is a bare URL`() {
+        // (d) nothing but a link: the title would be empty (and dropped downstream), so it
+        // falls back to the channel name exactly like a photo-only post; the URL is the body.
+        val a = parseOne("<a href=\"https://x.com/only\">https://x.com/only</a>")
+        assertEquals("Ch", a.title)
+        assertEquals("https://x.com/only", a.description)
+        val b = parseOne("https://x.com/plain")
+        assertEquals("Ch", b.title)
+        assertEquals("https://x.com/plain", b.description)
+    }
+
+    @Test
+    fun `parseArticles keeps a bare URL on its own second line out of the title`() {
+        val a = parseOne("Headline<br/>https://x.com/z<br/>Body")
+        assertEquals("Headline", a.title)
+        assertEquals("Body\nhttps://x.com/z", a.description)
+    }
+
+    @Test
+    fun `parseArticles keeps a channel self-link signature out of the description's URLs`() {
+        // (c) N12chat: one line + signature -> the handle is in the title, there is no
+        // description, so the row is NOT expandable (no URL to show).
+        val a = parseOne("Short update<br/><a href=\"https://t.me/N12chat\">@N12chat</a>")
+        assertEquals("Short update @N12chat", a.title)
+        assertEquals("", a.description)
+        // With a 3rd line the signature is just the description line, exactly as before BUG-023.
+        val b = parseOne(
+            "Line one<br/>Line two<br/><a href=\"https://t.me/N12chat\">@N12chat</a>"
+        )
+        assertEquals("Line one Line two", b.title)
+        assertEquals("@N12chat", b.description)
+    }
+
+    @Test
+    fun `parseArticles never lets a moved URL be cut by the 4096 cap`() {
+        val a = parseOne(
+            "Head <a href=\"$MAKO\">link</a><br/>Second<br/>" + "x".repeat(5000)
+        )
+        assertEquals(4096, a.description.length)
+        assertEquals(true, a.description.endsWith("\n$MAKO"))
+        assertEquals(false, a.title.contains("https://"))
     }
 
     @Test
