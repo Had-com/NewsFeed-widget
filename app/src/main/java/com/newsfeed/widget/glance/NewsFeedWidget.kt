@@ -39,6 +39,7 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -51,13 +52,18 @@ import androidx.glance.text.TextStyle
 import com.newsfeed.widget.config.WidgetConfigActivity
 import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.FilterMode
+import com.newsfeed.widget.data.GraceRefreshRegistry
 import com.newsfeed.widget.data.OrphanCleanup
 import com.newsfeed.widget.data.TapMode
+import com.newsfeed.widget.data.ThreadRowKind
 import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.applyFilterAndSort
 import com.newsfeed.widget.data.dissolveArticle
+import com.newsfeed.widget.data.groupStories
 import com.newsfeed.widget.data.isDissolving
+import com.newsfeed.widget.data.layoutThreads
+import com.newsfeed.widget.data.ungroupedStories
 import com.newsfeed.widget.data.UNREAD_GRACE_PERIOD_MS
 import com.newsfeed.widget.data.OrphanCleanupWorker
 import com.newsfeed.widget.update.UpdateCheckWorker
@@ -121,6 +127,10 @@ private fun WidgetContent() {
     // either nothing's been adjusted yet, or focus just moved to a different article
     // (both callbacks clear this key on any change of *which* article is focused).
     val focusScale        = prefs[WidgetStateKey.focusScale] ?: AdjustFocusScaleCallback.DEFAULT_SCALE
+    // Story threads (config.groupStories): lead ids of the threads the user expanded with the "+N"
+    // badge. Independent of the tap mode and of expandedArticleId (a thread and an article can both
+    // be expanded at once).
+    val expandedThreadIds = parseExpandedThreadIds(prefs[WidgetStateKey.expandedThreadIds])
 
     val config = configJson
         ?.let { runCatching { Json.decodeFromString<WidgetConfig>(it) }.getOrNull() }
@@ -219,17 +229,27 @@ private fun WidgetContent() {
     // (dissolveArticle is a no-op unless the article is read AND its readAt is under 5s old).
     // Applied to the article itself so standard rows, Focus rows and the Focus enlarged view
     // (all fed from displayArticles) dissolve identically.
-    val displayArticles = availableArticles.take(visibleCount.coerceAtMost(maxRowsAllowed))
-        .let { rows ->
-            if (config.filter == FilterMode.UNREAD.key) rows.map { dissolveArticle(it, now) } else rows
-        }
+    //
+    // Story threads: when config.groupStories is on, the post-filter/sort list is grouped into
+    // threads (data/StoryThreads.kt) and flattened to ROWS (data/ThreadRows.kt). A collapsed thread
+    // is ONE row (its lead, with a "+N" badge), an expanded thread is the lead plus one row per
+    // other member; maxRowsAllowed / visibleCount / "Load more" all count rows. With the switch off
+    // every article is its own single row, i.e. exactly the list this code rendered before threads.
+    // Dissolve is applied to every visible row, members included: a thread is read as a whole with
+    // one shared readAt, so all of its rows dissolve in lockstep.
+    val threads = if (config.groupStories) groupStories(availableArticles) else ungroupedStories(availableArticles)
+    val layout = layoutThreads(threads, expandedThreadIds, visibleCount.coerceAtMost(maxRowsAllowed))
+    val displayRows = layout.rows.let { rows ->
+        if (config.filter == FilterMode.UNREAD.key) rows.map { it.copy(article = dissolveArticle(it.article, now)) } else rows
+    }
+    val displayArticles = displayRows.map { it.article }
     // Based on visibleCount (what's been requested), not displayArticles.size (what's
     // actually shown after clamping) — comparing the clamped size against maxRowsAllowed
     // was always false the moment a single "chunk" request met or exceeded the memory
     // ceiling, hiding the button on the very first render whenever that happened instead
     // of only once truly exhausted. visibleCount vs the two ceilings is what actually
     // determines whether tapping "Load more" would reveal anything new.
-    val canLoadMoreArticles = visibleCount < maxRowsAllowed && visibleCount < availableArticles.size
+    val canLoadMoreArticles = visibleCount < maxRowsAllowed && visibleCount < layout.availableRows
     // Complementary "stuck" state: maxRowsAllowed itself (not the requested chunk size) is
     // the binding constraint, so tapping "Load more" would never reveal anything no matter
     // how many times it's tapped — this happens whenever maxRowsAllowed <= visibleCount
@@ -240,12 +260,14 @@ private fun WidgetContent() {
     // zero indication that a large backlog was sitting unreachable behind it (reported as a
     // bug: "Load more" permanently unreachable at normal/large font sizes).
     val memoryCapReached = displayArticles.size >= maxRowsAllowed &&
-        displayArticles.size < availableArticles.size
+        displayArticles.size < layout.availableRows
     // Scoped to displayArticles, not the full accumulated store (which can hold up to
     // 300) — counting the full store made the header badge claim "99+" unread while only
     // a fraction of articles were ever reachable by scrolling, which read as a bug (and
     // was reported as one) rather than the accumulation feature it actually was.
-    val unreadCount     = displayArticles.count { !it.isRead }
+    // Counts ARTICLES, not rows: a collapsed thread contributes its hidden members too, so the
+    // badge means what it always did (see ThreadLayout).
+    val unreadCount     = layout.unreadCount
     // Focus mode only (tapMode = focus, isFocusWidget) — position within what's actually rendered
     // (displayArticles), so the "N / M" indicator always matches what's really on screen.
     val focusedIndex    = if (focusedArticleId.isNotBlank())
@@ -266,10 +288,14 @@ private fun WidgetContent() {
         }
         if (resumeArticles.isNotEmpty()) {
             SideEffect {
-                resumeArticles.forEach { a ->
-                    UnreadGracePeriod.scheduleRefresh(graceContext, graceGlanceId, a.id, a.readAt!!) { c, g ->
-                        NewsFeedWidget().update(c, g)
-                    }
+                // One schedule per readAt, not per article: a story thread's members share one readAt
+                // and one schedule re-renders them all. Keyed by the group's representative id, the
+                // same key the tap callbacks register, so the two never double-schedule.
+                resumeArticles.groupBy { it.readAt!! }.forEach { (readAt, group) ->
+                    UnreadGracePeriod.scheduleRefresh(
+                        graceContext, graceGlanceId,
+                        GraceRefreshRegistry.representativeId(group.map { it.id }), readAt,
+                    ) { c, g -> NewsFeedWidget().update(c, g) }
                 }
             }
         }
@@ -289,7 +315,9 @@ private fun WidgetContent() {
                 .cornerRadius(18.dp)
                 .padding(0.dp),
         ) {
-            WidgetHeader(unreadCount, displayArticles.size, focusedArticleId, focusedIndex, displayArticles.size, isFocusWidget)
+            // Header counts: unread(total) are ARTICLES (layout.articleCount); the Focus "N/M" position
+            // counts the ROWS actually on screen (displayArticles.size).
+            WidgetHeader(unreadCount, layout.articleCount, focusedArticleId, focusedIndex, displayArticles.size, isFocusWidget)
             Divider()
 
             if (displayArticles.isEmpty()) {
@@ -316,29 +344,49 @@ private fun WidgetContent() {
                     // (isRead, etc.) changed — a correct improvement on its own regardless of
                     // whether it's the row-highlight bug's exact root cause, which is not yet
                     // independently confirmed on-device.
-                    items(displayArticles, itemId = { it.id.hashCode().toLong() }) { article ->
+                    items(displayRows, itemId = { it.article.id.hashCode().toLong() }) { row ->
+                        val article = row.article
                         val feedConfig = feedMap[article.feedId] ?: return@items
-                        val isLast = article == displayArticles.last()
+                        val isLast = row == displayRows.last()
                         Column(modifier = GlanceModifier.fillMaxWidth()) {
-                            FeedItemRow(
-                                article           = article,
-                                feedConfig        = feedConfig,
-                                expandedArticleId = expandedArticleId,
-                                fontSize          = config.fontSize,
-                                articleFontSize   = config.articleFontSize,
-                                articleLength     = config.articleLength,
-                                fullArticleId     = fullArticleId,
-                                fullArticleText   = fullArticleText,
-                                fullArticleShown  = fullArticleShown,
-                                useThemeColors    = config.useThemeColors,
-                                widgetTheme       = config.widgetTheme,
-                                externalApp       = config.externalApp,
-                                themeVariant      = config.themeVariant,
-                                focusedArticleId  = focusedArticleId,
-                                focusScale        = focusScale,
-                                isFocusWidget     = isFocusWidget,
-                                isDissolving      = config.filter == FilterMode.UNREAD.key && isDissolving(article, now),
-                            )
+                            // A thread member (shown only while its thread is expanded) gets a narrow
+                            // gutter on the left so it reads as nested under the lead; it is otherwise
+                            // the same row, with the same tap behaviour for the widget's tap mode.
+                            @Composable
+                            fun ArticleRow() {
+                                FeedItemRow(
+                                    article           = article,
+                                    feedConfig        = feedConfig,
+                                    expandedArticleId = expandedArticleId,
+                                    fontSize          = config.fontSize,
+                                    articleFontSize   = config.articleFontSize,
+                                    articleLength     = config.articleLength,
+                                    fullArticleId     = fullArticleId,
+                                    fullArticleText   = fullArticleText,
+                                    fullArticleShown  = fullArticleShown,
+                                    useThemeColors    = config.useThemeColors,
+                                    widgetTheme       = config.widgetTheme,
+                                    externalApp       = config.externalApp,
+                                    themeVariant      = config.themeVariant,
+                                    focusedArticleId  = focusedArticleId,
+                                    focusScale        = focusScale,
+                                    isFocusWidget     = isFocusWidget,
+                                    isDissolving      = config.filter == FilterMode.UNREAD.key && isDissolving(article, now),
+                                    threadOtherCount  = if (row.kind == ThreadRowKind.LEAD) row.otherCount else 0,
+                                    threadExpanded    = row.expanded,
+                                )
+                            }
+                            if (row.kind == ThreadRowKind.MEMBER) {
+                                Row(modifier = GlanceModifier.fillMaxWidth()) {
+                                    Box(modifier = GlanceModifier
+                                        .width(14.dp)
+                                        .fillMaxHeight()
+                                        .background(GlanceTheme.colors.surfaceVariant)) {}
+                                    Column(modifier = GlanceModifier.defaultWeight()) { ArticleRow() }
+                                }
+                            } else {
+                                ArticleRow()
+                            }
                             if (!isLast) {
                                 Box(modifier = GlanceModifier
                                     .fillMaxWidth()
@@ -391,9 +439,9 @@ private fun WidgetContent() {
                             ) {
                                 Text(
                                     text = if (atFontFloor)
-                                        "Showing ${displayArticles.size} of ${availableArticles.size} · this device can't show more at once"
+                                        "Showing ${displayArticles.size} of ${layout.availableRows} · this device can't show more at once"
                                     else
-                                        "Showing ${displayArticles.size} of ${availableArticles.size} · reduce font size to see more",
+                                        "Showing ${displayArticles.size} of ${layout.availableRows} · reduce font size to see more",
                                     style = TextStyle(
                                         fontSize   = 11.sp,
                                         fontFamily = FontFamily.SansSerif,

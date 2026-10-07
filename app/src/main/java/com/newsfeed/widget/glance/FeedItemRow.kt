@@ -72,6 +72,12 @@ fun FeedItemRow(
     // Share / Load more controls, which would act on a row that is about to vanish (and would
     // otherwise pass dissolved text to FetchFullArticleCallback).
     isDissolving: Boolean = false,
+    // Story threads (WidgetConfig.groupStories, see data/StoryThreads.kt): on a thread's LEAD row,
+    // how many other articles the thread holds (> 0 shows the "+N" badge in the meta line) and whether
+    // the thread is currently expanded. Both stay at their defaults for every other row (single
+    // articles, thread members), which then render exactly as before.
+    threadOtherCount: Int = 0,
+    threadExpanded: Boolean = false,
 ) {
     val context        = LocalContext.current
     // Focus mode (tapMode = focus) only. Hoisted above isExpanded: Focus Mode has no separate expand/collapse
@@ -295,6 +301,36 @@ fun FeedItemRow(
                                  else       androidx.glance.text.TextAlign.Start,
                 )
 
+                // Story-thread badge ("+3 ▾" collapsed / "+3 ▴" expanded): its OWN clickable inside the
+                // row, so tapping it toggles the thread (ToggleThreadCallback) and does not also fire
+                // the row's tap action. Nested clickables already work in this list: the "Open article →",
+                // "Share ↗" and "Load full article ↓" pills below are clickables inside the same
+                // Column/Row clickables. Hidden while the row is dissolving (the whole thread is
+                // about to leave). Direct children of the meta Row stay <= 9 (RemoteViews allows 10).
+                @Composable
+                fun ThreadBadge(spaceBefore: Boolean) {
+                    if (threadOtherCount > 0 && !isDissolving) {
+                        if (spaceBefore) Spacer(GlanceModifier.width(6.dp))
+                        Text(
+                            text = "+$threadOtherCount " + (if (threadExpanded) "▴" else "▾"),
+                            style = TextStyle(
+                                fontSize   = metaFontSize,
+                                fontFamily = FontFamily.SansSerif,
+                                fontWeight = FontWeight.Bold,
+                                color      = GlanceTheme.colors.onPrimaryContainer,
+                            ),
+                            maxLines = 1,
+                            modifier = GlanceModifier
+                                .background(GlanceTheme.colors.primaryContainer)
+                                .cornerRadius(6.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .clickable(actionRunCallback<ToggleThreadCallback>(
+                                    actionParametersOf(ToggleThreadCallback.LEAD_ID_KEY to article.id)
+                                )),
+                        )
+                    }
+                }
+
                 // Feed name is grouped on this same line with the favicon circle, right-
                 // justified as a unit. This row is now always the column's full width — the
                 // thumbnail (further down) only sits beside the headline lines below, not
@@ -308,6 +344,7 @@ fun FeedItemRow(
                     val nameMaxWidth = (70f * metaScaleFontSize).dp
                     Text(formatDateTime(article.publishedAt), style = tsStyle, maxLines = 1)
                     Spacer(GlanceModifier.width(6.dp))
+                    ThreadBadge(spaceBefore = false)
                     Spacer(GlanceModifier.defaultWeight())
                     if (!article.isRead) {
                         Box(modifier = GlanceModifier.width(5.dp).height(5.dp).background(accentProvider)) {}
@@ -329,6 +366,7 @@ fun FeedItemRow(
                     }
                     Text(feedConfig.displayName, style = nameStyle, maxLines = 1,
                         modifier = GlanceModifier.defaultWeight())
+                    ThreadBadge(spaceBefore = true)
                 }
             }
 
