@@ -666,6 +666,21 @@ class WidgetConfigActivity : ComponentActivity() {
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
+
+                                // Group similar stories: the same story reported by different feeds
+                                // collapses into one row with a "+N" badge (default on, per widget).
+                                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("Group similar stories", style = MaterialTheme.typography.bodyMedium)
+                                        Text("Same story from different feeds becomes one row; tap its +N badge to expand",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Switch(
+                                        checked = config.groupStories,
+                                        onCheckedChange = { config = config.copy(groupStories = it) },
+                                    )
+                                }
                             }
                             HorizontalDivider()
                         }
