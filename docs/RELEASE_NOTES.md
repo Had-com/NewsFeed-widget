@@ -39,3 +39,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 11
 - Fixed: in Focus mode the zoom you set with − / + is now remembered, instead of snapping back to the default every time you tap another article.
+
+## Note 12
+- New: similar stories from different feeds are now grouped into one thread with a small +N badge. Tap the badge to open or close the thread; reading one article marks the whole story read. You can switch this off in the widget settings under "Group similar stories".

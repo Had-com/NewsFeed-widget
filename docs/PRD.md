@@ -25,6 +25,7 @@ Status legend: ✅ Shipped · 🚧 In progress · 📋 Planned (spec approved, n
 | Sort (Newest/Oldest/By feed/Unread first) | ✅ | User controls article ordering independent of fetch order. |
 | Filter (All/Unread/Read) | ✅ | User can narrow the visible list to what they haven't seen yet. |
 | Unread-only 5-second grace period | ✅ | A just-read article stays visible, dimmed, for 5s before disappearing under "Unread only" — no instant, unexplained vanish. |
+| Story threads (group similar stories) | 🚧 | The same story reported by different feeds collapses into one row with a +N badge; tapping the badge lists the other reports; moving on marks the whole thread read; per-widget switch, on by default. See `docs/superpowers/specs/2026-10-07-story-threads-design.md`. (Flip to ✅ when the release gate passes.) |
 | Full-article extraction | ✅ | "Full article" mode fetches and cleans the real page body (Jsoup-based), not raw HTML. |
 | Article accumulation (300-article cap, per-feed floor) | ✅ | A low-frequency feed's articles can't be crowded out by high-frequency neighbors. |
 | Per-feed customization (color, RTL/LTR, font, style, thumbnail) | ✅ | Each feed can look and read correctly regardless of source language/direction. |

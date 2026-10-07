@@ -359,6 +359,23 @@ Notes: the widget caps rows ("Showing 26 of 40 · reduce font size to see more")
 
 Restore: `newsfeed_config` md5 720a2dd2c3a48ed644fe6b3ca30ab984 identical; `newsfeed_read_status`, `appWidget-15`, `appWidgetLayout-15`, `GlanceAppWidgetManager`, `release_notes` rewritten from backup (force-stop, write, two CLOCK_TICK) and md5-identical.
 
+### 14.ac Story threads (group similar stories), pending device verification
+
+Feature: `WidgetConfig.groupStories` (default on), `data/StoryThreads.kt`, `data/ThreadRows.kt`, `glance/ThreadState.kt`, `ToggleThreadCallback`, whole-thread read marking. Spec `docs/superpowers/specs/2026-10-07-story-threads-design.md`, plan `docs/superpowers/plans/2026-10-07-story-threads.md`, QA cases `docs/QA_PLAN.md` section O. Fill in build/HEAD/versionCode and the evidence when run on the device (Task 9 of the plan); until then every row is Pending.
+
+| Feature | What must be true | Verified how | Result |
+|---|---|---|---|
+| Threads form (O-01) | Same story from 2+ feeds = one lead row (newest) with `+N ▾`; members hidden | uiautomator + `articles_json` | Pending |
+| Badge toggles, does not fire the row (O-02, O-22) | Pill expands/collapses members, state in `expanded_thread_ids`, no read/tap-state change | uiautomator bounds, DataStore pulls | Pending |
+| Whole-thread read, Expand and Focus (O-03, O-04, O-07) | All members `isRead` with one `readAt`; moving inside a thread marks nothing | DataStore pulls | Pending |
+| Unread only dissolve (O-05, O-23) | All rows dissolve in lockstep and leave together; ≤ 5 renders per read | timed screenshots, logcat render count | Pending |
+| Switch off (O-06, O-08) | Exactly the old list; `"groupStories":false` persisted; on again restores | uiautomator, DataStore | Pending |
+| Counts and budget (O-09, O-10, O-20) | Header counts articles; limits and Load more count rows; no memory error | uiautomator, logcat | Pending |
+| Sort/filter/read-class (O-11, O-12, O-13) | Thread at lead slot; never half a thread; newcomer is a new thread | uiautomator, DataStore | Pending |
+| Tap modes and mode switch (O-14, O-15, O-16) | Members expand/focus; collapse cleans pointers; mode switch keeps expanded threads | DataStore pulls | Pending |
+| Refresh / multi-widget / remove (O-18, O-19, O-24, O-25) | Read state and expanded state survive refresh; independent widgets; removal cleans up | DataStore pulls | Pending |
+| Quality on a real day (O-21) | No wrong groups of consequence | group listing | Pending |
+
 ---
 
 ## Reporting

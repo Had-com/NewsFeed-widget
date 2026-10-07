@@ -46,7 +46,8 @@ Consequences, in order of importance:
    [I Refresh/worker/boot](#i--refresh--worker--timers--boot) · [J Settings persistence/backup/multi-widget](#j--settings-persistence--backup--multi-widget) ·
    [K Self-update & release notes](#k--self-update--release-notes) · [L Robustness](#l--robustness) ·
    [M Regressions](#m--regression-cases-for-past-bugs) ·
-   [N Focus as a setting & state cleanup](#n--focus-as-a-setting--state-cleanup)
+   [N Focus as a setting & state cleanup](#n--focus-as-a-setting--state-cleanup) ·
+   [O Story threads](#o--story-threads)
 9. Appendices: [A Bug ledger](#appendix-a--cases-added-because-of-a-bug) ·
    [B Pairwise tables](#appendix-b--pairwise-configuration-tables) ·
    [C Test data](#appendix-c--reference-test-data) ·
@@ -260,9 +261,9 @@ mid-development checks and hotfix triage. Not sufficient for a release.
 
 1. All cases in sections A–M (P0 + P1 + P2), run on an **Expand-mode** widget **and** a **Focus-mode** widget
    where a case says "both" or names Focus.
-2. Matrix `G-M01…G-M12` (filter × sort × tap behaviour) — all 12 rows, each in both tap behaviours.
+2. Matrix `G-M01…G-M12` (filter × sort × tap behaviour) — all 12 rows, each in both tap behaviours. Run them with Group similar stories ON (the default); `O-06` covers OFF.
 3. Pairwise `PW-A` (50 configurations, Appendix B) via case `H-24`; `PW-B` (with the Tap factor) via `N-22`.
-4. Section N in full (Focus as a setting, mode switching, orphan cleanup).
+4. Sections N and O in full (N: Focus as a setting, mode switching, orphan cleanup; O: story threads, run with Group similar stories ON, the default, plus the OFF cases).
 5. Unit tests, CI status, logcat check, restore of backed-up state.
 
 Estimated effort: Smoke ≈ 45 min; Full ≈ 6–8 h including PW-A (≈ 2 h alone; the 50 rows are ordered so an
@@ -270,7 +271,7 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 
 ### Smoke subset — P0 cases in sections A–M
 
-41 rows = **36 distinct executions** (`M-01`, `M-02`, `M-10`, `M-40`, `M-41` are the same execution as `F-01/F-02`, `F-04`, `F-12`, `N-30`, `F-23`), ≈ 45–60 min for A–M (≈ 60–80 min with section N). `E-20` and `F-08` are the Focus-mode cases. Section N adds 12 more P0 cases (`N-01…N-07`, `N-09`, `N-14`, `N-18`, `N-27`, `N-30`), so the Smoke subset is 53 rows.
+41 rows = **36 distinct executions** (`M-01`, `M-02`, `M-10`, `M-40`, `M-41` are the same execution as `F-01/F-02`, `F-04`, `F-12`, `N-30`, `F-23`), ≈ 45–60 min for A–M (≈ 60–80 min with section N). `E-20` and `F-08` are the Focus-mode cases. Section N adds 12 more P0 cases (`N-01…N-07`, `N-09`, `N-14`, `N-18`, `N-27`, `N-30`) and section O adds 7 more (`O-01…O-07`), so the Smoke subset is 60 rows.
 
 `A-01`, `B-01`, `B-05`, `B-07`, `C-01`, `C-04`, `C-15`, `D-03`, `D-17`, `E-01`, `E-04`, `E-07`, `E-09`, `E-20`, `F-01`, `F-02`, `F-04`, `F-08`, `F-09`, `F-12`, `F-23`, `G-05`, `G-M05`, `H-01`, `I-02`, `I-07`, `J-05`, `J-06`, `K-01`, `K-03`, `K-12`, `L-01`, `L-12`, `M-01`, `M-02`, `M-09`, `M-10`, `M-11`, `M-38`, `M-40`, `M-41`
 
@@ -292,7 +293,8 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | L Robustness | 20 | 2 | 14 | 4 |
 | M Regression cases for past bugs | 43 | 8 | 34 | 1 |
 | N Focus as a setting & state cleanup | 31 | 12 | 19 | 0 |
-| **Total** | **310** | **53** | **238** | **19** |
+| O Story threads | 27 | 7 | 19 | 1 |
+| **Total** | **337** | **60** | **257** | **20** |
 
 Plus the two pairwise tables (50 configurations each, run through `H-24` and `N-22`).
 
@@ -778,6 +780,42 @@ Existing unit tests: `TapRoutingTest`, `WidgetConfigTapModeTest`, `OrphanCleanup
 | N-29 | P1 | **Mode switch reset is per widget.** Widgets A and B both have an article expanded/focused; switch **only A** (Expand→Focus, Save) ⇒ A's `expanded_article_id`, `last_tapped_article_id`, `focused_article_id` are cleared, A's `focus_scale` (if set) is kept and no `isRead` changed; **B's** keys (including its own `focus_scale`) and its config are untouched; Save A again without changing the mode ⇒ no further reset | DS | UT:TapRoutingTest (`resetTapState`, `tapModeChanged`) |
 | N-30 | P0 | **Removing a widget does not crash (BUG-021).** Long-press a NewsFeed widget, Remove ⇒ `adb logcat -b crash` is empty (no `NullPointerException` from `NewsFeedWidgetReceiver.onDeleted`); within ~15 s its `widget_<id>` config key, backup key, `appWidget-<id>` and `appWidgetLayout-<id>` files in `files/datastore` are gone; every other widget keeps its config, state and layout files and still renders. Repeat with the last remaining widget | LC, DS | UT:OrphanCleanupTest (file-name parsing / orphan rules only; the crash path is broadcast plumbing) |
 | N-31 | P1 | **Memory/size risk, long Telegram post (unverified / pending).** A ~4000-character Telegram post (many lines, description ≈ 4000 chars) in each theme (all 10) **and** in Focus mode, Full and First-paragraph length ⇒ the row expands with no "Can't show content" / RemoteViews failure, `adb logcat` has no `TransactionTooLarge`/OOM; Glamour shows one 1200-char chunk | SS, LC | none — **PENDING, not yet run on device** |
+
+---
+
+## O — Story threads
+
+**Status: shipped in code (`docs/superpowers/plans/2026-10-07-story-threads.md`); awaiting the on-device release run.** Spec `docs/superpowers/specs/2026-10-07-story-threads-design.md`. Per-widget switch **Group similar stories** (SORT & FILTER, after "When I tap an article"; default **on**, also for widgets saved by older builds: `WidgetConfig.groupStories`). The same story from DIFFERENT feeds (different `feedId`, within 6 h, >= 3 shared key words covering >= 60% of the shorter title, threads never mix read states, max 12 per thread) renders as ONE lead row (the newest article) with a `+N ▾` pill (`+N ▴` expanded) at the end of its meta line; the pill is its own clickable (`ToggleThreadCallback`), tapping the row works as the tap mode says. Expanded members are rows under the lead (14 dp gutter). Moving on from any member marks the WHOLE thread read with one shared `readAt` (moving between members of one thread marks nothing). State: `expanded_thread_ids` (newline-separated lead ids) in the widget's Glance DataStore. Budget: collapsed thread = 1 row, expanded = lead + members; header `U(T)` still counts articles, Focus `N/M` counts rows. Unit tests: `StoryThreadsTest`, `StoryThreadsFixtureTest` (294 real headlines; review listing in `app/build/story-threads-review.txt`), `ThreadRowsTest`, `ThreadStateTest`, `ThreadReadMarkingTest`, `WidgetConfigGroupStoriesTest`. Run the matrix `G-M01…G-M12` with grouping ON (default) as well; the cases below add the thread-specific checks. Needs a day with real overlapping coverage; if the feeds are quiet, plant articles by editing a backed-up `articles_json` (same `publishedAt` window, different `feedId`, similar titles) and restoring afterwards.
+
+| ID | P | Do ⇒ Expect | Evid | Auto |
+|---|---|---|---|---|
+| O-01 | P0 | Switch ON (default), Show All, Sort Newest, >= 3 feeds. Find a story reported by 2+ feeds within 6 h (e.g. a Kan newsflash + its Google-News twin, or ynet + N12) ⇒ ONE row, the **newest** article, with a `+N ▾` pill (N = other reports); the others are not in the list; they appear nowhere else (not at their own time slots) | UI, SS, DS (`articles_json` still holds every article) | UT:StoryThreadsTest, StoryThreadsFixtureTest |
+| O-02 | P0 | Tap the `+N ▾` pill ⇒ the other reports appear right under the lead, newest first, indented by the gutter, pill becomes `+N ▴`; `expanded_thread_ids` = the lead id. Tap it again ⇒ they fold away, key removed. The pill tap did **not** expand/enlarge the lead, did not change `expanded_article_id` / `last_tapped_article_id` / `focused_article_id`, and marked nothing read | UI, DS, SS | UT:ThreadStateTest |
+| O-03 | P0 | **Expand mode**, Show All: tap the lead (it expands), then tap an unrelated article ⇒ in `articles_json` EVERY member of the thread has `isRead: true` and the **same** `readAt`; `newsfeed_read_status` contains all member ids; the unrelated article is unread; header unread count drops by the thread size | DS, UI | UT:ThreadReadMarkingTest |
+| O-04 | P0 | Same as `O-03` in **Focus mode**: focus the lead, then focus an unrelated article ⇒ whole thread read with one `readAt`; re-tapping the focused lead (clearing focus) marks nothing | DS | UT:ThreadReadMarkingTest |
+| O-05 | P0 | **Unread only**, Expand and Focus: read a thread as in `O-03` with the thread expanded ⇒ lead AND member rows all dissolve in lockstep (normal, dots, 2/3, 1/3) and leave together at ≈ 5 s; nothing half-removed; no extra renders: logcat shows the same ≤ 5 `updateAppWidget` calls per read as for a single article (one schedule per `readAt`) | TS, DS, LC | UT:ThreadReadMarkingTest (representative id) |
+| O-06 | P0 | Switch OFF + Save ⇒ every article is its own row, no pill, the list equals the pre-feature list for the same data (compare row order/count with an OFF-widget on the previous build or with `articles_json`), header `U(T)` unchanged; marking read marks a single article; stored `expanded_thread_ids` ignored. Switch ON + Save ⇒ threads return, and previously expanded threads are expanded again | UI, DS | UT:WidgetConfigGroupStoriesTest, ThreadRowsTest |
+| O-07 | P0 | Expand a thread, tap the lead then a **member** (Expand mode) and, in Focus mode, focus the lead then a member ⇒ **nothing** is marked read (no `readAt` anywhere, dots stay); `last_tapped_article_id` / `focused_article_id` follow the tap. Then tap an article outside the thread ⇒ the whole thread is marked | DS | UT:ThreadReadMarkingTest |
+| O-08 | P1 | Settings: row **Group similar stories** (+ one-line explanation) directly after "When I tap an article" (and its Focus hint), switch ON on a brand-new widget AND on a widget whose config was saved by an older build (no `groupStories` key); turn off, Save ⇒ `config_json` and `newsfeed_config` carry `"groupStories":false`; back on, Save ⇒ key absent (default); Back without Save changes nothing | UI, DS | UT:WidgetConfigGroupStoriesTest |
+| O-09 | P1 | Header `U(T)`: with a collapsed 4-article thread among others, U and T count ARTICLES (the thread contributes 4); expanding it does not change U or T; Focus `N/M` counts the rows on screen (expanded members included) | UI | UT:ThreadRowsTest |
+| O-10 | P1 | Budget: a collapsed thread costs one row, an expanded one lead + members. With `visible_article_count` 10, expand a 5-member thread near the top ⇒ the list still shows exactly 10 ROWS (the last rows are pushed out, **Load more** reveals the next 10); `Showing X of Y` (memory cap) and **Load more** counts are in rows | UI, DS | UT:ThreadRowsTest |
+| O-11 | P1 | Sort: Newest, Oldest, By feed, Unread first ⇒ each thread sits at its LEAD's slot of that order, members never appear separately, no article is shown twice or lost (count rows + hidden members = articles) | UI, DS | UT:StoryThreadsTest (order) |
+| O-12 | P1 | Filter All / Unread only / Read only with threads present ⇒ Read only shows read threads whole (same members as in All); Unread only shows unread threads whole; a thread is never shown with only some of its members; the set of threads for a filter equals the matching threads of All | UI, DS | UT:StoryThreadsTest (filter invariance) |
+| O-13 | P1 | A thread is read (marked), then a new article about the same story is fetched ⇒ the new article is an **unread** single/thread of its own; the read articles keep their `readAt` and stay a separate read thread (visible under All/Read only) | DS, UI | UT:StoryThreadsTest, ThreadReadMarkingTest |
+| O-14 | P1 | **Expand mode**: tap an expanded member with a description ⇒ it expands under its own row; only one article is expanded at a time (tapping the lead or another article collapses it); the thread stays expanded independently; collapsing the thread while a member is expanded clears `expanded_article_id` | UI, DS | UT:ThreadStateTest |
+| O-15 | P1 | **Focus mode**: a member can be focused (enlarges, header `N/M` and − / + appear); collapsing the thread while a member is focused clears `focused_article_id`; the lead can be focused with its pill intact (meta line stays at normal size) | UI, DS, SS | UT:ThreadStateTest |
+| O-16 | P1 | Switch the tap mode Expand↔Focus on a widget with an expanded thread, Save ⇒ `expanded_article_id`, `focused_article_id`, `last_tapped_article_id` cleared as in `N-09` but `expanded_thread_ids` **kept**; the thread is still expanded | DS, UI | UT:ThreadStateTest |
+| O-17 | P1 | Telegram: an N12 channel post (title = first two lines) and an RSS article of the same story within 6 h form a thread (channel post may be lead or member); a Telegram boilerplate tail "קישור לכתבה" does not prevent it | UI, DS | UT:StoryThreadsFixtureTest |
+| O-18 | P1 | Refresh (footer tap, Save, scheduled) with a read thread and an unread expanded thread ⇒ read members stay read with the same `readAt`; the unread thread stays expanded; no member flips back to unread; a refresh that brings a newer matching article makes it the new lead and the thread collapses with the updated `+N` | DS, UI | UT:ArticleMergeTest |
+| O-19 | P1 | State hygiene: expand a thread, read it and let it leave (Unread only) or let it age out; expand another ⇒ the stale lead id is pruned from `expanded_thread_ids`; the key disappears when nothing is expanded; never more than 30 ids | DS | UT:ThreadStateTest |
+| O-20 | P1 | Memory: Glamour theme, Font 3.0, article font 3.0, a 12-member thread expanded; Focus with scale 2.5 on a member ⇒ renders, no "Can't show content", no `exceeds maximum bitmap memory`; the row cap equals the pre-feature cap | SS, LC | none |
+| O-21 | P1 | Quality on live data: run a full day of the default feeds with grouping ON, list every thread (`expanded` each) and note any wrong group (two different stories) and any missed obvious duplicate; record counts. Wrong groups are S3 (recorded, the switch is the escape hatch); a crash or lost article is S1 | UI, SS | UT:StoryThreadsFixtureTest (294 headlines) |
+| O-22 | P1 | Tap target and nesting: the pill's tap area is comfortable at Font 0.5, 1.0, 3.0 (uiautomator `bounds` >= 44 dp high at 1.0), works for an RTL feed row (pill physically left, after the time) and an LTR row (pill right), tapping next to it still triggers the row action, and a pill tap never also triggers the row (no expansion, no ripple-only read) | UI (bounds), DS | none |
+| O-23 | P1 | While a thread dissolves (Unread only) the pill is hidden and no Load full article / Open article / Share buttons appear on the dissolving rows | TS, UI | none |
+| O-24 | P1 | Two widgets (one Expand, one Focus), one with the switch OFF ⇒ independent: expanded threads, read tracking and the setting never leak between them | DS | none |
+| O-25 | P2 | Remove a widget that had expanded threads ⇒ its `appWidget-<id>.preferences_pb` (which holds `expanded_thread_ids`) is deleted by the existing cleanup; nothing else to clean | DS | UT:OrphanCleanupTest |
+| O-26 | P1 | `docs/RELEASE_NOTES.md` has `## Note 12` (story threads) and it shows in the update dialog | UI | UT:ReleaseNotesFetcherTest |
+| O-27 | P1 | Unit tests pass (`StoryThreadsTest` 23, `StoryThreadsFixtureTest` 10, `ThreadRowsTest` 8, `ThreadStateTest` 13, `ThreadReadMarkingTest` 14, `WidgetConfigGroupStoriesTest` 4, existing `ReadOnMoveAwayTest` and `TapRoutingTest` unchanged) and docs are in sync (README feature section + settings row, PRD row, release Note 12, this section, DEBUG_PLAN 14.ac) | UT, VIS | UT |
 
 ---
 

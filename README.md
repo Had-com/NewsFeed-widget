@@ -88,6 +88,15 @@ An article is **marked as read** once you move on to another one (expanding a di
 | Unread only | Show only articles you haven't read yet |
 | Read only | Show only articles you've already read |
 
+### Story threads (group similar stories)
+
+When several feeds report the same news story within a few hours (for example ynet, N12, Kan and a Telegram channel), the widget shows it as **one row**: the newest report, with a small **+N ▾** badge at the end of its meta line (N = the other reports). Tap the badge to list the other reports right under it (the badge turns into **+N ▴**; tap it again to fold them away). Tapping the row itself works as usual for your tap mode.
+
+- **Matching** is by the key words of the headline (punctuation, quotes, niqqud and common Hebrew/English filler words ignored), across **different** feeds, within 6 hours, needing at least 3 shared key words covering 60% of the shorter headline. Up to 12 reports per thread; the newest is the lead. Headlines that are worded very differently are not grouped.
+- **Reading:** a thread is marked read as a whole when you move on from any of its articles to something outside it (moving between its own articles marks nothing). Under **Unread only** the whole thread then fades out and disappears together. A later report of the same story starts a new unread thread.
+- **Counts:** the header badge still counts articles; the row limit and **Load more** count rows (a folded thread is one row).
+- **Switch it off per widget** in Settings → Sort & Filter → **Group similar stories** (on by default). Off shows every article as its own row, as before.
+
 ### Default feeds
 Under **Add Feed** in Settings, **Add default feeds** merges the bundled starter feeds into your list without duplicating any you already have, and **Reset to defaults** (with a confirmation) replaces your whole list with them; both apply when you tap Save.
 
@@ -240,6 +249,7 @@ Core app-wide list preferences:
 | Keep articles for | Forever · 1 day · 3 days · 1 week · 2 weeks · 1 month | Independent of the 300-article accumulation cap, which always applies |
 | Open article in | Browser · Share sheet | Where the "Open article →"/"Open in browser ↗" buttons send you |
 | When I tap an article | Expand in place · Focus (enlarge) | Per widget; see [Focus Mode](#focus-mode). Switching resets the widget's expanded/focused article (the Focus zoom set with − / + is kept) |
+| Group similar stories | On (default) · Off | Per widget; see [Story threads](#story-threads-group-similar-stories). Off restores one row per article |
 
 ### 2. Display
 Text sizing and the article-length setting, plus a live preview of the result:
@@ -386,6 +396,8 @@ app/src/main/
 │   │   ├── BootReceiver.kt            # Reschedules WorkManager, update-check, and clock ticks after device reboot
 │   │   ├── RefreshNowCallback.kt      # ActionCallback — immediate refresh on footer tap
 │   │   ├── ToggleExpandCallback.kt    # ActionCallback — expand/collapse article (Expand mode)
+│   │   ├── ToggleThreadCallback.kt    # ActionCallback — the +N badge: expand/collapse a story thread
+│   │   ├── ThreadState.kt             # Expanded-thread state (prune/cap), thread recomputation from stored articles for the callbacks
 │   │   ├── SetFocusArticleCallback.kt # ActionCallback — tap-to-focus an article; marks the previously-focused article read (Focus mode)
 │   │   ├── AdjustFocusScaleCallback.kt # ActionCallback — −/+ header buttons (Focus mode)
 │   │   ├── UnreadGracePeriod.kt        # Delayed re-render so a just-read article's grace period actually elapses on-widget and dissolve stages (text turns to dots, then is erased from the end)
@@ -404,6 +416,8 @@ app/src/main/
 │   │   └── ColorPickerGrid.kt        # 12-color preset picker, one palette per theme
 │   ├── data/
 │   │   ├── FeedConfig.kt             # Data models (FeedConfig, WidgetConfig, ArticleItem, enums)
+│   │   ├── StoryThreads.kt           # Pure matcher: groups the same story from different feeds into threads (key words, 6 h window, union-find)
+│   │   ├── ThreadRows.kt             # Flattens threads into list rows; row budget and article counts
 │   │   ├── WidgetConfigStore.kt      # DataStore — widget config persistence
 │   │   ├── WidgetStateKey.kt         # Glance DataStore preference keys
 │   │   ├── ReadStatusStore.kt        # DataStore — read article ID persistence
