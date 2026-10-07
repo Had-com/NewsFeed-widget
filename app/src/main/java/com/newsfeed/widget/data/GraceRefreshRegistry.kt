@@ -23,5 +23,12 @@ class GraceRefreshRegistry {
     companion object {
         fun key(widgetKey: String, articleId: String, readAt: Long): String =
             "$widgetKey|$articleId|$readAt"
+
+        /**
+         * The one article id a group of articles marked read together (a story thread: same readAt)
+         * is scheduled under, so the tap callback and the render-time resume derive the SAME key and
+         * never schedule the dissolve refreshes twice. A single article is its own representative.
+         */
+        fun representativeId(articleIds: Collection<String>): String? = articleIds.minOrNull()
     }
 }

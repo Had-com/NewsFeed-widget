@@ -48,12 +48,14 @@ internal fun resetTapState(prefs: MutablePreferences) {
  * different row focuses it, re-tapping the focused row clears focus. When focus moves from one
  * article to ANOTHER, the article losing focus is flagged read (stamped [now]) inside
  * articles_json, but only if it was actually unread, so re-tapping through already-read
- * articles doesn't restart a grace period that doesn't apply to them.
+ * articles doesn't restart a grace period that doesn't apply to them. With story threads on, the
+ * article's whole thread is flagged read with the same stamp, unless focus merely moved to another
+ * member of that same thread (see idsToMarkReadOnMoveAway).
  *
- * Returns the id of the article that was just flagged read, or null if none was.
+ * Returns the ids that were just flagged read, the article that lost focus first (empty if none).
  */
-internal fun applyFocusTap(prefs: MutablePreferences, articleId: String, now: Long): String? {
-    var articleLosingFocusId: String? = null
+internal fun applyFocusTapThread(prefs: MutablePreferences, articleId: String, now: Long): List<String> {
+    var marked: List<String> = emptyList()
     val current = prefs[WidgetStateKey.focusedArticleId] ?: ""
     val movingToAnotherArticle = current.isNotBlank() && current != articleId
     prefs[WidgetStateKey.focusedArticleId] = if (current == articleId) "" else articleId
@@ -62,20 +64,21 @@ internal fun applyFocusTap(prefs: MutablePreferences, articleId: String, now: Lo
     // every time focus moved to a different article).
 
     if (movingToAnotherArticle) {
-        val articles = prefs[WidgetStateKey.articles]
-            ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
+        val articles = decodeStoredArticles(prefs)
         if (articles != null) {
-            val target = articles.firstOrNull { it.id == current }
-            if (target != null && !target.isRead) {
-                prefs[WidgetStateKey.articles] = Json.encodeToString(
-                    articles.map { if (it.id == current) it.copy(isRead = true, readAt = now) else it }
-                )
-                articleLosingFocusId = current
+            val ids = idsToMarkReadOnMoveAway(prefs, articles, current, articleId)
+            if (ids.isNotEmpty()) {
+                prefs[WidgetStateKey.articles] = Json.encodeToString(markIdsRead(articles, ids, now))
+                marked = ids
             }
         }
     }
-    return articleLosingFocusId
+    return marked
 }
+
+/** Single-article view of [applyFocusTapThread]: the article that lost focus and was marked, or null. */
+internal fun applyFocusTap(prefs: MutablePreferences, articleId: String, now: Long): String? =
+    applyFocusTapThread(prefs, articleId, now).firstOrNull()
 
 /**
  * Multiplier applied to a row's font sizes: only the focused row, in focus mode, is ever
