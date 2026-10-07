@@ -337,6 +337,28 @@ Device RFCR91J237W (Android 15, One UI Home). Installed as versionCode 906 over 
 
 Restore: `newsfeed_config` md5 720a2dd2c3a48ed644fe6b3ca30ab984 identical; `newsfeed_read_status`, `appWidget-15`, `appWidgetLayout-15` rewritten from backup (force-stop, write, two CLOCK_TICK) and md5-identical.
 
+### 14.ab Build 907 verification: Telegram link URL moved out of the headline (BUG-025, ebdb82e), 2026-10-07
+
+Device RFCR91J237W (Android 15, One UI Home). Installed as versionCode 907 over 906 (`-PbuildVersionCode=907`, no uninstall), HEAD ebdb82e. Extra widget 18 added through the One UI picker (defaults: Glamour theme, Expanded article = First paragraph; later reduced to the two N12 feeds on that widget only, Sort = Newest first), then removed.
+
+| Test | Result | Evidence |
+|---|---|---|
+| Stored text, all 40 Telegram posts | PASS | 0 titles contain `http`; 0 posts contain `(https://t.me/N12chat)`; N12_News posts with the mako link: 11, URL appears in description exactly once, in none of the titles. Two shapes: title ends `... קישור לכתבה` with bare URL in description (48091), and (chat-style posts, 48093) title without label with description `קישור לכתבה (https://mobile.mako.co.il/news-reporters_chat)` |
+| N12chat signature | PASS | description is `@N12chat` (also after the body text for long posts) |
+| Collapsed headline size, Glamour | PASS | 48091 (22:13) and 48093 (22:57) render at the same size and line pitch as neighbouring rows (old build: tiny, `q11_fixA_tiny_title.png`) |
+| Collapsed headline size, Simple theme | PASS | 48087 and 48086 end `... קישור לכתבה`, same size as neighbours |
+| Expanded, Glamour, First paragraph | PASS | 48091: URL under the image wrapped over 2 lines, headline unchanged |
+| Expanded, Glamour, Full | PASS | 48093: `(https://mobile.mako.co.il/news-reporters_chat) קישור לכתבה` on one line, normal size |
+| Expanded, Simple, Full and First paragraph | PASS | 48087: URL wraps over 2 lines (second line holds only `.htm`), headline unchanged |
+| No Load full article on Telegram | PASS | only Open article and Share on 48091, 48093, 48087, 228927 |
+| Open article | PASS | VIEW intent for `https://t.me/N12_News/48091` into Chrome, about 0.15 s |
+| Logs | PASS | crash buffer empty, no FATAL or ANR, `crash_log.json` md5 unchanged |
+| Remove temp widget | PASS | First attempt; `appWidget-18` and `appWidgetLayout-18` gone, `newsfeed_config` back to 720a2dd2... on its own |
+
+Notes: the widget caps rows ("Showing 26 of 40 · reduce font size to see more"), so a 22:13 post is only reachable by reducing feeds or sorting; in the One UI feed list the red x only responds near the glyph (tap x of about 786), tapping the centre of the reported bounds opens Edit feed.
+
+Restore: `newsfeed_config` md5 720a2dd2c3a48ed644fe6b3ca30ab984 identical; `newsfeed_read_status`, `appWidget-15`, `appWidgetLayout-15`, `GlanceAppWidgetManager`, `release_notes` rewritten from backup (force-stop, write, two CLOCK_TICK) and md5-identical.
+
 ---
 
 ## Reporting
