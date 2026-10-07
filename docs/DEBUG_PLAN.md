@@ -319,6 +319,24 @@ Device RFCR91J237W (Android 15, One UI Home), widget 15, `logcat -v epoch`, `upd
 
 Notes: Save triggers a feed refresh, so the widget re-render after Save lags 1.4-3.2 s on this device (GC and DNS in logcat), during which the pre-Save frame stays visible (a dissolving row can still show dots after Save to All). Read only cannot mark an unread article (none visible), so its count comes from a tap that marked the stale previously-tapped article. Read-on-move-away semantics unchanged; logcat FATAL/ANR: none, crash buffer empty. Single widget only, so Focus-mode two-widget check skipped.
 
+### 14.aa Build 906 verification: Telegram link URL (BUG-023, 7376d1b) and persistent Focus zoom (BUG-024, 636772c), 2026-10-07
+
+Device RFCR91J237W (Android 15, One UI Home). Installed as versionCode 906 over 905 (`-PbuildVersionCode=906`, no uninstall), HEAD 636772c. Extra widget 17 added through the One UI picker (default feeds; later reduced to the N12_News feed only to reach older posts), then removed.
+
+| Test | Result | Evidence |
+|---|---|---|
+| BUG-023 stored text | PASS | 11 of 11 Telegram posts with the label have `label (URL)`, e.g. `... קישור לכתבה (https://www.mako.co.il/news-israel/2026_q4/liveblog-4fbf25dc62711a1027.htm)`; no duplicate label, no bare label without URL |
+| BUG-023 expanded row | PASS | N12_News post 48083 (Full): `קישור לכתבה (https://mobile.mako.co.il/news-reporters_chat)` visible once, only Open article and Share buttons, no Load full article |
+| BUG-023 side effect (new bug) | FAIL | A long unbroken URL makes `TextBitmapHelper` auto-shrink the whole headline to a tiny size (widest word wider than the column). Every N12_News post whose headline contains the mako link renders tiny with the URL on its own line. N12chat signature became `@N12chat (https://t.me/N12chat)` |
+| BUG-024 persistence | PASS | `focus_scale` 1.25 to 1.70 after three +; focusing a different article, clearing focus, footer refresh, force-stop + 2 CLOCK_TICK, Expand then Focus switch: all 1.70 |
+| BUG-024 render | PASS | Second focused row uses the same line pitch (~96 px) as the first at 1.70 |
+| BUG-024 clamp | PASS | `-` 1.70 to 1.55; `+` repeatedly gives 2.5 (clamped, stays 2.5); `-` repeatedly gives 0.75 (clamped, stays 0.75) |
+| Read on move-away (Focus) | PASS | Moving focus 48089 to 48090 to 48091 marked each previous article isRead with readAt |
+| Unread only dissolve | PASS | 48091 left Unread only after focus moved: normal to ~2.4 s, dots ~3.5-4.6 s, gone ~6.6 s, count 18 to 17 |
+| Remove temp widget | PASS | First attempt; `appWidget-17` and `appWidgetLayout-17` gone, `OrphanCleanupWorker` SUCCESS, crash buffer empty |
+
+Restore: `newsfeed_config` md5 720a2dd2c3a48ed644fe6b3ca30ab984 identical; `newsfeed_read_status`, `appWidget-15`, `appWidgetLayout-15` rewritten from backup (force-stop, write, two CLOCK_TICK) and md5-identical.
+
 ---
 
 ## Reporting
