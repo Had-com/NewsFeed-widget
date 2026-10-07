@@ -170,7 +170,7 @@ Focus is a per-widget setting, not a separate widget. In **Widget settings → W
 - **Tap any article** to focus it: that row enlarges, every other row stays at its normal size, and the article's description/full text auto-expands inline — no separate expand tap needed. Tapping the focused row again clears focus.
 - **Header controls** (only shown in Focus mode):
   - **N/M** — a position indicator showing where the focused article sits among what's currently on screen.
-  - **− / +** — adjust the focused row's own enlargement (0.75× – 2.5×) live, per article. This resets to a default whenever focus moves to a different article — it's a look-at-this-one-now adjustment, not a standing preference.
+  - **− / +** — adjust how big the focused row is (0.75× – 2.5×) live. The zoom you choose is remembered per widget: it stays when you tap a different article, clear focus, refresh, switch between Expand and Focus, or restart the phone, and only changes when you press − or + again.
 - Everything else (feeds, sort, filter, theme, refresh, self-update) is shared with Expand mode — Focus only changes how you browse, not what's fetched or shown.
 
 ### Self-updating
@@ -239,7 +239,7 @@ Core app-wide list preferences:
 | Refresh every | 15 min · 30 min · 1h · 2h · 4h · 6h · 12h | Background auto-refresh interval; 15 min is the floor (Android WorkManager's own minimum) |
 | Keep articles for | Forever · 1 day · 3 days · 1 week · 2 weeks · 1 month | Independent of the 300-article accumulation cap, which always applies |
 | Open article in | Browser · Share sheet | Where the "Open article →"/"Open in browser ↗" buttons send you |
-| When I tap an article | Expand in place · Focus (enlarge) | Per widget; see [Focus Mode](#focus-mode). Switching resets the widget's expanded/focused article |
+| When I tap an article | Expand in place · Focus (enlarge) | Per widget; see [Focus Mode](#focus-mode). Switching resets the widget's expanded/focused article (the Focus zoom set with − / + is kept) |
 
 ### 2. Display
 Text sizing and the article-length setting, plus a live preview of the result:

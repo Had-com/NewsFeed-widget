@@ -1,8 +1,12 @@
 package com.newsfeed.widget.glance
 
 import androidx.datastore.preferences.core.MutablePreferences
+import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.TapMode
 import com.newsfeed.widget.data.WidgetStateKey
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 /** What a tap on an article row does; FeedItemRow maps each value to its ActionCallback. */
 enum class TapAction { SET_FOCUS, TOGGLE_EXPAND, NO_OP }
@@ -24,7 +28,9 @@ fun tapModeChanged(loadedKey: String, savedKey: String): Boolean =
 
 /**
  * Called when a placed widget's tap mode is switched (either direction): drops the old mode's
- * transient state so nothing stale leaks into the new mode. It deliberately does NOT mark any
+ * transient state (expanded / focused / last-tapped article ids) so nothing stale leaks into the
+ * new mode. It deliberately keeps the Focus zoom (focusScale), a persistent per-widget
+ * preference rather than transient state. It also deliberately does NOT mark any
  * article read: read means "the user moved on to another article", and a mode switch is not
  * that, so the pending article simply stays unread and is handled normally later. Read flags
  * live inside articles_json, which this never touches.
@@ -33,7 +39,42 @@ internal fun resetTapState(prefs: MutablePreferences) {
     prefs.remove(WidgetStateKey.expandedArticleId)
     prefs.remove(WidgetStateKey.focusedArticleId)
     prefs.remove(WidgetStateKey.lastTappedArticleId)
-    prefs.remove(WidgetStateKey.focusScale)
+    // focusScale is intentionally kept: the Focus zoom is a persistent per-widget preference and
+    // survives a tap-mode switch (BUG-024).
+}
+
+/**
+ * The Glance-state mutation behind a Focus-mode row tap (SetFocusArticleCallback): tapping a
+ * different row focuses it, re-tapping the focused row clears focus. When focus moves from one
+ * article to ANOTHER, the article losing focus is flagged read (stamped [now]) inside
+ * articles_json, but only if it was actually unread, so re-tapping through already-read
+ * articles doesn't restart a grace period that doesn't apply to them.
+ *
+ * Returns the id of the article that was just flagged read, or null if none was.
+ */
+internal fun applyFocusTap(prefs: MutablePreferences, articleId: String, now: Long): String? {
+    var articleLosingFocusId: String? = null
+    val current = prefs[WidgetStateKey.focusedArticleId] ?: ""
+    val movingToAnotherArticle = current.isNotBlank() && current != articleId
+    prefs[WidgetStateKey.focusedArticleId] = if (current == articleId) "" else articleId
+    // Deliberately does NOT touch WidgetStateKey.focusScale: the −/+ zoom is a persistent
+    // per-widget preference, not a choice about one article (BUG-024 — it used to be wiped here
+    // every time focus moved to a different article).
+
+    if (movingToAnotherArticle) {
+        val articles = prefs[WidgetStateKey.articles]
+            ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
+        if (articles != null) {
+            val target = articles.firstOrNull { it.id == current }
+            if (target != null && !target.isRead) {
+                prefs[WidgetStateKey.articles] = Json.encodeToString(
+                    articles.map { if (it.id == current) it.copy(isRead = true, readAt = now) else it }
+                )
+                articleLosingFocusId = current
+            }
+        }
+    }
+    return articleLosingFocusId
 }
 
 /**

@@ -282,7 +282,7 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | B Feeds management | 24 | 3 | 19 | 2 |
 | C Fetching & sources (incl. Telegram) | 20 | 3 | 15 | 2 |
 | D Display & layout | 20 | 2 | 17 | 1 |
-| E Reading (expand / focus / open / share) | 21 | 5 | 16 | 0 |
+| E Reading (expand / focus / open / share) | 22 | 5 | 17 | 0 |
 | F Read state & Unread-only grace / dissolve | 23 | 7 | 13 | 3 |
 | G Sort / filter (incl. matrix M1) | 22 | 2 | 20 | 0 |
 | H Appearance / theme / fonts | 26 | 1 | 24 | 1 |
@@ -290,9 +290,9 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | J Settings persistence / backup / multi-widget | 14 | 2 | 10 | 2 |
 | K Self-update & release notes | 19 | 3 | 15 | 1 |
 | L Robustness | 20 | 2 | 14 | 4 |
-| M Regression cases for past bugs | 41 | 8 | 32 | 1 |
+| M Regression cases for past bugs | 42 | 8 | 33 | 1 |
 | N Focus as a setting & state cleanup | 31 | 12 | 19 | 0 |
-| **Total** | **307** | **53** | **235** | **19** |
+| **Total** | **309** | **53** | **237** | **19** |
 
 Plus the two pairwise tables (50 configurations each, run through `H-24` and `N-22`).
 
@@ -453,13 +453,14 @@ Unless a case says Focus, cases run on a widget set to **When I tap an article: 
 | E-12 | P1 | Expanded state survives a refresh and a Settings save; article without a URL ⇒ no Open/Share links | DS, UI | none |
 | E-13 | P1 | Open-in = Share and a Browser-mode change made on a **second** widget ⇒ each widget keeps its own setting | UI | none |
 | E-20 | P0 | Focus mode (`tapMode = focus`): tap article A ⇒ row enlarges (default 1.25×) with the primary-container tint, its description/full-text auto-expands, **every other row stays at normal size** (identical to Expand mode); header shows **N/M** and **− +** only (no ▲ ▼ ✕); none of these appear on an Expand-mode widget | SS, UI | UT:TapRoutingTest (routing, `rowFontScale`) |
-| E-21 | P1 | Focus mode: **− / +** ⇒ focused row scale steps 0.15 within 0.75×–2.5×, clamps at both ends; focusing a different article resets to 1.25× | DS (`focus_scale`), SS | none |
+| E-21 | P1 | Focus mode: **− / +** ⇒ focused row scale steps 0.15 within 0.75×–2.5×, clamps at both ends; the chosen scale is **not** reset by focusing a different article (BUG-024) ↔ E-28, M-42 | DS (`focus_scale`), SS | UT:TapRoutingTest (`adjustedScale`) |
 | E-22 | P1 | Focus mode: tap the focused row again ⇒ focus clears, all rows normal size, **N/M and −/+ disappear**, nothing marked read | DS, UI | none |
 | E-23 | P1 | Settings has **no** *Background rows size* slider in either tap mode; a widget whose saved config still carries `focusBackgroundScale` (e.g. 0.25) renders non-focused rows at normal size ↔ N-04, N-13 | UI, SS | UT:WidgetConfigTapModeTest, UT:TapRoutingTest |
 | E-24 | P1 | Focus mode: Glamour + Font size 3.0 + focus scale 2.5 (worst case) ⇒ renders (≥ 1 row), no "Can't show content", logcat clean | SS, LC | none |
 | E-25 | P1 | Focus mode: step focus A→B→C ⇒ only the current row is tinted/enlarged; previous rows' tint/size never stick (recycled-view regression) | SS, UI | UT:TapRoutingTest (`non-focused rows are exactly normal size`) |
 | E-26 | P1 | Focus mode: focused row at high scale ⇒ meta row (favicon, name, time) stays at normal size and never spills off the edge | SS | none |
 | E-27 | P1 | Focus mode: focused row's Load full article / Load more / Open article / Share ↗ / Open in browser ↗ behave exactly as in Expand mode | UI, VIS | none |
+| E-28 | P1 | **Focus zoom is remembered (BUG-024).** Focus mode: press **+** a few times (e.g. 3× ⇒ 1.70×); tap a different article ⇒ zoom stays 1.70×; tap the focused row again (clear) and tap an article ⇒ still 1.70×; trigger a refresh (↻ / `CLOCK_TICK`) and `adb shell am force-stop com.newsfeed.widget` then re-render ⇒ still 1.70×; switch Focus→Expand→Focus (Settings, Save each time) ⇒ still 1.70×; only **−** / **+** change it ↔ M-42 | DS (`focus_scale` unchanged across every step, via ds.py), SS | UT:TapRoutingTest (`focusing a different article keeps…`, `re-tapping the focused article…`, `resetTapState…keeps the focus zoom`) |
 
 ---
 
@@ -725,6 +726,7 @@ Ledger: [Appendix A](#appendix-a--cases-added-because-of-a-bug).
 | M-39 | P1 | **Telegram "Load full article" replaced the post with page chrome** (BUG-020): a `t.me/<ch>/<id>` page is a JS shell ⇒ Telegram posts never offer or run a page fetch; the headline (first two lines, cut at 200 chars on a word boundary with `…` and the overflow moved to the description) plus a description of the rest of the post only (up to 4096 chars, one 1200-char chunk in Glamour), no duplicated text; older stored Telegram articles keep their stored text until they leave the t.me preview window; a fetch on any feed never replaces the shown text with blank/error/much-shorter text ↔ E-04, C-05 | SS, UI | UT:TelegramFeedParserTest, FullArticleTextTest |
 | M-40 | P0 | **Removing a widget crashed the app process** (BUG-021): `onDeleted` called `goAsync()` a second time (Glance's super already took it) ⇒ null ⇒ NPE ⇒ no crash in `adb logcat -b crash`; config/backup/`appWidget-`/`appWidgetLayout-` files of the removed id disappear, other widgets untouched ↔ N-30 (same execution), J-13 | LC, DS | UT:OrphanCleanupTest |
 | M-41 | P0 | **Tapping the same article twice made another article disappear** (BUG-022): `NoOpTapFeedbackCallback` (description-less article) never cleared `expanded_article_id`, so a previously expanded P stayed open above A, was marked read and dissolved out under Unread only, sliding A up under the finger; the second tap hit B and A was marked read and vanished ⇒ see F-23 (same execution); `expanded_article_id` never points at a different article than the last-tapped after a description-less tap ↔ E-03, F-04 | DS, TS | UT:CollapseExpandedOnOtherTapTest |
+| M-42 | P1 | **Focus zoom reset itself on every article change (BUG-024)**: `SetFocusArticleCallback` removed `focus_scale` whenever focus moved to a different article, and `resetTapState` removed it on a tap-mode switch ⇒ the −/+ zoom now persists per widget: after pressing + a few times it survives tapping another article, clearing focus, refresh, force-stop and an Expand↔Focus switch; evidence `focus_scale` in the DataStore (ds.py) ↔ E-28, E-21 | DS, SS | UT:TapRoutingTest |
 
 ---
 
@@ -752,7 +754,7 @@ Existing unit tests: `TapRoutingTest`, `WidgetConfigTapModeTest`, `OrphanCleanup
 | N-06 | P0 | Tap routing — Expand + **no** description ⇒ ripple only; previous marked at the next different tap | DS | UT:TapRoutingTest |
 | N-07 | P0 | Tap routing — Focus + description ⇒ focus set, auto-expanded; article **losing focus** marked when focus moves; clearing focus marks nothing | DS | UT:TapRoutingTest |
 | N-08 | P1 | Tap routing — Focus + no description ⇒ still focuses (wins regardless of description) | DS, UI | UT:TapRoutingTest |
-| N-09 | P0 | Switch mode on a **live** widget Expand→Focus and Focus→Expand (reconfigure, Save) ⇒ `expanded_article_id`, `focused_article_id`, `last_tapped_article_id`, `focus_scale` all cleared; `isRead` flags **unchanged**; the pending article is dropped, not marked | DS | UT:TapRoutingTest (`resetTapState`, `tapModeChanged`) |
+| N-09 | P0 | Switch mode on a **live** widget Expand→Focus and Focus→Expand (reconfigure, Save) ⇒ `expanded_article_id`, `focused_article_id`, `last_tapped_article_id` all cleared and `focus_scale` (if set) **kept** (BUG-024); `isRead` flags **unchanged**; the pending article is dropped, not marked | DS | UT:TapRoutingTest (`resetTapState`, `tapModeChanged`) |
 | N-10 | P1 | Save Settings **without** changing the mode while an article is expanded/focused ⇒ tap state is kept (reset only on an actual mode change) | DS | none |
 | N-11 | P1 | Focus header ⇒ **N/M** correct and updates on tap; **− / +** step 0.15 within 0.75×–2.5×, reset when focus moves; no ▲ ▼ ✕ | UI, DS | none |
 | N-12 | P1 | Stale `focused_article_id` while tapMode = expand ⇒ no row enlarges (defense in depth) | DS, SS | UT:TapRoutingTest (`expand mode ignores a stale focused id`) |
@@ -772,7 +774,7 @@ Existing unit tests: `TapRoutingTest`, `WidgetConfigTapModeTest`, `OrphanCleanup
 | N-26 | P1 | **Orphan sweep.** Plant an orphan: `adb shell run-as com.newsfeed.widget cp files/datastore/appWidget-<liveId>.preferences_pb files/datastore/appWidget-99999.preferences_pb`, then trigger a refresh (Save in Settings) and wait for the worker ⇒ `appWidget-99999.preferences_pb` is deleted; any `widget_99999` key that existed in `newsfeed_config` / `newsfeed_config_backup` is gone; a `CLOCK_TICK_FOCUS` alarm left from an older build is cancelled; logcat clean | DS, JS, LC | UT:OrphanCleanupTest |
 | N-27 | P0 | **The sweep never deletes a live widget's state.** With one Expand and one Focus widget placed (distinct settings), run refreshes (Save, footer refresh, reboot) ⇒ both `appWidget-<id>` files and both `widget_<id>` keys in `newsfeed_config` and `newsfeed_config_backup` are still present after each run, and both widgets keep their own settings and articles (no fallback to defaults); an id known to only one store (e.g. a config key without a state file) is not treated as dead while its widget is live | DS, UI | UT:OrphanCleanupTest (`a live id is never orphaned no matter how many stores know it`) |
 | N-28 | P1 | **Empty live-set guard.** When the system reports no live widget ids (last widget just removed, or ids unavailable) the sweep deletes nothing beyond the removed widget's own `onDeleted` cleanup: plant a stray `appWidget-99999` file, remove the last widget ⇒ the stray file is **not** swept while the live set is empty (only the removed widget's own files go); place a widget again ⇒ the next refresh then sweeps the stray file | DS, JS | UT:OrphanCleanupTest (`an empty live set never orphans anything`) |
-| N-29 | P1 | **Mode switch reset is per widget.** Widgets A and B both have an article expanded/focused; switch **only A** (Expand→Focus, Save) ⇒ A's `expanded_article_id`, `last_tapped_article_id`, `focused_article_id`, `focus_scale` are cleared and no `isRead` changed; **B's** four keys and its config are untouched; Save A again without changing the mode ⇒ no further reset | DS | UT:TapRoutingTest (`resetTapState`, `tapModeChanged`) |
+| N-29 | P1 | **Mode switch reset is per widget.** Widgets A and B both have an article expanded/focused; switch **only A** (Expand→Focus, Save) ⇒ A's `expanded_article_id`, `last_tapped_article_id`, `focused_article_id` are cleared, A's `focus_scale` (if set) is kept and no `isRead` changed; **B's** keys (including its own `focus_scale`) and its config are untouched; Save A again without changing the mode ⇒ no further reset | DS | UT:TapRoutingTest (`resetTapState`, `tapModeChanged`) |
 | N-30 | P0 | **Removing a widget does not crash (BUG-021).** Long-press a NewsFeed widget, Remove ⇒ `adb logcat -b crash` is empty (no `NullPointerException` from `NewsFeedWidgetReceiver.onDeleted`); within ~15 s its `widget_<id>` config key, backup key, `appWidget-<id>` and `appWidgetLayout-<id>` files in `files/datastore` are gone; every other widget keeps its config, state and layout files and still renders. Repeat with the last remaining widget | LC, DS | UT:OrphanCleanupTest (file-name parsing / orphan rules only; the crash path is broadcast plumbing) |
 | N-31 | P1 | **Memory/size risk, long Telegram post (unverified / pending).** A ~4000-character Telegram post (many lines, description ≈ 4000 chars) in each theme (all 10) **and** in Focus mode, Full and First-paragraph length ⇒ the row expands with no "Can't show content" / RemoteViews failure, `adb logcat` has no `TransactionTooLarge`/OOM; Glamour shows one 1200-char chunk | SS, LC | none — **PENDING, not yet run on device** |
 
@@ -828,6 +830,7 @@ status recorded in `docs/BUGS.md` / `DEBUG_PLAN.md` when this plan was written (
 | BUG-021 | Removing any widget crashed the app (NPE in `onDeleted`, second `goAsync()`); `appWidgetLayout-<id>` files never cleaned | Cleanup now enqueued as a WorkManager job (`OrphanCleanupWorker`), no `goAsync`; layout files added to the orphan scan | M-40, N-30, J-13 | Fixed (on-device verification pending) |
 | BUG-022 | Tapping twice on the same description-less article made another article disappear (expanded P stayed open, dissolved seconds later, rows slid under the finger; 2nd tap hit B, A vanished) | `collapseExpandedOnOtherTap` called from `NoOpTapFeedbackCallback`: tapping any different article collapses the expanded one at once. By design: the previously tapped article is marked read and leaves Unread only ≈ 5 s later. Separate observation: a background refresh can push an unread article out of the visible 10 rows | F-23, M-41 | Fixed (device re-verify pending) |
 | BUG-023 | Telegram post links were silently discarded (only the label text, e.g. "קישור לכתבה", survived; the URL never appeared anywhere, so the linked page was unreachable) | `stripTelegramHtml`'s generic `ANY_TAG_REGEX` tag-strip deleted `<a href="URL">` (URL included) along with every other tag; new `rewriteAnchors()` pass rewrites a well-formed anchor to `label (URL)` before the generic strip runs, deduping when label == URL and falling back to the bare URL for an empty label; malformed anchors fall through unchanged, no crash | E-04 (tightened) | Fixed |
+| BUG-024 | Focus zoom (− / +) was not saved: it reset to the default every time another article was tapped (and on a tap-mode switch) | `SetFocusArticleCallback` removed `focus_scale` on every focus move and `resetTapState` removed it on a mode switch; both removals deleted, focus-tap mutation extracted to `applyFocusTap`, zoom is now a persistent per-widget preference | E-28, M-42 (E-21, N-09, N-29 updated) | Fixed (device re-verify pending) |
 
 ---
 

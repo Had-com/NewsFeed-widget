@@ -95,3 +95,7 @@ On-device QA (extend `docs/DEBUG_PLAN.md`; the release gate applies, this is a u
 - `docs/PRD.md`: lines 11 and 42 (section becomes "Focus Mode (tap-behavior setting)"); line 46 "while others shrink" becomes "while others stay the same size".
 - `docs/DEBUG_PLAN.md`: line 37 (slider present/absent check) deleted; section 7 retitled to the setting with the switch-live checks above, line 108 "every other row shrinks" reworded to "stays normal size", and line 114 (Background rows size check) replaced by the non-focused-rows-unchanged check; section 8 rewritten (one receiver, one clock alarm, orphan sweep checks); new subsection in the release log; the "both widget packages/types" item in section 6 reduced to one widget.
 - Add a one-line "superseded in part" pointer to the top of the 2026-09-05 spec.
+
+---
+
+**Superseded (2026-10-07, BUG-024):** the decision above that a tap-mode switch (`resetTapState`) also drops `focusScale` ("Chosen default: reset also drops the custom focus scale"), and the older rule that focusing a different article resets the zoom, no longer apply. The Focus zoom set with the − / + header buttons is a persistent per-widget preference: `resetTapState` now clears only `expandedArticleId`, `focusedArticleId` and `lastTappedArticleId`, and `SetFocusArticleCallback` (via `applyFocusTap`) never touches `focusScale`. The rest of this spec is unchanged.

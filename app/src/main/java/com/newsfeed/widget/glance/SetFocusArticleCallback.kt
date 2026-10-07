@@ -5,17 +5,15 @@ import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.state.updateAppWidgetState
-import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.ReadStatusStore
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.shouldScheduleGraceRefreshForConfig
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 // Focus mode only (WidgetConfig.tapMode == "focus", see FeedItemRow.kt's row scaling).
 // Tapping a row sets it as the focused article (that row enlarges; every other row keeps its
-// normal size); tapping the already-focused row again clears focus.
+// normal size); tapping the already-focused row again clears focus. The state change lives in
+// applyFocusTap (TapRouting.kt). The −/+ zoom (focusScale) is a persistent per-widget preference
+// and is never touched here: moving or clearing focus keeps the size the user chose.
 //
 // Read is flagged on the article LOSING focus, once the user has actually moved on to
 // another one — not the moment an article is tapped, which was too early (reported live: the
@@ -38,27 +36,7 @@ class SetFocusArticleCallback : ActionCallback {
         var scheduleGrace = true
         updateAppWidgetState(context, glanceId) { prefs ->
             scheduleGrace = shouldScheduleGraceRefreshForConfig(prefs[WidgetStateKey.configJson])
-            val current = prefs[WidgetStateKey.focusedArticleId] ?: ""
-            val movingToAnotherArticle = current.isNotBlank() && current != articleId
-            prefs[WidgetStateKey.focusedArticleId] = if (current == articleId) "" else articleId
-            // Each newly-focused article starts at AdjustFocusScaleCallback's default size —
-            // an earlier +/- adjustment made while looking at a different article isn't a
-            // choice about this one, so it shouldn't carry over silently.
-            if (current != articleId) prefs.remove(WidgetStateKey.focusScale)
-
-            if (movingToAnotherArticle) {
-                val articles = prefs[WidgetStateKey.articles]
-                    ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
-                if (articles != null) {
-                    val target = articles.firstOrNull { it.id == current }
-                    if (target != null && !target.isRead) {
-                        prefs[WidgetStateKey.articles] = Json.encodeToString(
-                            articles.map { if (it.id == current) it.copy(isRead = true, readAt = markedAt) else it }
-                        )
-                        articleLosingFocusId = current
-                    }
-                }
-            }
+            articleLosingFocusId = applyFocusTap(prefs, articleId, markedAt)
         }
         articleLosingFocusId?.let { ReadStatusStore(context).markRead(it) }
         NewsFeedWidget().update(context, glanceId)

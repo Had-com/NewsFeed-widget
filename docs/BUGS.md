@@ -1057,3 +1057,13 @@ safety net. The orphan scan and deletion now also cover `appWidgetLayout-<id>[.p
 **Status:** Fixed (code + unit tests; on-device re-verification pending — see QA `I-14`).
 
 Every read-marking tap scheduled 4 delayed full re-renders (+2.6/3.4/4.3/5.1 s) even under Show = All / Read only, where the dissolve and the 5 s removal do not exist, so they changed nothing visible (5 renders per tap instead of 1). They are now scheduled only under Unread only (`shouldScheduleGraceRefreshForConfig`, tests `GraceRefreshPolicyTest`). Details: `docs/DEBUG_PLAN.md` 14.y.
+
+## BUG-024 — Focus zoom (− / +) was not saved and always returned to the default
+
+**Status:** Fixed (code + unit tests; on-device re-verification pending — see QA `E-28`, `M-42`).
+
+**Symptom:** In Focus mode, pressing − / + in the widget header changed how big the focused article was, but the chosen size was forgotten and went back to the default (1.25x) as soon as another article was tapped (and on a tap-mode switch).
+
+**Root cause (confirmed by reading the code):** the saved `focus_scale` was deliberately deleted in two places: `SetFocusArticleCallback` removed it whenever focus moved to a different article (rationale: an earlier adjustment "isn't a choice about this one"), and `resetTapState` removed it on an Expand/Focus switch (spec decision "a mode switch also resets a custom enlarge size"). Nothing else (WidgetWorker refresh, grace-period refreshes, ConfigBackup, OrphanCleanup, the settings Save) touches the key.
+
+**Fix:** both removals deleted; the zoom is now a persistent per-widget preference stored in the widget's Glance DataStore (`focus_scale`), changed only by the − / + buttons. The focus-tap state change was extracted from `SetFocusArticleCallback.onAction` into the pure `applyFocusTap(prefs, articleId, now)` (TapRouting.kt), with the same focus toggle and read-mark behaviour as before; the clamp is the pure `AdjustFocusScaleCallback.adjustedScale`. Tests: `TapRoutingTest` (zoom kept on focus change / re-tap / first focus, `resetTapState` keeps it, read-mark unchanged, clamp). Regression cases: `E-28`, `M-42`.

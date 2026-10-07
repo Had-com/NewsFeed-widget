@@ -1,10 +1,15 @@
 package com.newsfeed.widget.glance
 
 import androidx.datastore.preferences.core.mutablePreferencesOf
+import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.TapMode
 import com.newsfeed.widget.data.WidgetStateKey
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -41,7 +46,7 @@ class TapRoutingTest {
     // ---- resetTapState ----
 
     @Test
-    fun `resetTapState clears exactly the four transient keys and nothing else`() {
+    fun `resetTapState clears the three transient id keys and keeps the focus zoom`() {
         val prefs = mutablePreferencesOf().also {
             it[WidgetStateKey.expandedArticleId] = "a"
             it[WidgetStateKey.focusedArticleId] = "b"
@@ -56,7 +61,9 @@ class TapRoutingTest {
         assertFalse(prefs.contains(WidgetStateKey.expandedArticleId))
         assertFalse(prefs.contains(WidgetStateKey.focusedArticleId))
         assertFalse(prefs.contains(WidgetStateKey.lastTappedArticleId))
-        assertFalse(prefs.contains(WidgetStateKey.focusScale))
+        // BUG-024: focusScale is a persistent per-widget preference, so a tap-mode switch no
+        // longer wipes it (this assertion used to be assertFalse(contains(focusScale))).
+        assertEquals(2.0f, prefs[WidgetStateKey.focusScale]!!, 0.0f)
         // read flags live inside articles_json: it must be byte-for-byte untouched
         assertEquals("""[{"id":"a"}]""", prefs[WidgetStateKey.articles])
         assertEquals("""{"widgetId":1}""", prefs[WidgetStateKey.configJson])
@@ -89,4 +96,106 @@ class TapRoutingTest {
     @Test
     fun `expand mode ignores a stale focused id`() =
         assertEquals(1.0f, rowFontScale(isFocusMode = false, isFocusedRow = true, anyFocused = true, focusScale = 2.5f), 0.0f)
+
+    // ---- applyFocusTap: the focus zoom is a persistent preference (BUG-024) ----
+
+    private fun article(id: String, isRead: Boolean = false, readAt: Long? = null) = ArticleItem(
+        id = id, feedId = "f", feedName = "Feed", title = "T$id",
+        publishedAt = 1L, isRead = isRead, readAt = readAt,
+    )
+
+    private fun focusPrefs(focused: String? = null, scale: Float? = null, vararg articles: ArticleItem) =
+        mutablePreferencesOf().also {
+            if (focused != null) it[WidgetStateKey.focusedArticleId] = focused
+            if (scale != null) it[WidgetStateKey.focusScale] = scale
+            if (articles.isNotEmpty()) it[WidgetStateKey.articles] = Json.encodeToString(articles.toList())
+        }
+
+    private fun storedArticles(prefs: androidx.datastore.preferences.core.Preferences) =
+        Json.decodeFromString<List<ArticleItem>>(prefs[WidgetStateKey.articles]!!)
+
+    @Test
+    fun `focusing a different article keeps a previously adjusted zoom`() {
+        val prefs = focusPrefs("a", 1.85f, article("a"), article("b"))
+        applyFocusTap(prefs, "b", now = 100L)
+        assertEquals("b", prefs[WidgetStateKey.focusedArticleId])
+        assertEquals(1.85f, prefs[WidgetStateKey.focusScale]!!, 0.0f)
+    }
+
+    @Test
+    fun `re-tapping the focused article clears focus but keeps the zoom`() {
+        val prefs = focusPrefs("a", 0.9f, article("a"))
+        val losing = applyFocusTap(prefs, "a", now = 100L)
+        assertNull(losing)
+        assertEquals("", prefs[WidgetStateKey.focusedArticleId])
+        assertEquals(0.9f, prefs[WidgetStateKey.focusScale]!!, 0.0f)
+    }
+
+    @Test
+    fun `first focus from none keeps an adjusted zoom and does not invent one`() {
+        val withScale = focusPrefs(scale = 2.2f, articles = arrayOf(article("a")))
+        applyFocusTap(withScale, "a", now = 100L)
+        assertEquals("a", withScale[WidgetStateKey.focusedArticleId])
+        assertEquals(2.2f, withScale[WidgetStateKey.focusScale]!!, 0.0f)
+
+        val noScale = focusPrefs(articles = arrayOf(article("a")))
+        applyFocusTap(noScale, "a", now = 100L)
+        assertEquals("a", noScale[WidgetStateKey.focusedArticleId])
+        assertFalse(noScale.contains(WidgetStateKey.focusScale))
+    }
+
+    @Test
+    fun `zoom survives a whole focus, switch, clear, refocus sequence and a mode switch`() {
+        val prefs = focusPrefs(scale = 1.55f, articles = arrayOf(article("a"), article("b")))
+        applyFocusTap(prefs, "a", 1L)
+        applyFocusTap(prefs, "b", 2L)
+        applyFocusTap(prefs, "b", 3L)
+        applyFocusTap(prefs, "a", 4L)
+        resetTapState(prefs)
+        assertEquals(1.55f, prefs[WidgetStateKey.focusScale]!!, 0.0f)
+    }
+
+    @Test
+    fun `moving focus flags only the unread article losing focus and returns its id`() {
+        val prefs = focusPrefs("a", articles = arrayOf(article("a"), article("b")))
+        val losing = applyFocusTap(prefs, "b", now = 100L)
+        assertEquals("a", losing)
+        val list = storedArticles(prefs)
+        assertTrue(list.first { it.id == "a" }.isRead)
+        assertEquals(100L, list.first { it.id == "a" }.readAt)
+        assertFalse(list.first { it.id == "b" }.isRead)
+    }
+
+    @Test
+    fun `losing focus on an already-read article keeps its readAt and returns null`() {
+        val prefs = focusPrefs("a", articles = arrayOf(article("a", isRead = true, readAt = 5L), article("b")))
+        val before = prefs[WidgetStateKey.articles]
+        assertNull(applyFocusTap(prefs, "b", now = 100L))
+        assertEquals(before, prefs[WidgetStateKey.articles])
+    }
+
+    @Test
+    fun `focus tap with unreadable articles json still moves focus and marks nothing`() {
+        val prefs = focusPrefs("a")
+        prefs[WidgetStateKey.articles] = "not json"
+        assertNull(applyFocusTap(prefs, "b", now = 100L))
+        assertEquals("b", prefs[WidgetStateKey.focusedArticleId])
+        assertEquals("not json", prefs[WidgetStateKey.articles])
+    }
+
+    // ---- adjustedScale: the -/+ buttons ----
+
+    @Test
+    fun `adjustedScale steps by the delta`() {
+        assertEquals(1.40f, AdjustFocusScaleCallback.adjustedScale(1.25f, AdjustFocusScaleCallback.STEP), 0.0001f)
+        assertEquals(1.10f, AdjustFocusScaleCallback.adjustedScale(1.25f, -AdjustFocusScaleCallback.STEP), 0.0001f)
+    }
+
+    @Test
+    fun `adjustedScale clamps at both ends`() {
+        assertEquals(AdjustFocusScaleCallback.MAX_SCALE, AdjustFocusScaleCallback.adjustedScale(2.45f, 0.15f), 0.0f)
+        assertEquals(AdjustFocusScaleCallback.MAX_SCALE, AdjustFocusScaleCallback.adjustedScale(2.5f, 0.15f), 0.0f)
+        assertEquals(AdjustFocusScaleCallback.MIN_SCALE, AdjustFocusScaleCallback.adjustedScale(0.8f, -0.15f), 0.0f)
+        assertEquals(AdjustFocusScaleCallback.MIN_SCALE, AdjustFocusScaleCallback.adjustedScale(0.75f, -0.15f), 0.0f)
+    }
 }

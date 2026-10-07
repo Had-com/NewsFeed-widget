@@ -43,10 +43,10 @@ Status legend: ✅ Shipped · 🚧 In progress · 📋 Planned (spec approved, n
 
 | Feature | Status | Requirement |
 |---|---|---|
-| Tap-to-enlarge focus | ✅ | One article can be read at a larger size while others stay the same size, without opening a separate view. |
+| Tap-to-enlarge focus | ✅ | One article can be read at a larger size while others stay the same size, without opening a separate view. The − / + zoom level is remembered per widget (it is never reset by moving focus or switching tap mode). |
 | Read-marking on focus-away | ✅ | An article is marked read only once the user has moved on to another one, not the instant it's tapped. |
 | Adjustable focus scale (+/-) | ✅ | User controls how large the focused row gets, in the moment. |
-| Per-widget setting | ✅ | "When I tap an article" in Widget settings picks Expand in place (default) or Focus (enlarge) for each placed widget; switching resets that widget's expanded/focused article. |
+| Per-widget setting | ✅ | "When I tap an article" in Widget settings picks Expand in place (default) or Focus (enlarge) for each placed widget; switching resets that widget's expanded/focused article (the Focus zoom is kept). |
 
 ## Reliability & maintenance
 

@@ -36,3 +36,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 10
 - Fixed: a Telegram post's link (e.g. "קישור לכתבה") now shows its web address along with the label, so you can actually reach the linked page — it used to vanish, leaving only the label text.
+
+## Note 11
+- Fixed: in Focus mode the zoom you set with − / + is now remembered, instead of snapping back to the default every time you tap another article.

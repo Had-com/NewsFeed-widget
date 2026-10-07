@@ -36,9 +36,10 @@ object WidgetStateKey {
     // Focus mode (tapMode = focus) only. How large the focused row renders, as a multiple of fontSize — live,
     // on-widget adjustable via +/- buttons on the focused row itself (AdjustFocusScaleCallback),
     // deliberately NOT a Settings-screen slider: this is meant to be
-    // tuned in the moment, per article, without leaving the widget. Was a hardcoded 1.25f;
-    // absent (before the user has ever adjusted it, or after focus moves to a different
-    // article — see AdjustFocusScaleCallback) means "use the 1.25f default".
+    // tuned in the moment without leaving the widget. Was a hardcoded 1.25f; absent (the user
+    // has never adjusted it) means "use the 1.25f default". Once set it is a persistent
+    // per-widget preference: never reset by focusing another article, clearing focus, a
+    // tap-mode switch (resetTapState keeps it) or a refresh — only the +/- buttons change it.
     val focusScale = floatPreferencesKey("focus_scale")
 
     // A pure "something changed" touch value with no meaning of its own beyond forcing a

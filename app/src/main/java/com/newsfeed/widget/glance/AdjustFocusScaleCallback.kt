@@ -12,6 +12,10 @@ import com.newsfeed.widget.data.WidgetStateKey
 // possible here: RemoteViews widgets receive no raw touch events at all, multi-touch included,
 // only discrete clicks on pre-declared regions (the same platform wall the drag-magnifier idea
 // hit). Stepped +/- buttons are the closest on-widget equivalent that's actually buildable.
+//
+// The chosen scale is a persistent per-widget preference (WidgetStateKey.focusScale in the
+// widget's Glance DataStore): nothing resets it automatically — not focusing another article,
+// clearing focus, a tap-mode switch, a refresh, or process death. Only these +/- buttons change it.
 class AdjustFocusScaleCallback : ActionCallback {
     companion object {
         val DELTA_KEY = ActionParameters.Key<Float>("delta")
@@ -38,13 +42,17 @@ class AdjustFocusScaleCallback : ActionCallback {
         // demanding real case tested (Focus Mode's own combined-extreme fontSize × focusScale) —
         // reusing it for ordinary rows, which never carry that multiplier, is strictly cheaper.
         const val HEADLINE_MAX_LINES = 8
+
+        /** [current] nudged by [delta] (a +/- button step), clamped to MIN_SCALE..MAX_SCALE. */
+        fun adjustedScale(current: Float, delta: Float): Float =
+            (current + delta).coerceIn(MIN_SCALE, MAX_SCALE)
     }
 
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val delta = parameters[DELTA_KEY] ?: return
         updateAppWidgetState(context, glanceId) { prefs ->
             val current = prefs[WidgetStateKey.focusScale] ?: DEFAULT_SCALE
-            prefs[WidgetStateKey.focusScale] = (current + delta).coerceIn(MIN_SCALE, MAX_SCALE)
+            prefs[WidgetStateKey.focusScale] = adjustedScale(current, delta)
         }
         NewsFeedWidget().update(context, glanceId)
     }
