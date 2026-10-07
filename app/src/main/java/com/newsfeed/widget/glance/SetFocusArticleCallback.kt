@@ -5,6 +5,7 @@ import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.state.updateAppWidgetState
+import com.newsfeed.widget.data.GraceRefreshRegistry
 import com.newsfeed.widget.data.ReadStatusStore
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.shouldScheduleGraceRefreshForConfig
@@ -32,15 +33,16 @@ class SetFocusArticleCallback : ActionCallback {
         // already-read articles shouldn't reset their readAt and restart a grace period that
         // doesn't apply to them.
         val markedAt = System.currentTimeMillis()
-        var articleLosingFocusId: String? = null
+        var markedReadIds: List<String> = emptyList()
         var scheduleGrace = true
         updateAppWidgetState(context, glanceId) { prefs ->
             scheduleGrace = shouldScheduleGraceRefreshForConfig(prefs[WidgetStateKey.configJson])
-            articleLosingFocusId = applyFocusTap(prefs, articleId, markedAt)
+            markedReadIds = applyFocusTapThread(prefs, articleId, markedAt)
         }
-        articleLosingFocusId?.let { ReadStatusStore(context).markRead(it) }
+        if (markedReadIds.isNotEmpty()) ReadStatusStore(context).markReadAll(markedReadIds)
         NewsFeedWidget().update(context, glanceId)
         // Dissolve/removal only exist under Show = Unread only; skip the 4 delayed renders otherwise.
-        if (scheduleGrace) UnreadGracePeriod.scheduleRefresh(context, glanceId, articleLosingFocusId, markedAt) { c, g -> NewsFeedWidget().update(c, g) }
+        // A whole story thread shares one readAt, so one schedule (under its representative id) covers it.
+        if (scheduleGrace) UnreadGracePeriod.scheduleRefresh(context, glanceId, GraceRefreshRegistry.representativeId(markedReadIds), markedAt) { c, g -> NewsFeedWidget().update(c, g) }
     }
 }

@@ -5,6 +5,7 @@ import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.state.updateAppWidgetState
+import com.newsfeed.widget.data.GraceRefreshRegistry
 import com.newsfeed.widget.data.ReadStatusStore
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.shouldScheduleGraceRefreshForConfig
@@ -33,20 +34,21 @@ class NoOpTapFeedbackCallback : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val articleId = parameters[ARTICLE_ID_KEY] ?: return
         val markedAt = System.currentTimeMillis()
-        var markedReadId: String? = null
+        var markedReadIds: List<String> = emptyList()
         var collapsed = false
         var scheduleGrace = true
         updateAppWidgetState(context, glanceId) { prefs ->
             collapsed = collapseExpandedOnOtherTap(prefs, articleId)
-            markedReadId = markPreviousTappedRead(prefs, articleId, markedAt)
+            markedReadIds = markPreviousTappedReadThread(prefs, articleId, markedAt)
             scheduleGrace = shouldScheduleGraceRefreshForConfig(prefs[WidgetStateKey.configJson])
         }
-        markedReadId?.let { ReadStatusStore(context).markRead(it) }
+        if (markedReadIds.isNotEmpty()) ReadStatusStore(context).markReadAll(markedReadIds)
         // Only re-render when something actually changed (the previous article's unread dot
         // cleared, or the expanded article collapsed) — otherwise a plain tap changes nothing
         // visible, and the native press ripple already fired regardless.
-        if (markedReadId != null || collapsed) NewsFeedWidget().update(context, glanceId)
+        if (markedReadIds.isNotEmpty() || collapsed) NewsFeedWidget().update(context, glanceId)
         // Dissolve/removal only exist under Show = Unread only; skip the 4 delayed renders otherwise.
-        if (scheduleGrace) UnreadGracePeriod.scheduleRefresh(context, glanceId, markedReadId, markedAt) { c, g -> NewsFeedWidget().update(c, g) }
+        // A whole story thread shares one readAt, so one schedule (under its representative id) covers it.
+        if (scheduleGrace) UnreadGracePeriod.scheduleRefresh(context, glanceId, GraceRefreshRegistry.representativeId(markedReadIds), markedAt) { c, g -> NewsFeedWidget().update(c, g) }
     }
 }

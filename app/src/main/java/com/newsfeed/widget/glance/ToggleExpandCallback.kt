@@ -5,6 +5,7 @@ import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.state.updateAppWidgetState
+import com.newsfeed.widget.data.GraceRefreshRegistry
 import com.newsfeed.widget.data.ReadStatusStore
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.shouldScheduleGraceRefreshForConfig
@@ -34,17 +35,18 @@ class ToggleExpandCallback : ActionCallback {
         // told about and what should get a grace-period refresh scheduled.
         // Stamped into readAt AND used as the base for the dissolve/removal refresh delays.
         val markedAt = System.currentTimeMillis()
-        var markedReadId: String? = null
+        var markedReadIds: List<String> = emptyList()
         var scheduleGrace = true
         updateAppWidgetState(context, glanceId) { prefs ->
             val current = prefs[WidgetStateKey.expandedArticleId] ?: ""
             prefs[WidgetStateKey.expandedArticleId] = if (current != articleId) articleId else ""
-            markedReadId = markPreviousTappedRead(prefs, articleId, markedAt)
+            markedReadIds = markPreviousTappedReadThread(prefs, articleId, markedAt)
             scheduleGrace = shouldScheduleGraceRefreshForConfig(prefs[WidgetStateKey.configJson])
         }
-        markedReadId?.let { ReadStatusStore(context).markRead(it) }
+        if (markedReadIds.isNotEmpty()) ReadStatusStore(context).markReadAll(markedReadIds)
         NewsFeedWidget().update(context, glanceId)
         // Dissolve/removal only exist under Show = Unread only; skip the 4 delayed renders otherwise.
-        if (scheduleGrace) UnreadGracePeriod.scheduleRefresh(context, glanceId, markedReadId, markedAt) { c, g -> NewsFeedWidget().update(c, g) }
+        // A whole story thread shares one readAt, so one schedule (under its representative id) covers it.
+        if (scheduleGrace) UnreadGracePeriod.scheduleRefresh(context, glanceId, GraceRefreshRegistry.representativeId(markedReadIds), markedAt) { c, g -> NewsFeedWidget().update(c, g) }
     }
 }

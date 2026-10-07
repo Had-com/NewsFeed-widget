@@ -23,12 +23,16 @@ class ReadStatusStore(private val context: Context) {
                 ?: emptySet()
         }
 
-    suspend fun markRead(articleId: String) {
+    suspend fun markRead(articleId: String) = markReadAll(listOf(articleId))
+
+    /** Marks several articles read in one DataStore write (a whole story thread at once). */
+    suspend fun markReadAll(articleIds: Collection<String>) {
+        if (articleIds.isEmpty()) return
         context.readStatusDataStore.edit { prefs ->
             val current: List<String> = prefs[READ_IDS_KEY]
                 ?.let { runCatching { Json.decodeFromString<List<String>>(it) }.getOrDefault(emptyList()) }
                 ?: emptyList()
-            val updated = (current + articleId).distinct().takeLast(MAX_STORED)
+            val updated = (current + articleIds).distinct().takeLast(MAX_STORED)
             prefs[READ_IDS_KEY] = Json.encodeToString(updated)
         }
     }
