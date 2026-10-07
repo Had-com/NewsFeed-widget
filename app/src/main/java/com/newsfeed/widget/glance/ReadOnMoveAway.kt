@@ -4,7 +4,6 @@ import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.WidgetStateKey
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 

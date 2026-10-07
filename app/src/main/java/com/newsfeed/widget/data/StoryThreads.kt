@@ -29,6 +29,8 @@ const val STORY_WINDOW_MS = 6L * 60 * 60 * 1000
 const val STORY_MIN_SHARED = 3
 const val STORY_MIN_COVERAGE_PERCENT = 60
 const val STORY_MAX_THREAD_SIZE = 12
+/** Key tokens kept per title (the first ones): bounds the O(n^2) set work against a pathological title. */
+const val STORY_MAX_TOKENS = 40
 
 /** One thread: [lead] (newest member) plus the [others], newest first. A lone article is a thread of 1. */
 data class StoryThread(val lead: ArticleItem, val others: List<ArticleItem> = emptyList()) {
@@ -58,7 +60,7 @@ private fun isHebrew(c: Char) = c in '֐'..'׿'
  * a trailing "- source" dropped, lower-cased, split into words/numbers (numbers keep inner
  * . / , :), stop words dropped, up to [MAX_PREFIX_STRIPS] leading prefix letters (ה ו ב ל מ ש כ)
  * stripped from Hebrew words longer than 3 letters (so ובבנימין / בנימין / בבנימין agree), and
- * tokens shorter than 2 characters dropped.
+ * tokens shorter than 2 characters dropped. Only the first [STORY_MAX_TOKENS] distinct tokens are kept.
  */
 fun storyTokens(title: String): Set<String> {
     var t = Normalizer.normalize(title, Normalizer.Form.NFKC)
@@ -69,6 +71,7 @@ fun storyTokens(title: String): Set<String> {
     t = QUOTES.replace(t, "").lowercase()
     val out = LinkedHashSet<String>()
     for (m in WORD.findAll(t)) {
+        if (out.size >= STORY_MAX_TOKENS) break
         var w = m.value
         if (w in STOPWORDS) continue
         if (isHebrew(w[0])) {

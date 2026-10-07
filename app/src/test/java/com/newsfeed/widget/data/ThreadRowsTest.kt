@@ -89,4 +89,20 @@ class ThreadRowsTest {
         assertEquals(0, l.articleCount)
         assertEquals(4, l.availableRows)
     }
+
+    // ---- resumeKeys --------------------------------------------------------------------
+
+    private fun read(id: String, readAt: Long) =
+        art(id, isRead = true).copy(readAt = readAt)
+
+    @Test
+    fun `resumeKeys gives one key per readAt with the smallest id as representative`() {
+        val keys = resumeKeys(listOf(read("c", 100L), read("a", 100L), read("z", 200L), read("b", 100L)))
+        assertEquals(listOf(100L to "a", 200L to "z"), keys)
+    }
+
+    @Test
+    fun `resumeKeys of nothing is empty`() {
+        assertEquals(emptyList<Pair<Long, String?>>(), resumeKeys(emptyList()))
+    }
 }

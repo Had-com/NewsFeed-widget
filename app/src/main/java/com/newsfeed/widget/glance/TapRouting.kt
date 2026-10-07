@@ -1,10 +1,8 @@
 package com.newsfeed.widget.glance
 
 import androidx.datastore.preferences.core.MutablePreferences
-import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.TapMode
 import com.newsfeed.widget.data.WidgetStateKey
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 

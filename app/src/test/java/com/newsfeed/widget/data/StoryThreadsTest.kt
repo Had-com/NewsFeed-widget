@@ -261,4 +261,77 @@ class StoryThreadsTest {
         assertEquals(listOf("a", "b"), ungroupedStories(l).map { it.lead.id })
         assertTrue(ungroupedStories(l).all { it.others.isEmpty() })
     }
+
+    // ---- token cap ---------------------------------------------------------------------
+
+    private fun hugeTitle(words: Int): String {
+        // distinct all-letter words (the tokenizer splits letters from digits): aaa, aab, aac, ...
+        val sb = StringBuilder()
+        for (i in 0 until words) {
+            sb.append(('a' + (i / 676) % 26)).append(('a' + (i / 26) % 26)).append(('a' + i % 26)).append(' ')
+        }
+        return sb.toString()
+    }
+
+    @Test
+    fun `a huge title yields at most STORY_MAX_TOKENS tokens`() {
+        val t = storyTokens(hugeTitle(5_000))
+        assertEquals(STORY_MAX_TOKENS, t.size)
+        assertTrue("aaa" in t)       // the FIRST tokens are the ones kept
+    }
+
+    @Test
+    fun `a huge title still groups with a short title sharing 3 tokens from its first 40`() {
+        val threads = groupStories(listOf(
+            art("big", "f1", hugeTitle(5_000)),
+            art("small", "f2", "aaa aab aac", at = 1_000_000_060_000L),
+        ))
+        assertEquals(1, threads.size)
+        assertEquals(setOf("big", "small"), ids(threads[0]).toSet())
+    }
+
+    @Test
+    fun `shared words only beyond the first 40 tokens do not link a huge title`() {
+        // hugeTitle word #100 = "adw" etc. - well past the cap
+        val words = hugeTitle(200).trim().split(" ")
+        val late = words.subList(100, 103).joinToString(" ")
+        val threads = groupStories(listOf(
+            art("big", "f1", hugeTitle(5_000)),
+            art("small", "f2", late, at = 1_000_000_060_000L),
+        ))
+        assertEquals(2, threads.size)
+    }
+
+    // ---- read classes / duplicate ids --------------------------------------------------
+
+    @Test
+    fun `a read article without readAt never links to one with a readAt stamp`() {
+        val title = "alpha beta gamma delta"
+        val threads = groupStories(listOf(
+            art("old", "f1", title, isRead = true, readAt = null),
+            art("new", "f2", title, isRead = true, readAt = 5_000L),
+        ))
+        assertEquals(2, threads.size)
+        // two legacy reads (no readAt) share the -1 class and DO group
+        val legacy = groupStories(listOf(
+            art("l1", "f1", title, isRead = true, readAt = null),
+            art("l2", "f2", title, isRead = true, readAt = null),
+        ))
+        assertEquals(1, legacy.size)
+    }
+
+    @Test
+    fun `duplicate ids across two feeds do not crash grouping or layout - they form one thread with two same-id members`() {
+        val threads = groupStories(listOf(
+            art("dup", "f1", "alpha beta gamma delta"),
+            art("dup", "f2", "alpha beta gamma delta"),
+        ))
+        assertEquals(1, threads.size)
+        assertEquals(listOf("dup", "dup"), ids(threads[0]))
+        val collapsed = layoutThreads(threads, emptySet(), rowLimit = 10)
+        assertEquals(1, collapsed.rows.size)
+        assertEquals(2, collapsed.articleCount)
+        val expanded = layoutThreads(threads, setOf("dup"), rowLimit = 10)
+        assertEquals(listOf(ThreadRowKind.LEAD, ThreadRowKind.MEMBER), expanded.rows.map { it.kind })
+    }
 }

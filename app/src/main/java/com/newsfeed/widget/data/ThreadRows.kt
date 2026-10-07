@@ -68,3 +68,14 @@ fun layoutThreads(threads: List<StoryThread>, expandedLeadIds: Set<String>, rowL
         unreadCount = rows.count { !it.article.isRead } + rows.sumOf { it.hiddenUnread },
     )
 }
+
+/**
+ * The grace-period refresh keys for [readArticles] (read articles still inside the grace window):
+ * one (readAt, representative id) per distinct readAt - a story thread's members share one readAt, so
+ * one schedule covers them all. The representative id is the same key the tap callbacks register
+ * (see [GraceRefreshRegistry.representativeId]), so the two never double-schedule.
+ */
+fun resumeKeys(readArticles: List<ArticleItem>): List<Pair<Long, String?>> =
+    readArticles.groupBy { it.readAt!! }.map { (readAt, group) ->
+        readAt to GraceRefreshRegistry.representativeId(group.map { it.id })
+    }

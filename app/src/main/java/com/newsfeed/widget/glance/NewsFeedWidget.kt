@@ -63,6 +63,7 @@ import com.newsfeed.widget.data.dissolveArticle
 import com.newsfeed.widget.data.groupStories
 import com.newsfeed.widget.data.isDissolving
 import com.newsfeed.widget.data.layoutThreads
+import com.newsfeed.widget.data.resumeKeys
 import com.newsfeed.widget.data.ungroupedStories
 import com.newsfeed.widget.data.UNREAD_GRACE_PERIOD_MS
 import com.newsfeed.widget.data.OrphanCleanupWorker
@@ -291,10 +292,9 @@ private fun WidgetContent() {
                 // One schedule per readAt, not per article: a story thread's members share one readAt
                 // and one schedule re-renders them all. Keyed by the group's representative id, the
                 // same key the tap callbacks register, so the two never double-schedule.
-                resumeArticles.groupBy { it.readAt!! }.forEach { (readAt, group) ->
+                resumeKeys(resumeArticles).forEach { (readAt, repId) ->
                     UnreadGracePeriod.scheduleRefresh(
-                        graceContext, graceGlanceId,
-                        GraceRefreshRegistry.representativeId(group.map { it.id }), readAt,
+                        graceContext, graceGlanceId, repId, readAt,
                     ) { c, g -> NewsFeedWidget().update(c, g) }
                 }
             }
