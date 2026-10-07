@@ -50,6 +50,11 @@ data class WidgetConfig(
     // config saved before this field existed reads as) or TapMode.FOCUS.key ("focus"). Always read
     // it through TapMode.fromKey() so an unknown value degrades to EXPAND.
     val tapMode: String = TapMode.EXPAND.key,
+    // Group the same news story from DIFFERENT feeds into one collapsible thread row (see
+    // data/StoryThreads.kt). On by default, including for configs saved before this field existed:
+    // kotlinx uses this constructor default for a missing key, so old JSON decodes to true. With the
+    // default Json (encodeDefaults = false) a `true` is simply not written, and a `false` is.
+    val groupStories: Boolean = true,
 )
 
 @Serializable

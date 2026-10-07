@@ -42,6 +42,12 @@ object WidgetStateKey {
     // tap-mode switch (resetTapState keeps it) or a refresh — only the +/- buttons change it.
     val focusScale = floatPreferencesKey("focus_scale")
 
+    // Story threads (WidgetConfig.groupStories): the lead article ids of the threads the user has
+    // expanded with the "+N" badge, separated by newlines (see glance/ThreadState.kt). Absent or empty =
+    // every thread collapsed. Lives in the widget's own Glance state, so it is deleted with the
+    // widget (OrphanCleanup needs no change) and a tap-mode switch (resetTapState) leaves it alone.
+    val expandedThreadIds = stringPreferencesKey("expanded_thread_ids")
+
     // A pure "something changed" touch value with no meaning of its own beyond forcing a
     // genuine Preferences mutation - Glance/Compose skips recomposing a widget when its
     // observed Preferences value is unchanged from last time, but UnreadGracePeriod's
