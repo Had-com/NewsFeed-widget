@@ -41,7 +41,15 @@ data class ThreadLayout(
  * `take(rowLimit)` on the flat list (an expanded thread can therefore be cut mid-way; "Load more"
  * reveals the rest).
  */
-fun layoutThreads(threads: List<StoryThread>, expandedLeadIds: Set<String>, rowLimit: Int): ThreadLayout {
+fun layoutThreads(
+    threads: List<StoryThread>,
+    expandedLeadIds: Set<String>,
+    rowLimit: Int,
+    pinArticleId: String = "",
+): ThreadLayout = layoutRows(flattenThreads(threads, expandedLeadIds), rowLimit, pinArticleId)
+
+/** The full flat row list of [threads] (no row limit): what [layoutThreads] then cuts. */
+fun flattenThreads(threads: List<StoryThread>, expandedLeadIds: Set<String>): List<ThreadRow> {
     val flat = ArrayList<ThreadRow>(threads.size)
     for (t in threads) {
         if (t.others.isEmpty()) {
@@ -59,7 +67,22 @@ fun layoutThreads(threads: List<StoryThread>, expandedLeadIds: Set<String>, rowL
         )
         if (expanded) t.others.forEach { flat += ThreadRow(it, ThreadRowKind.MEMBER, t.lead.id) }
     }
-    val rows = flat.take(rowLimit.coerceAtLeast(0))
+    return flat
+}
+
+/**
+ * The first [rowLimit] rows of [flat] plus their counts. When [pinArticleId] is the id of a row that
+ * lies BEYOND the cut (Focus mode: the focused row must never fall off the end of the displayed
+ * slice), that row is pinned at the END of the slice, replacing the last row(s), so the slice never
+ * grows past [rowLimit]:
+ *  - a SINGLE / LEAD row simply replaces the last row;
+ *  - a MEMBER row keeps its thread together: if its lead is in the slice it replaces the last row (the
+ *    thread is shown cut, as the row limit can already do); otherwise the lead and the member replace
+ *    the last two rows (a limit of 1 shows just the member).
+ * A [pinArticleId] that is blank, unknown, or already inside the cut changes nothing.
+ */
+fun layoutRows(flat: List<ThreadRow>, rowLimit: Int, pinArticleId: String = ""): ThreadLayout {
+    val rows = pinnedSlice(flat, rowLimit.coerceAtLeast(0), pinArticleId)
     val hidden = rows.filter { it.kind == ThreadRowKind.LEAD && !it.expanded }
     return ThreadLayout(
         rows = rows,
@@ -67,6 +90,31 @@ fun layoutThreads(threads: List<StoryThread>, expandedLeadIds: Set<String>, rowL
         articleCount = rows.size + hidden.sumOf { it.otherCount },
         unreadCount = rows.count { !it.article.isRead } + rows.sumOf { it.hiddenUnread },
     )
+}
+
+private fun pinnedSlice(flat: List<ThreadRow>, limit: Int, pinArticleId: String): List<ThreadRow> {
+    val head = flat.take(limit)
+    if (pinArticleId.isBlank() || limit == 0 || head.any { it.article.id == pinArticleId }) return head
+    val idx = flat.indexOfFirst { it.article.id == pinArticleId }
+    if (idx < 0) return head
+    val pinned = flat[idx]
+    if (pinned.kind != ThreadRowKind.MEMBER) return flat.take(limit - 1) + pinned
+    val leadIdx = flat.indexOfFirst { it.kind == ThreadRowKind.LEAD && it.article.id == pinned.leadId }
+    if (leadIdx in 0 until limit - 1) return flat.take(limit - 1) + pinned
+    if (limit < 2 || leadIdx < 0) return flat.take(limit - 1) + pinned
+    return flat.take(limit - 2) + flat[leadIdx] + pinned
+}
+
+/**
+ * What the widget renders for [articles] under [config]: the feeds still configured, filtered and
+ * sorted (see [applyFilterAndSort]), de-duplicated by article id ([dedupeById]: the same article
+ * served by two feeds is ONE article), then grouped into story threads (or one thread per article
+ * when grouping is off). The render and the tap callbacks share this so they cannot disagree.
+ */
+fun displayThreadsFor(articles: List<ArticleItem>, config: WidgetConfig, now: Long): List<StoryThread> {
+    val feedIds = config.feeds.map { it.feedId }.toSet()
+    val available = dedupeById(applyFilterAndSort(articles.filter { it.feedId in feedIds }, config, now))
+    return if (config.groupStories) groupStories(available) else ungroupedStories(available)
 }
 
 /**

@@ -59,9 +59,10 @@ import com.newsfeed.widget.data.Separator
 import com.newsfeed.widget.data.ThreadRowKind
 import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetStateKey
-import com.newsfeed.widget.data.applyFilterAndSort
+import com.newsfeed.widget.data.displayThreadsFor
+import com.newsfeed.widget.data.flattenThreads
+import com.newsfeed.widget.data.layoutRows
 import com.newsfeed.widget.data.dissolveArticle
-import com.newsfeed.widget.data.groupStories
 import com.newsfeed.widget.data.RAIL_LINE_DP
 import com.newsfeed.widget.data.RAIL_WIDTH_DP
 import com.newsfeed.widget.data.RailPart
@@ -69,10 +70,8 @@ import com.newsfeed.widget.data.railDotCenterDpFor
 import com.newsfeed.widget.data.railPartFor
 import com.newsfeed.widget.data.isLastOfThread
 import com.newsfeed.widget.data.isDissolving
-import com.newsfeed.widget.data.layoutThreads
 import com.newsfeed.widget.data.resumeKeys
 import com.newsfeed.widget.data.separatorStyleFor
-import com.newsfeed.widget.data.ungroupedStories
 import com.newsfeed.widget.data.verticalPaddingDpFor
 import com.newsfeed.widget.data.UNREAD_GRACE_PERIOD_MS
 import com.newsfeed.widget.data.OrphanCleanupWorker
@@ -163,7 +162,10 @@ private fun WidgetContent() {
     // One `now` for both the filter and the dissolve stage, so an article is never dissolved
     // in a render that also drops it (or vice versa).
     val now = System.currentTimeMillis()
-    val availableArticles = applyFilterAndSort(articles.filter { feedMap.containsKey(it.feedId) }, config, now)
+    // displayThreadsFor = that filter + sort, then dedupeById (the same article served by two feeds under
+    // one id is ONE article, BUG-027), then grouping into story threads (or one per article with
+    // grouping off). The tap callbacks recompute through the same pipeline.
+    val threads = displayThreadsFor(articles, config, now)
 
     // Each row can carry a Glamour-theme headline bitmap and/or a thumbnail image, and
     // RemoteViews has a real total bitmap-memory budget for one widget update (this
@@ -178,61 +180,33 @@ private fun WidgetContent() {
     val scaledDensity2 = context2.resources.displayMetrics.scaledDensity
     val widthPx2       = ((LocalSize.current.width.value.coerceAtMost(350f) - 9f) * density2)
                               .toInt().coerceAtLeast(50)
-    // Focus mode only: the focused row can render at up to focusScale× (default 1.25×, up to
-    // 2.5×) config.fontSize. Every other row is at normal size (1×), since Focus no longer
-    // shrinks them, so a uniform worst case is the larger of focusScale and 1. This is the same
-    // deliberately-overestimating shape as the "3-line worst case" comment below: it protects
-    // against the "RemoteViews for widget update exceeds maximum bitmap memory usage" crash.
-    // (It could later be tightened to n-1 rows at 1× plus one at focusScale; that would change
-    // the on-screen row counts the on-device "Can't show content" fix was tuned against, so it
-    // is intentionally left as the uniform bound.)
-    val worstCaseRowScale = if (isFocusWidget) maxOf(focusScale, 1f) else 1f
-    val headlineLineHeightPx = 13f * config.fontSize * worstCaseRowScale * scaledDensity2 * 1.2f
-    // Worst case per row: a Glamour headline bitmap at AdjustFocusScaleCallback's shared
-    // HEADLINE_MAX_LINES (8) — every row uses the same cap now, focused or not, see that
-    // constant's own comment for why one shared number replaced what used to be two — plus
-    // a small thumbnail — themes without a bitmap headline (plain Text) cost far less, so
-    // this deliberately overestimates rather than risking under-provisioning.
-    val worstCaseHeadlineLines = AdjustFocusScaleCallback.HEADLINE_MAX_LINES
-    // 1 byte/pixel, not 4 — TextBitmapHelper now renders headline bitmaps as ALPHA_8 (a
-    // colorless coverage mask, tinted at display time via ColorFilter.tint()), not
-    // ARGB_8888. This formula predates that change and was left at the old multiplier,
-    // making this budget ~4x more conservative than the real bitmaps it's sizing for —
-    // confirmed on-device: Focus Mode's own combined-extreme test case (Font size 3.0 ×
-    // focus scale 2.5) still capped at "Showing 1 of 300" after the ALPHA_8 switch, which
-    // should have relaxed given the real per-row cost just dropped ~4x.
-    val headlineBytes  = if (config.widgetTheme == "glamer")
-        (widthPx2 * (worstCaseHeadlineLines * headlineLineHeightPx) * 1f) else 0f
-    // Unchanged: this is a real downloaded photo thumbnail (ARGB_8888), not a text bitmap —
-    // the ALPHA_8 switch only applies to TextBitmapHelper's headline/paragraph rendering.
-    val thumbnailBytes = 100f * 100f * 4f
-    val bytesPerRow    = (headlineBytes + thumbnailBytes).coerceAtLeast(1f)
-    // Rebalanced from the original 7.5MB/9MB split against FeedItemRow.kt's chunkBudgetBytes
-    // (down to 6.5MB there, up to 10MB here — same ~16.5MB total, just reallocated). The
-    // list itself is what's visible and memory-constrained all the time; the full-article
-    // chunk budget only matters for whichever single article is currently expanded, so it
-    // never needed as large a share as this one.
-    val rowBudgetBytes = 10_000_000f
-    // Floor was 5 (never show fewer than 5 rows) until Focus Mode's combined fontSize ×
-    // focusScale × HEADLINE_MAX_LINES made a single row's real worst-case bitmap
-    // exceed this entire row budget on its own (confirmed on-device at Font size 3.0 +
-    // focus scale 2.5: "Can't show content", RemoteViews' real bitmap-memory ceiling hit
-    // for real) — forcing a minimum of 5 such rows when even 1 already doesn't fit is
-    // exactly backwards for a safety floor. 1 lets the math legitimately reflect "only a
-    // little room" instead of demanding room that was already established not to exist;
-    // see the textSizePx cap in TextBitmapHelper.render() for the actual backstop that
-    // keeps a single row's bitmap safe regardless of what this calculation concludes.
-    //
-    // Upper bound was a flat 60 for every theme — but headlineBytes is already 0 for
-    // every non-Glamour theme (plain Text, no bitmap headline), so the honest formula
-    // above already accounts for the real cost (thumbnails only) and safely allows nearly
-    // the whole 300-article store. Capping it at the same flat 60 as Glamour needlessly
-    // throttled non-Glamour themes far below what's actually safe (reported: articles
-    // available when not using Glamour should reach the real total, not stop at 60).
-    // Glamour keeps 60 since its bitmap cost genuinely can grow large and unpredictable
-    // (see AdjustFocusScaleCallback.HEADLINE_MAX_LINES / Focus Mode's combined scaling).
-    val maxRowsCeiling = if (config.widgetTheme == "glamer") 60 else 300
-    val maxRowsAllowed = (rowBudgetBytes / bytesPerRow).toInt().coerceIn(1, maxRowsCeiling)
+    // Rows of the (deduplicated, grouped) list, before any row cap. Needed here because the row cap
+    // depends on whether a focused row is actually part of it.
+    val flatRows = flattenThreads(threads, expandedThreadIds)
+    // Focus mode only: the focused article counts as ACTIVE only when it is one of the rows (a stale id
+    // whose article is gone, filtered out, or hidden in a collapsed thread is inert: no enlarged row,
+    // no N/M, no -/+ buttons, no budget reserved - the stored id itself is left alone and nothing is
+    // marked read). An active focused row is always rendered (pinned below, layoutRows).
+    val focusActive = isFocusWidget && focusedArticleId.isNotBlank() &&
+        flatRows.any { it.article.id == focusedArticleId }
+    val effectiveFocusedId = if (focusActive) focusedArticleId else ""
+    // Each row can carry a Glamour-theme headline bitmap and a thumbnail, and RemoteViews has a real
+    // total bitmap-memory budget for one widget update ("RemoteViews for widget update exceeds maximum
+    // bitmap memory usage" / "Can't show content"), so the row count is capped by a computed budget.
+    // The whole computation (per-row worst case, the 10MB share of the ~15.5MB ceiling, the 1-row
+    // floor, the 60/300 ceilings and the history behind each) is the pure maxRowsAllowedFor() in
+    // FocusRowBudget.kt. Focus mode: with a focused row the cap is (n-1) rows at 1x plus ONE at
+    // focusScale (it used to budget EVERY row at focusScale, which was far too conservative); without
+    // one it is the old uniform bound, unchanged.
+    val maxRowsAllowed = maxRowsAllowedFor(
+        fontSize      = config.fontSize,
+        isGlamour     = config.widgetTheme == "glamer",
+        widthPx       = widthPx2,
+        scaledDensity = scaledDensity2,
+        isFocusWidget = isFocusWidget,
+        focusScale    = focusScale,
+        focusActive   = focusActive,
+    )
 
     // Dissolve effect: only under "Unread only", where a just-read article in its grace
     // window is about to vanish - other filters and long-read articles are untouched
@@ -247,8 +221,8 @@ private fun WidgetContent() {
     // every article is its own single row, i.e. exactly the list this code rendered before threads.
     // Dissolve is applied to every visible row, members included: a thread is read as a whole with
     // one shared readAt, so all of its rows dissolve in lockstep.
-    val threads = if (config.groupStories) groupStories(availableArticles) else ungroupedStories(availableArticles)
-    val layout = layoutThreads(threads, expandedThreadIds, visibleCount.coerceAtMost(maxRowsAllowed))
+    // The focused row is pinned into the slice when it would otherwise fall beyond the row cap.
+    val layout = layoutRows(flatRows, visibleCount.coerceAtMost(maxRowsAllowed), effectiveFocusedId)
     val displayRows = layout.rows.let { rows ->
         if (config.filter == FilterMode.UNREAD.key) rows.map { it.copy(article = dissolveArticle(it.article, now)) } else rows
     }
@@ -280,8 +254,8 @@ private fun WidgetContent() {
     val unreadCount     = layout.unreadCount
     // Focus mode only (tapMode = focus, isFocusWidget) — position within what's actually rendered
     // (displayArticles), so the "N / M" indicator always matches what's really on screen.
-    val focusedIndex    = if (focusedArticleId.isNotBlank())
-        displayArticles.indexOfFirst { it.id == focusedArticleId } else -1
+    val focusedIndex    = if (effectiveFocusedId.isNotBlank())
+        displayArticles.indexOfFirst { it.id == effectiveFocusedId } else -1
 
     // Resume the dissolve/removal refreshes if this process didn't schedule them (the
     // scheduler's coroutine dies with the process, e.g. `adb install -r` mid-dissolve, which
@@ -326,7 +300,7 @@ private fun WidgetContent() {
         ) {
             // Header counts: unread(total) are ARTICLES (layout.articleCount); the Focus "N/M" position
             // counts the ROWS actually on screen (displayArticles.size).
-            WidgetHeader(unreadCount, layout.articleCount, focusedArticleId, focusedIndex, displayArticles.size, isFocusWidget)
+            WidgetHeader(unreadCount, layout.articleCount, effectiveFocusedId, focusedIndex, displayArticles.size, isFocusWidget)
             Divider()
 
             if (displayArticles.isEmpty()) {
@@ -390,7 +364,7 @@ private fun WidgetContent() {
                                 widgetTheme       = config.widgetTheme,
                                 externalApp       = config.externalApp,
                                 themeVariant      = config.themeVariant,
-                                focusedArticleId  = focusedArticleId,
+                                focusedArticleId  = effectiveFocusedId,
                                 focusScale        = focusScale,
                                 isFocusWidget     = isFocusWidget,
                                 isDissolving      = rowDissolving,

@@ -4,6 +4,9 @@ import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.StoryThread
+import com.newsfeed.widget.data.dedupeById
+import com.newsfeed.widget.data.displayThreadsFor
+import com.newsfeed.widget.data.flattenThreads
 import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.groupStories
@@ -39,7 +42,23 @@ internal fun storedThreads(prefs: Preferences, articles: List<ArticleItem>): Lis
         ?: return null
     if (!config.groupStories) return null
     val feedIds = config.feeds.map { it.feedId }.toSet()
-    return groupStories(articles.filter { it.feedId in feedIds })
+    // dedupeById: the render de-duplicates same-id articles (same article served by two feeds) before
+    // grouping, so the callbacks must too, or a "+1" thread of one article and its own copy would exist here.
+    return groupStories(dedupeById(articles.filter { it.feedId in feedIds }))
+}
+
+/**
+ * Ids of the article rows the widget currently renders (the post-filter, de-duplicated, grouped and
+ * flattened list, i.e. the rows a user can see or scroll to - a Focus row beyond the row cap is pinned
+ * into the slice, see layoutRows), or null when that cannot be told (unreadable config). A member of
+ * a collapsed thread, a filtered-out or a removed article is NOT in the set.
+ */
+internal fun renderedRowIds(prefs: Preferences, articles: List<ArticleItem>, now: Long): Set<String>? {
+    val config = prefs[WidgetStateKey.configJson]
+        ?.let { runCatching { Json.decodeFromString<WidgetConfig>(it) }.getOrNull() }
+        ?: return null
+    val expanded = parseExpandedThreadIds(prefs[WidgetStateKey.expandedThreadIds])
+    return flattenThreads(displayThreadsFor(articles, config, now), expanded).mapTo(HashSet()) { it.article.id }
 }
 
 internal fun decodeStoredArticles(prefs: Preferences): List<ArticleItem>? =

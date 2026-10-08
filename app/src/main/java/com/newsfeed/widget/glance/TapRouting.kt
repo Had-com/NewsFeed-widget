@@ -64,7 +64,13 @@ internal fun applyFocusTapThread(prefs: MutablePreferences, articleId: String, n
     if (movingToAnotherArticle) {
         val articles = decodeStoredArticles(prefs)
         if (articles != null) {
-            val ids = idsToMarkReadOnMoveAway(prefs, articles, current, articleId)
+            // BUG-026: only an article that is actually on screen can be "left". A stale focused id (the
+            // article is hidden in a collapsed thread, filtered out, or gone) was never read by the user,
+            // so it must not be silently flagged read. When the config is unreadable we cannot tell, and
+            // keep the long-standing behaviour.
+            val onScreen = renderedRowIds(prefs, articles, now)
+            val ids = if (onScreen == null || current in onScreen)
+                idsToMarkReadOnMoveAway(prefs, articles, current, articleId) else emptyList()
             if (ids.isNotEmpty()) {
                 prefs[WidgetStateKey.articles] = Json.encodeToString(markIdsRead(articles, ids, now))
                 marked = ids

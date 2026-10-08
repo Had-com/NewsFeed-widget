@@ -45,7 +45,7 @@ class ThreadReadMarkingTest {
         withConfig: Boolean = true,
     ) = mutablePreferencesOf().also {
         it[WidgetStateKey.articles] = Json.encodeToString(articles)
-        if (withConfig) it[WidgetStateKey.configJson] = Json.encodeToString(WidgetConfig(widgetId = 1, groupStories = group, feeds = feeds))
+        if (withConfig) it[WidgetStateKey.configJson] = Json.encodeToString(WidgetConfig(widgetId = 1, groupStories = group, feeds = feeds, feedOrder = feeds.map { f -> f.feedId }))
         if (last != null) it[WidgetStateKey.lastTappedArticleId] = last
         if (focused != null) it[WidgetStateKey.focusedArticleId] = focused
     }

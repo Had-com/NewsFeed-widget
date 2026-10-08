@@ -233,4 +233,74 @@ class ThreadRowsTest {
         assertEquals(4 to 4, verticalPaddingDpFor(ThreadRowKind.MEMBER, isLastOfThread = false))
         assertEquals(4 to 8, verticalPaddingDpFor(ThreadRowKind.MEMBER, isLastOfThread = true))
     }
+    // ---- BUG-026: the pinned (focused) row is never cut off ----
+
+    private val later = listOf(single("x"), single("y"), single("z"), thread("b", "b1", "b2"))
+
+    private fun ids(l: ThreadLayout) = l.rows.map { it.article.id }
+
+    @Test
+    fun `a pinned single beyond the cut replaces the last row`() {
+        val l = layoutThreads(threads, setOf("b"), rowLimit = 3, pinArticleId = "c")   // a b b1 | b2 c d
+        assertEquals(listOf("a", "b", "c"), ids(l))
+        assertEquals(6, l.availableRows)
+    }
+
+    @Test
+    fun `a pinned collapsed lead beyond the cut replaces the last row and counts its hidden articles`() {
+        val l = layoutThreads(threads, emptySet(), rowLimit = 2, pinArticleId = "d")   // a b | c d
+        assertEquals(listOf("a", "d"), ids(l))
+        assertEquals(3, l.articleCount)   // a + (d + 1 hidden)
+    }
+
+    @Test
+    fun `a pin that is already inside the cut or unknown or blank changes nothing`() {
+        val plain = ids(layoutThreads(threads, emptySet(), rowLimit = 3))
+        assertEquals(plain, ids(layoutThreads(threads, emptySet(), 3, pinArticleId = "b")))
+        assertEquals(plain, ids(layoutThreads(threads, emptySet(), 3, pinArticleId = "nope")))
+        assertEquals(plain, ids(layoutThreads(threads, emptySet(), 3, pinArticleId = "")))
+        // a collapsed thread's HIDDEN member is not a row, so it cannot be pinned
+        assertEquals(plain, ids(layoutThreads(threads, emptySet(), 3, pinArticleId = "b1")))
+    }
+
+    @Test
+    fun `a pinned member whose lead is in the slice replaces the last row`() {
+        val l = layoutThreads(threads, setOf("b"), rowLimit = 3, pinArticleId = "b2")  // a b b1 | b2
+        assertEquals(listOf("a", "b", "b2"), ids(l))
+    }
+
+    @Test
+    fun `a pinned member whose lead is beyond the cut brings its lead along`() {
+        val l = layoutThreads(later, setOf("b"), rowLimit = 3, pinArticleId = "b2")    // x y z | b b1 b2
+        assertEquals(listOf("x", "b", "b2"), ids(l))
+        assertEquals(ThreadRowKind.LEAD, l.rows[1].kind)
+        assertEquals(ThreadRowKind.MEMBER, l.rows[2].kind)
+        assertEquals("b", l.rows[2].leadId)
+    }
+
+    @Test
+    fun `a lead sitting exactly at the cut edge is kept with its pinned member`() {
+        val l = layoutThreads(later, setOf("b"), rowLimit = 4, pinArticleId = "b2")    // x y z b | b1 b2
+        assertEquals(listOf("x", "y", "b", "b2"), ids(l))
+    }
+
+    @Test
+    fun `a one row limit shows just the pinned row and the slice never exceeds the limit`() {
+        assertEquals(listOf("b2"), ids(layoutThreads(later, setOf("b"), rowLimit = 1, pinArticleId = "b2")))
+        assertEquals(listOf("z"), ids(layoutThreads(later, setOf("b"), rowLimit = 1, pinArticleId = "z")))
+        for (limit in 0..8) for (pin in listOf("", "x", "z", "b", "b1", "b2", "nope")) {
+            assertEquals(true, layoutThreads(later, setOf("b"), limit, pin).rows.size <= limit)
+        }
+        assertEquals(emptyList<String>(), ids(layoutThreads(later, setOf("b"), rowLimit = 0, pinArticleId = "b2")))
+    }
+
+    @Test
+    fun `layoutThreads without a pin is exactly the plain first-N slice`() {
+        for (limit in 0..8) {
+            assertEquals(
+                flattenThreads(later, setOf("b")).take(limit).map { it.article.id },
+                ids(layoutThreads(later, setOf("b"), limit)),
+            )
+        }
+    }
 }

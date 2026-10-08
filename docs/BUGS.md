@@ -1086,3 +1086,23 @@ Every read-marking tap scheduled 4 delayed full re-renders (+2.6/3.4/4.3/5.1 s) 
 **Known limit:** in Subtitle-only mode the expanded text is cut at 100 characters, so a long URL that is the whole description is clipped there (it is complete in First paragraph / Full). The URL is displayed text, not a tappable link; the row's **Open article** opens the post itself.
 
 Tests: `TelegramFeedParserTest` (self-link cases, URL moved out of the title, order/dedupe, link in the body stays inline, bare-URL-only post, cap keeps the URL) and `UrlTokensTest`. Regression cases: `M-43`, `E-04` (tightened). See also BUG-023.
+
+## BUG-026 — Focus mode lost the article you tapped (enlargement and N/M vanished, −/+ stayed)
+
+**Status:** Fixed (code + unit tests; on-device re-verification pending — see QA `M-44`, `M-45`, `E-29`).
+
+**Symptom (user report "the focus feature does not work"; device diagnosis, evidence `C:\t\q17\`):** Focus itself worked, but tapping a row near the bottom of the visible list — or pressing **+**, or a footer refresh that pushed newer rows above the focused one — made the enlargement and the header **N/M** disappear while **− / +** stayed. Nothing looked focused; later moving focus silently marked the invisible old focused article read. Confirmed repro: Focus on the N12chat row at 7/10, then footer refresh; Glamour, font 1.0, focus scale 1.4: "Showing 19 of 219" against about 26 rows without focus.
+
+**Root cause:** (1) the row cap budgeted EVERY row at the focus scale (`worstCaseRowScale`), so in a Focus widget the cap was far below the real worst case (n−1 rows at 1× plus one focused row), and a bigger focus scale (+) lowered it further; (2) the displayed slice was a plain `take(cap)` of the rows, so a focused article beyond the cap fell off the end while `focused_article_id` stayed set; the header drew −/+ from the stored id but N/M only from the displayed rows, and `SetFocusArticleCallback` marked the (invisible) article read when focus moved on.
+
+**Fix:** (a) the budget is the pure `maxRowsAllowedFor()` (FocusRowBudget.kt): with a focused row on screen the cap is `floor((B − extra) / cost1x)` with `extra = cost(focusScale) − cost1x`, so the total (n−1)·c1 + cF stays within the same 10 MB budget the old formula respected (proof in the file); with no focused row, or in an Expand widget, it is exactly the old value (tests compare against the old formula copied verbatim). Glamour, font 1.0, 937 px / 2.75 density: scale 1.25 / 1.4 / 2.5 allowed 22 / 20 / 11 rows before and 27 / 27 / 26 now (27 at 1×). (b) The focused row is always rendered: `layoutRows(..., pinArticleId)` pins it into the last slot of the slice when it would fall beyond the cap (a thread member brings its lead along); a stored focus id that is not among the rows at all (gone, filtered out, hidden in a collapsed thread) is inert — no enlarged row, no N/M, no −/+, no budget reserved, the stored id and read flags untouched. (c) `applyFocusTapThread` marks the article losing focus read only if it is on screen (`renderedRowIds`). Tests: `FocusRowBudgetTest`, `ThreadRowsTest` (pin cases), `FocusVisibleReadTest`.
+
+## BUG-027 — The same article from two feeds became a "+1" thread of itself and broke Focus
+
+**Status:** Fixed (code + unit tests; on-device re-verification pending — see QA `M-46`).
+
+**Symptom:** Globes' "בארץ" and "כל הכתבות" feeds return the same article id (e.g. 1001558818). The widget showed it twice, grouped as a thread whose lead and member share an id: focusing the lead enlarged both rows, tapping the member cleared focus (`current == articleId`), collapsing the thread cleared focus; the list also had duplicate LazyColumn item ids.
+
+**Root cause:** articles are identified by id everywhere state is kept (focus, read marking, expanded threads) but nothing de-duplicated same-id articles from different feeds after filter + sort.
+
+**Fix:** `dedupeById()` (ArticleSorting.kt) keeps the first article of every id in the current sort order. It runs once in `displayThreadsFor()` (filter + sort → dedupe → group), which the render and the tap callbacks (`storedThreads`, `renderedRowIds`) share, so header counts, rows, threads and taps agree. Read marking by id still updates every stored copy. Tests: `DedupeByIdTest`, `FocusVisibleReadTest`.

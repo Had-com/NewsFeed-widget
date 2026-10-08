@@ -62,3 +62,17 @@ fun applyFilterAndSort(
         else -> filtered.sortedByDescending { it.publishedAt }
     }
 }
+
+/**
+ * Keeps the first article of every id, in order. The same article can be served by two feeds under
+ * the same id (e.g. Globes' "בארץ" and "כל הכתבות" feeds), which the display used to show twice and
+ * group into a "+1" thread whose lead and member shared an id - so Focus on one enlarged both and a
+ * tap on the other cleared it (BUG-027). Applied once after filter + sort and before grouping; the
+ * kept copy keeps its own read state, and read marking by id (markIdsRead) updates every copy.
+ */
+fun dedupeById(articles: List<ArticleItem>): List<ArticleItem> {
+    val seen = HashSet<String>(articles.size)
+    val out = ArrayList<ArticleItem>(articles.size)
+    for (a in articles) if (seen.add(a.id)) out += a
+    return out
+}
