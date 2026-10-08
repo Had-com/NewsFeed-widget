@@ -387,54 +387,72 @@ private fun WidgetContent() {
                                 paddingBottomDp   = padBottom,
                             )
                         }
-                        // The row plus its divider. NORMAL is the long-standing 1dp line + 2dp shadow strip;
-                        // THIN (between the rows of an expanded thread) is the 1dp line alone.
+                        // The divider(s) after a row. NORMAL is the long-standing 1dp line + 2dp shadow strip;
+                        // THIN (between the rows of an expanded thread) is the 1dp line alone, with the 3dp
+                        // thread-rail colour painted over its first 3dp so the rail reads as one unbroken line
+                        // through the separator (a Box overlay: no weights, no padding on a filled box).
                         @Composable
-                        fun RowAndDivider() {
-                            ArticleRow()
-                            if (separator != Separator.NONE) {
+                        fun Dividers() {
+                            if (separator == Separator.THIN) {
+                                Box(modifier = GlanceModifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(GlanceTheme.colors.surfaceVariant)) {
+                                    Box(modifier = GlanceModifier
+                                        .width(3.dp)
+                                        .height(1.dp)
+                                        .background(GlanceTheme.colors.primary)) {}
+                                }
+                            }
+                            if (separator == Separator.NORMAL) {
                                 Box(modifier = GlanceModifier
                                     .fillMaxWidth()
                                     .height(1.dp)
                                     .background(GlanceTheme.colors.surfaceVariant)) {}
-                            }
-                            if (separator == Separator.NORMAL) {
                                 Box(modifier = GlanceModifier
                                     .fillMaxWidth()
                                     .height(2.dp)
                                     .background(ColorProvider(Color(0x33000000)))) {}
                             }
                         }
-                        if (row.inExpandedThread) {
-                            // Thread rail: ONE 3dp bar in the theme's primary colour down the physical LEFT of
-                            // every row of an expanded thread (lead + members). The divider is inside the
-                            // same wrapper, so the bar also covers the (thin) separators and reads as one
-                            // unbroken line from the top of the lead to the bottom of the last member.
-                            //
-                            // Structure: a Box (FrameLayout) overlaying the bar on a Column(fillMaxWidth) that is
-                            // padded 5dp at the start (3dp bar + 2dp gap, so the bar never merges with an LTR row's
-                            // own 3dp accent stripe). The dividers are therefore direct children of a
-                            // Column(fillMaxWidth), exactly like single rows. A first version put them inside a
-                            // Column(defaultWeight) in a Row (rail beside it) and on device NO divider was painted
-                            // there (BUG-2, DEBUG_PLAN 14.ad): a fillMaxWidth() child of a weighted column does not
-                            // get a usable width in Glance's RemoteViews, so the divider boxes reserved their
-                            // height but drew nothing. No weight is used here.
-                            //
-                            // Physical left: the composition is locked to LayoutDirection.Ltr (provideGlance), so the
-                            // Box's default TopStart alignment and the Column's start padding are both the left,
-                            // like the accent stripe in FeedItemRow.
-                            Box(modifier = GlanceModifier.fillMaxWidth()) {
-                                Column(modifier = GlanceModifier.fillMaxWidth().padding(start = 5.dp)) {
-                                    RowAndDivider()
+                        // Both branches are ONE outer Column(fillMaxWidth) holding the item and then its
+                        // dividers, exactly like the long-standing single-row layout.
+                        //
+                        // WHY THE DIVIDERS ARE NOT INSIDE THE RAIL WRAPPER (BUG-2, DEBUG_PLAN 14.ad / 14.ae / 14.af):
+                        // two earlier builds put the dividers in the same container as the rail bar
+                        // (909: Row{ rail, Spacer, Column(defaultWeight){ row + dividers } }; 910: Box{
+                        // Column(padding start){ row + dividers }, rail Box(fillMaxHeight) }). On device the
+                        // divider Boxes were then ABSENT from the rendered view tree (the item's Column had
+                        // exactly 1 child in the uiautomator dump; the paddings still applied), thin and normal
+                        // alike. With the dividers as siblings of the wrapper, in the outer Column, they paint
+                        // (build 911). So: never put a divider in a container that also holds a
+                        // fillMaxHeight() rail child in Glance 1.1.0; the weight of build 909 was not the (only)
+                        // cause.
+                        Column(modifier = GlanceModifier.fillMaxWidth()) {
+                            if (row.inExpandedThread) {
+                                // Thread rail: a 3dp bar in the theme's primary colour down the physical LEFT of every
+                                // row of an expanded thread (lead + members), overlaid (Box = FrameLayout) on the row,
+                                // which is padded 5dp at the start (3dp bar + 2dp gap, so the bar never merges with an
+                                // LTR row's own 3dp accent stripe). The dividers are NOT inside this wrapper (see
+                                // above): they are siblings of it in the outer Column, and the THIN one carries its own
+                                // 3dp rail-coloured segment.
+                                //
+                                // Physical left: the composition is locked to LayoutDirection.Ltr (provideGlance), so the
+                                // Box's default TopStart alignment and the Column's start padding are both the left,
+                                // like the accent stripe in FeedItemRow.
+                                Box(modifier = GlanceModifier.fillMaxWidth()) {
+                                    Column(modifier = GlanceModifier.fillMaxWidth().padding(start = 5.dp)) {
+                                        ArticleRow()
+                                    }
+                                    Box(modifier = GlanceModifier
+                                        .width(3.dp)
+                                        .fillMaxHeight()
+                                        .background(GlanceTheme.colors.primary)) {}
                                 }
-                                Box(modifier = GlanceModifier
-                                    .width(3.dp)
-                                    .fillMaxHeight()
-                                    .background(GlanceTheme.colors.primary)) {}
+                            } else {
+                                ArticleRow()
                             }
-                        } else {
-                            // Single rows and collapsed leads: unchanged node tree.
-                            Column(modifier = GlanceModifier.fillMaxWidth()) { RowAndDivider() }
+                            Dividers()
                         }
                     }
                     if (canLoadMoreArticles) {
