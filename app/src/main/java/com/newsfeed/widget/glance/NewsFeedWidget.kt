@@ -409,16 +409,28 @@ private fun WidgetContent() {
                             // Thread rail: ONE 3dp bar in the theme's primary colour down the physical LEFT of
                             // every row of an expanded thread (lead + members). The divider is inside the
                             // same wrapper, so the bar also covers the (thin) separators and reads as one
-                            // unbroken line from the top of the lead to the bottom of the last member. The
-                            // composition is locked to LayoutDirection.Ltr (provideGlance), so the first
-                            // child of a Row is the physical left, same as the accent stripe in FeedItemRow.
-                            Row(modifier = GlanceModifier.fillMaxWidth()) {
+                            // unbroken line from the top of the lead to the bottom of the last member.
+                            //
+                            // Structure: a Box (FrameLayout) overlaying the bar on a Column(fillMaxWidth) that is
+                            // padded 5dp at the start (3dp bar + 2dp gap, so the bar never merges with an LTR row's
+                            // own 3dp accent stripe). The dividers are therefore direct children of a
+                            // Column(fillMaxWidth), exactly like single rows. A first version put them inside a
+                            // Column(defaultWeight) in a Row (rail beside it) and on device NO divider was painted
+                            // there (BUG-2, DEBUG_PLAN 14.ad): a fillMaxWidth() child of a weighted column does not
+                            // get a usable width in Glance's RemoteViews, so the divider boxes reserved their
+                            // height but drew nothing. No weight is used here.
+                            //
+                            // Physical left: the composition is locked to LayoutDirection.Ltr (provideGlance), so the
+                            // Box's default TopStart alignment and the Column's start padding are both the left,
+                            // like the accent stripe in FeedItemRow.
+                            Box(modifier = GlanceModifier.fillMaxWidth()) {
+                                Column(modifier = GlanceModifier.fillMaxWidth().padding(start = 5.dp)) {
+                                    RowAndDivider()
+                                }
                                 Box(modifier = GlanceModifier
                                     .width(3.dp)
                                     .fillMaxHeight()
                                     .background(GlanceTheme.colors.primary)) {}
-                                Spacer(GlanceModifier.width(2.dp))
-                                Column(modifier = GlanceModifier.defaultWeight()) { RowAndDivider() }
                             }
                         } else {
                             // Single rows and collapsed leads: unchanged node tree.
