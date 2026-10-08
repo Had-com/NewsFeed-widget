@@ -69,6 +69,55 @@ fun layoutThreads(threads: List<StoryThread>, expandedLeadIds: Set<String>, rowL
     )
 }
 
+/** True for the lead of an EXPANDED thread and for every member row: the rows that carry the thread rail. */
+val ThreadRow.inExpandedThread: Boolean
+    get() = kind == ThreadRowKind.MEMBER || (kind == ThreadRowKind.LEAD && expanded)
+
+/**
+ * True when [row] closes its thread block in the rendered list: no member row follows it ([next] is
+ * the row after it, null at the end of the visible slice). A SINGLE row and a collapsed lead are
+ * always "last"; the final visible row of a thread cut mid-way by the row limit is too.
+ */
+fun isLastOfThread(row: ThreadRow, next: ThreadRow?): Boolean = next == null || next.kind != ThreadRowKind.MEMBER
+
+/** How the divider drawn after a row looks. */
+enum class Separator { NORMAL, THIN, NONE }
+
+/**
+ * The divider after a row: the usual one between unrelated rows and after a thread's last row, a
+ * hairline between the rows of an expanded thread (lead->member, member->member), and none after
+ * the last row of the list.
+ */
+fun separatorStyleFor(kind: ThreadRowKind, isLastOfThread: Boolean, isLastRow: Boolean = false): Separator = when {
+    isLastRow -> Separator.NONE
+    kind == ThreadRowKind.SINGLE || isLastOfThread -> Separator.NORMAL
+    else -> Separator.THIN
+}
+
+const val ROW_PADDING_NORMAL_DP = 8
+const val ROW_PADDING_THIN_DP = 4
+
+/**
+ * (top, bottom) vertical padding in dp of a row's content: the standard [ROW_PADDING_NORMAL_DP]
+ * everywhere, but only [ROW_PADDING_THIN_DP] on the sides that face another row of the same
+ * expanded thread (about half the usual gap), so the thread block is delimited by normal padding on
+ * its outer edges.
+ */
+fun verticalPaddingDpFor(kind: ThreadRowKind, isLastOfThread: Boolean): Pair<Int, Int> = when (kind) {
+    ThreadRowKind.SINGLE -> ROW_PADDING_NORMAL_DP to ROW_PADDING_NORMAL_DP
+    ThreadRowKind.LEAD ->
+        ROW_PADDING_NORMAL_DP to (if (isLastOfThread) ROW_PADDING_NORMAL_DP else ROW_PADDING_THIN_DP)
+    ThreadRowKind.MEMBER ->
+        ROW_PADDING_THIN_DP to (if (isLastOfThread) ROW_PADDING_NORMAL_DP else ROW_PADDING_THIN_DP)
+}
+
+/** The lead row's badge text: "+N" while collapsed, a minus sign (U+2212) while expanded, empty when there is nothing to expand. */
+fun threadBadgeLabel(otherCount: Int, expanded: Boolean): String = when {
+    otherCount <= 0 -> ""
+    expanded -> "−"
+    else -> "+$otherCount"
+}
+
 /**
  * The grace-period refresh keys for [readArticles] (read articles still inside the grace window):
  * one (readAt, representative id) per distinct readAt - a story thread's members share one readAt, so

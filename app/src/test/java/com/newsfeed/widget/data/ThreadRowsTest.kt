@@ -105,4 +105,81 @@ class ThreadRowsTest {
     fun `resumeKeys of nothing is empty`() {
         assertEquals(emptyList<Pair<Long, String?>>(), resumeKeys(emptyList()))
     }
+
+    // ---- thread badge label --------------------------------------------------------------
+
+    @Test
+    fun `collapsed badge shows plus and the member count`() {
+        assertEquals("+3", threadBadgeLabel(3, expanded = false))
+        assertEquals("+1", threadBadgeLabel(1, expanded = false))
+    }
+
+    @Test
+    fun `expanded badge shows a minus sign without a number`() {
+        assertEquals("−", threadBadgeLabel(3, expanded = true))
+        assertEquals("−", threadBadgeLabel(1, expanded = true))
+    }
+
+    @Test
+    fun `no members means no badge`() {
+        assertEquals("", threadBadgeLabel(0, expanded = false))
+        assertEquals("", threadBadgeLabel(0, expanded = true))
+    }
+
+    // ---- separators and rail ---------------------------------------------------------------
+
+    @Test
+    fun `single rows and the last row of a thread keep the normal separator`() {
+        assertEquals(Separator.NORMAL, separatorStyleFor(ThreadRowKind.SINGLE, isLastOfThread = true))
+        assertEquals(Separator.NORMAL, separatorStyleFor(ThreadRowKind.LEAD, isLastOfThread = true)) // collapsed lead
+        assertEquals(Separator.NORMAL, separatorStyleFor(ThreadRowKind.MEMBER, isLastOfThread = true))
+    }
+
+    @Test
+    fun `rows inside an expanded thread get the thin separator`() {
+        assertEquals(Separator.THIN, separatorStyleFor(ThreadRowKind.LEAD, isLastOfThread = false))
+        assertEquals(Separator.THIN, separatorStyleFor(ThreadRowKind.MEMBER, isLastOfThread = false))
+    }
+
+    @Test
+    fun `the last row of the list has no separator`() {
+        assertEquals(Separator.NONE, separatorStyleFor(ThreadRowKind.SINGLE, isLastOfThread = true, isLastRow = true))
+        assertEquals(Separator.NONE, separatorStyleFor(ThreadRowKind.MEMBER, isLastOfThread = true, isLastRow = true))
+    }
+
+    @Test
+    fun `a row is last of its thread unless a member follows`() {
+        val l = layoutThreads(threads, setOf("b"), rowLimit = 100).rows // a, b, b1, b2, c, d
+        val last = l.indices.map { isLastOfThread(l[it], l.getOrNull(it + 1)) }
+        assertEquals(listOf(true, false, false, true, true, true), last)
+    }
+
+    @Test
+    fun `a collapsed lead is last of its thread`() {
+        val l = layoutThreads(threads, emptySet(), rowLimit = 100).rows
+        assertEquals(true, l.indices.all { isLastOfThread(l[it], l.getOrNull(it + 1)) })
+    }
+
+    @Test
+    fun `a thread cut mid-way ends at its last visible member`() {
+        val l = layoutThreads(threads, setOf("b"), rowLimit = 3).rows // a, b, b1
+        assertEquals(true, isLastOfThread(l[2], null))
+    }
+
+    @Test
+    fun `only the lead of an expanded thread and its members show the rail`() {
+        val l = layoutThreads(threads, setOf("b"), rowLimit = 100).rows // a, b, b1, b2, c, d
+        assertEquals(listOf(false, true, true, true, false, false), l.map { it.inExpandedThread })
+        val collapsed = layoutThreads(threads, emptySet(), rowLimit = 100).rows
+        assertEquals(true, collapsed.none { it.inExpandedThread })
+    }
+
+    @Test
+    fun `padding is thin only between the rows of an expanded thread`() {
+        assertEquals(8 to 8, verticalPaddingDpFor(ThreadRowKind.SINGLE, isLastOfThread = true))
+        assertEquals(8 to 8, verticalPaddingDpFor(ThreadRowKind.LEAD, isLastOfThread = true)) // collapsed lead
+        assertEquals(8 to 4, verticalPaddingDpFor(ThreadRowKind.LEAD, isLastOfThread = false))
+        assertEquals(4 to 4, verticalPaddingDpFor(ThreadRowKind.MEMBER, isLastOfThread = false))
+        assertEquals(4 to 8, verticalPaddingDpFor(ThreadRowKind.MEMBER, isLastOfThread = true))
+    }
 }

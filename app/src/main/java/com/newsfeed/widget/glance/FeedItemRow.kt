@@ -42,8 +42,10 @@ import androidx.glance.unit.ColorProvider
 import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.FaviconHelper
 import com.newsfeed.widget.data.FeedConfig
+import com.newsfeed.widget.data.ROW_PADDING_NORMAL_DP
 import com.newsfeed.widget.data.TapMode
 import com.newsfeed.widget.data.ThumbnailHelper
+import com.newsfeed.widget.data.threadBadgeLabel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -78,6 +80,11 @@ fun FeedItemRow(
     // articles, thread members), which then render exactly as before.
     threadOtherCount: Int = 0,
     threadExpanded: Boolean = false,
+    // Vertical padding (dp) above / below the row's content. Defaults are the standard row padding;
+    // rows inside an EXPANDED thread pass the thinner values from verticalPaddingDpFor() on the
+    // sides that face another row of the same thread.
+    paddingTopDp: Int = ROW_PADDING_NORMAL_DP,
+    paddingBottomDp: Int = ROW_PADDING_NORMAL_DP,
 ) {
     val context        = LocalContext.current
     // Focus mode (tapMode = focus) only. Hoisted above isExpanded: Focus Mode has no separate expand/collapse
@@ -236,7 +243,7 @@ fun FeedItemRow(
         Column(
             modifier = GlanceModifier
                 .defaultWeight()
-                .padding(horizontal = 8.dp, vertical = 8.dp)
+                .padding(start = 8.dp, top = paddingTopDp.dp, end = 8.dp, bottom = paddingBottomDp.dp)
                 .clickable(toggleAction),
             horizontalAlignment = if (isRtl) Alignment.End else Alignment.Start,
         ) {
@@ -301,33 +308,41 @@ fun FeedItemRow(
                                  else       androidx.glance.text.TextAlign.Start,
                 )
 
-                // Story-thread badge ("+3 ▾" collapsed / "+3 ▴" expanded): its OWN clickable inside the
+                // Story-thread badge ("+3" collapsed / "−" expanded, see threadBadgeLabel): its OWN clickable inside the
                 // row, so tapping it toggles the thread (ToggleThreadCallback) and does not also fire
                 // the row's tap action. Nested clickables already work in this list: the "Open article →",
                 // "Share ↗" and "Load full article ↓" pills below are clickables inside the same
                 // Column/Row clickables. Hidden while the row is dissolving (the whole thread is
                 // about to leave). Direct children of the meta Row stay <= 9 (RemoteViews allows 10).
                 @Composable
-                fun ThreadBadge(spaceBefore: Boolean) {
+                fun ThreadBadge() {
                     if (threadOtherCount > 0 && !isDissolving) {
-                        if (spaceBefore) Spacer(GlanceModifier.width(6.dp))
-                        Text(
-                            text = "+$threadOtherCount " + (if (threadExpanded) "▴" else "▾"),
-                            style = TextStyle(
-                                fontSize   = metaFontSize,
-                                fontFamily = FontFamily.SansSerif,
-                                fontWeight = FontWeight.Bold,
-                                color      = GlanceTheme.colors.onPrimaryContainer,
-                            ),
-                            maxLines = 1,
+                        // The pill is just "+N" / "−" (narrower than the old "+N ▾"), so the clickable is
+                        // the pill plus a transparent 6dp margin on each side (same hit width as before,
+                        // no extra height: the meta line keeps its height). The margin replaces the 6dp
+                        // spacer that used to precede the pill in the LTR layout.
+                        Box(
                             modifier = GlanceModifier
-                                .background(GlanceTheme.colors.primaryContainer)
-                                .cornerRadius(6.dp)
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .padding(horizontal = 6.dp)
                                 .clickable(actionRunCallback<ToggleThreadCallback>(
                                     actionParametersOf(ToggleThreadCallback.LEAD_ID_KEY to article.id)
                                 )),
-                        )
+                        ) {
+                            Text(
+                                text = threadBadgeLabel(threadOtherCount, threadExpanded),
+                                style = TextStyle(
+                                    fontSize   = metaFontSize,
+                                    fontFamily = FontFamily.SansSerif,
+                                    fontWeight = FontWeight.Bold,
+                                    color      = GlanceTheme.colors.onPrimaryContainer,
+                                ),
+                                maxLines = 1,
+                                modifier = GlanceModifier
+                                    .background(GlanceTheme.colors.primaryContainer)
+                                    .cornerRadius(6.dp)
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
                     }
                 }
 
@@ -344,7 +359,7 @@ fun FeedItemRow(
                     val nameMaxWidth = (70f * metaScaleFontSize).dp
                     Text(formatDateTime(article.publishedAt), style = tsStyle, maxLines = 1)
                     Spacer(GlanceModifier.width(6.dp))
-                    ThreadBadge(spaceBefore = false)
+                    ThreadBadge()
                     Spacer(GlanceModifier.defaultWeight())
                     if (!article.isRead) {
                         Box(modifier = GlanceModifier.width(5.dp).height(5.dp).background(accentProvider)) {}
@@ -366,7 +381,7 @@ fun FeedItemRow(
                     }
                     Text(feedConfig.displayName, style = nameStyle, maxLines = 1,
                         modifier = GlanceModifier.defaultWeight())
-                    ThreadBadge(spaceBefore = true)
+                    ThreadBadge()
                 }
             }
 

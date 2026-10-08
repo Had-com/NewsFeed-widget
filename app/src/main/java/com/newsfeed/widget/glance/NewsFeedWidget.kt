@@ -29,6 +29,7 @@ import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
+import androidx.glance.appwidget.lazy.itemsIndexed
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
@@ -55,16 +56,21 @@ import com.newsfeed.widget.data.FilterMode
 import com.newsfeed.widget.data.GraceRefreshRegistry
 import com.newsfeed.widget.data.OrphanCleanup
 import com.newsfeed.widget.data.TapMode
+import com.newsfeed.widget.data.Separator
 import com.newsfeed.widget.data.ThreadRowKind
 import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.applyFilterAndSort
 import com.newsfeed.widget.data.dissolveArticle
 import com.newsfeed.widget.data.groupStories
+import com.newsfeed.widget.data.inExpandedThread
+import com.newsfeed.widget.data.isLastOfThread
 import com.newsfeed.widget.data.isDissolving
 import com.newsfeed.widget.data.layoutThreads
 import com.newsfeed.widget.data.resumeKeys
+import com.newsfeed.widget.data.separatorStyleFor
 import com.newsfeed.widget.data.ungroupedStories
+import com.newsfeed.widget.data.verticalPaddingDpFor
 import com.newsfeed.widget.data.UNREAD_GRACE_PERIOD_MS
 import com.newsfeed.widget.data.OrphanCleanupWorker
 import com.newsfeed.widget.update.UpdateCheckWorker
@@ -344,59 +350,79 @@ private fun WidgetContent() {
                     // (isRead, etc.) changed — a correct improvement on its own regardless of
                     // whether it's the row-highlight bug's exact root cause, which is not yet
                     // independently confirmed on-device.
-                    items(displayRows, itemId = { it.article.id.hashCode().toLong() }) { row ->
+                    itemsIndexed(displayRows, itemId = { _, it -> it.article.id.hashCode().toLong() }) { rowIndex, row ->
                         val article = row.article
-                        val feedConfig = feedMap[article.feedId] ?: return@items
-                        val isLast = row == displayRows.last()
-                        Column(modifier = GlanceModifier.fillMaxWidth()) {
-                            // A thread member (shown only while its thread is expanded) gets a narrow
-                            // gutter on the left so it reads as nested under the lead; it is otherwise
-                            // the same row, with the same tap behaviour for the widget's tap mode.
-                            @Composable
-                            fun ArticleRow() {
-                                FeedItemRow(
-                                    article           = article,
-                                    feedConfig        = feedConfig,
-                                    expandedArticleId = expandedArticleId,
-                                    fontSize          = config.fontSize,
-                                    articleFontSize   = config.articleFontSize,
-                                    articleLength     = config.articleLength,
-                                    fullArticleId     = fullArticleId,
-                                    fullArticleText   = fullArticleText,
-                                    fullArticleShown  = fullArticleShown,
-                                    useThemeColors    = config.useThemeColors,
-                                    widgetTheme       = config.widgetTheme,
-                                    externalApp       = config.externalApp,
-                                    themeVariant      = config.themeVariant,
-                                    focusedArticleId  = focusedArticleId,
-                                    focusScale        = focusScale,
-                                    isFocusWidget     = isFocusWidget,
-                                    isDissolving      = config.filter == FilterMode.UNREAD.key && isDissolving(article, now),
-                                    threadOtherCount  = if (row.kind == ThreadRowKind.LEAD) row.otherCount else 0,
-                                    threadExpanded    = row.expanded,
-                                )
-                            }
-                            if (row.kind == ThreadRowKind.MEMBER) {
-                                Row(modifier = GlanceModifier.fillMaxWidth()) {
-                                    Box(modifier = GlanceModifier
-                                        .width(14.dp)
-                                        .fillMaxHeight()
-                                        .background(GlanceTheme.colors.surfaceVariant)) {}
-                                    Column(modifier = GlanceModifier.defaultWeight()) { ArticleRow() }
-                                }
-                            } else {
-                                ArticleRow()
-                            }
-                            if (!isLast) {
+                        val feedConfig = feedMap[article.feedId] ?: return@itemsIndexed
+                        val isLast = rowIndex == displayRows.lastIndex
+                        // Story threads: where this row sits in its thread decides its separator and its
+                        // vertical padding (thin between the rows of an EXPANDED thread, normal otherwise).
+                        // A SINGLE row and a collapsed lead are always "last of thread" -> normal, exactly
+                        // the pre-thread values.
+                        val lastOfThread = isLastOfThread(row, displayRows.getOrNull(rowIndex + 1))
+                        val (padTop, padBottom) = verticalPaddingDpFor(row.kind, lastOfThread)
+                        val separator = separatorStyleFor(row.kind, lastOfThread, isLast)
+                        @Composable
+                        fun ArticleRow() {
+                            FeedItemRow(
+                                article           = article,
+                                feedConfig        = feedConfig,
+                                expandedArticleId = expandedArticleId,
+                                fontSize          = config.fontSize,
+                                articleFontSize   = config.articleFontSize,
+                                articleLength     = config.articleLength,
+                                fullArticleId     = fullArticleId,
+                                fullArticleText   = fullArticleText,
+                                fullArticleShown  = fullArticleShown,
+                                useThemeColors    = config.useThemeColors,
+                                widgetTheme       = config.widgetTheme,
+                                externalApp       = config.externalApp,
+                                themeVariant      = config.themeVariant,
+                                focusedArticleId  = focusedArticleId,
+                                focusScale        = focusScale,
+                                isFocusWidget     = isFocusWidget,
+                                isDissolving      = config.filter == FilterMode.UNREAD.key && isDissolving(article, now),
+                                threadOtherCount  = if (row.kind == ThreadRowKind.LEAD) row.otherCount else 0,
+                                threadExpanded    = row.expanded,
+                                paddingTopDp      = padTop,
+                                paddingBottomDp   = padBottom,
+                            )
+                        }
+                        // The row plus its divider. NORMAL is the long-standing 1dp line + 2dp shadow strip;
+                        // THIN (between the rows of an expanded thread) is the 1dp line alone.
+                        @Composable
+                        fun RowAndDivider() {
+                            ArticleRow()
+                            if (separator != Separator.NONE) {
                                 Box(modifier = GlanceModifier
                                     .fillMaxWidth()
                                     .height(1.dp)
                                     .background(GlanceTheme.colors.surfaceVariant)) {}
+                            }
+                            if (separator == Separator.NORMAL) {
                                 Box(modifier = GlanceModifier
                                     .fillMaxWidth()
                                     .height(2.dp)
                                     .background(ColorProvider(Color(0x33000000)))) {}
                             }
+                        }
+                        if (row.inExpandedThread) {
+                            // Thread rail: ONE 3dp bar in the theme's primary colour down the physical LEFT of
+                            // every row of an expanded thread (lead + members). The divider is inside the
+                            // same wrapper, so the bar also covers the (thin) separators and reads as one
+                            // unbroken line from the top of the lead to the bottom of the last member. The
+                            // composition is locked to LayoutDirection.Ltr (provideGlance), so the first
+                            // child of a Row is the physical left, same as the accent stripe in FeedItemRow.
+                            Row(modifier = GlanceModifier.fillMaxWidth()) {
+                                Box(modifier = GlanceModifier
+                                    .width(3.dp)
+                                    .fillMaxHeight()
+                                    .background(GlanceTheme.colors.primary)) {}
+                                Spacer(GlanceModifier.width(2.dp))
+                                Column(modifier = GlanceModifier.defaultWeight()) { RowAndDivider() }
+                            }
+                        } else {
+                            // Single rows and collapsed leads: unchanged node tree.
+                            Column(modifier = GlanceModifier.fillMaxWidth()) { RowAndDivider() }
                         }
                     }
                     if (canLoadMoreArticles) {
