@@ -85,6 +85,10 @@ fun FeedItemRow(
     // sides that face another row of the same thread.
     paddingTopDp: Int = ROW_PADDING_NORMAL_DP,
     paddingBottomDp: Int = ROW_PADDING_NORMAL_DP,
+    // False on rows that carry the story-timeline rail (see ThreadRail): the rail sits at the physical
+    // right of the item, where an RTL row draws its 3dp per-feed accent stripe, so those rows leave the
+    // stripe (and the 6dp gap before it) out. Always true otherwise: single rows are unchanged.
+    showRtlAccentStripe: Boolean = true,
 ) {
     val context        = LocalContext.current
     // Focus mode (tapMode = focus) only. Hoisted above isExpanded: Focus Mode has no separate expand/collapse
@@ -970,7 +974,7 @@ fun FeedItemRow(
             }
         }
 
-        if (isRtl) {
+        if (isRtl && showRtlAccentStripe) {
             Spacer(GlanceModifier.width(6.dp))
             Box(modifier = GlanceModifier
                 .width(3.dp)

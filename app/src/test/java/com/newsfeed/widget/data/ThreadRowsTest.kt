@@ -126,7 +126,7 @@ class ThreadRowsTest {
         assertEquals("", threadBadgeLabel(0, expanded = true))
     }
 
-    // ---- separators and rail ---------------------------------------------------------------
+    // ---- separators ---------------------------------------------------------------
 
     @Test
     fun `single rows and the last row of a thread keep the normal separator`() {
@@ -166,12 +166,63 @@ class ThreadRowsTest {
         assertEquals(true, isLastOfThread(l[2], null))
     }
 
+    // ---- timeline rail (right side) --------------------------------------------------------
+
+    private fun railOf(rows: List<ThreadRow>) =
+        rows.indices.map { railPartFor(rows[it], isLastOfThread(rows[it], rows.getOrNull(it + 1))) }
+
     @Test
-    fun `only the lead of an expanded thread and its members show the rail`() {
+    fun `single rows have no rail`() {
+        val l = layoutThreads(threads, emptySet(), rowLimit = 100).rows // a, b, c, d
+        assertEquals(RailPart.NONE, railPartFor(l[0], isLastOfThread = true))
+        assertEquals(RailSpec(DotKind.NONE, lineAbove = false, lineBelow = false), railSpecFor(RailPart.NONE))
+    }
+
+    @Test
+    fun `a collapsed lead shows only a hollow dot`() {
+        val l = layoutThreads(threads, emptySet(), rowLimit = 100).rows
+        assertEquals(listOf(RailPart.NONE, RailPart.COLLAPSED_LEAD, RailPart.NONE, RailPart.COLLAPSED_LEAD), railOf(l))
+        assertEquals(RailSpec(DotKind.HOLLOW, lineAbove = false, lineBelow = false), railSpecFor(RailPart.COLLAPSED_LEAD))
+    }
+
+    @Test
+    fun `an expanded thread is a hollow lead dot then filled member dots joined by a line`() {
         val l = layoutThreads(threads, setOf("b"), rowLimit = 100).rows // a, b, b1, b2, c, d
-        assertEquals(listOf(false, true, true, true, false, false), l.map { it.inExpandedThread })
-        val collapsed = layoutThreads(threads, emptySet(), rowLimit = 100).rows
-        assertEquals(true, collapsed.none { it.inExpandedThread })
+        assertEquals(
+            listOf(RailPart.NONE, RailPart.LEAD_OPEN, RailPart.MIDDLE, RailPart.LAST, RailPart.NONE, RailPart.COLLAPSED_LEAD),
+            railOf(l),
+        )
+        assertEquals(RailSpec(DotKind.HOLLOW, lineAbove = false, lineBelow = true), railSpecFor(RailPart.LEAD_OPEN))
+        assertEquals(RailSpec(DotKind.FILLED, lineAbove = true, lineBelow = true), railSpecFor(RailPart.MIDDLE))
+        // the last member's line stops at its dot: nothing below it
+        assertEquals(RailSpec(DotKind.FILLED, lineAbove = true, lineBelow = false), railSpecFor(RailPart.LAST))
+    }
+
+    @Test
+    fun `an expanded lead whose members were all cut by the row budget has no line below`() {
+        val l = layoutThreads(threads, setOf("b"), rowLimit = 2).rows // a, b (members cut)
+        assertEquals(true, l[1].expanded)
+        assertEquals(RailPart.LEAD_CUT, railPartFor(l[1], isLastOfThread(l[1], null)))
+        assertEquals(RailSpec(DotKind.HOLLOW, lineAbove = false, lineBelow = false), railSpecFor(RailPart.LEAD_CUT))
+    }
+
+    @Test
+    fun `a thread cut after its first member ends its line at that member`() {
+        val l = layoutThreads(threads, setOf("b"), rowLimit = 3).rows // a, b, b1
+        assertEquals(listOf(RailPart.NONE, RailPart.LEAD_OPEN, RailPart.LAST), railOf(l))
+    }
+
+    @Test
+    fun `the rail dot sits on the middle of the meta line`() {
+        // plain row at font 1.0: the 14 dp feed circle is the tallest item, centre 7 dp below the padding
+        assertEquals(8f + 7f, railDotCenterDpFor(paddingTopDp = 8, metaScale = 1f, hasBadge = false), 0.001f)
+        // a lead's +N badge (12 dp text + 8 dp padding) is taller than the circle at font 1.0
+        assertEquals(8f + 10f, railDotCenterDpFor(paddingTopDp = 8, metaScale = 1f, hasBadge = true), 0.001f)
+        // thin top padding of a member row
+        assertEquals(4f + 7f, railDotCenterDpFor(paddingTopDp = 4, metaScale = 1f, hasBadge = false), 0.001f)
+        // largest font: the circle grows with the font, so does the whole meta line
+        assertEquals(8f + 21f, railDotCenterDpFor(paddingTopDp = 8, metaScale = 3f, hasBadge = false), 0.001f)
+        assertEquals(8f + 22f, railDotCenterDpFor(paddingTopDp = 8, metaScale = 3f, hasBadge = true), 0.001f)
     }
 
     @Test

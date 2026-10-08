@@ -40,7 +40,6 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
-import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -63,7 +62,11 @@ import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.applyFilterAndSort
 import com.newsfeed.widget.data.dissolveArticle
 import com.newsfeed.widget.data.groupStories
-import com.newsfeed.widget.data.inExpandedThread
+import com.newsfeed.widget.data.RAIL_LINE_DP
+import com.newsfeed.widget.data.RAIL_WIDTH_DP
+import com.newsfeed.widget.data.RailPart
+import com.newsfeed.widget.data.railDotCenterDpFor
+import com.newsfeed.widget.data.railPartFor
 import com.newsfeed.widget.data.isLastOfThread
 import com.newsfeed.widget.data.isDissolving
 import com.newsfeed.widget.data.layoutThreads
@@ -361,6 +364,16 @@ private fun WidgetContent() {
                         val lastOfThread = isLastOfThread(row, displayRows.getOrNull(rowIndex + 1))
                         val (padTop, padBottom) = verticalPaddingDpFor(row.kind, lastOfThread)
                         val separator = separatorStyleFor(row.kind, lastOfThread, isLast)
+                        // Story timeline (thread rows only): which piece of the right-hand rail this row draws,
+                        // and where its dot sits (the middle of the row's first text line, see railDotCenterDpFor;
+                        // the +N badge only exists on a lead that is not dissolving).
+                        val railPart = railPartFor(row, lastOfThread)
+                        val rowDissolving = config.filter == FilterMode.UNREAD.key && isDissolving(article, now)
+                        val railDotCenterDp = railDotCenterDpFor(
+                            paddingTopDp = padTop,
+                            metaScale = config.fontSize,
+                            hasBadge = row.kind == ThreadRowKind.LEAD && row.otherCount > 0 && !rowDissolving,
+                        )
                         @Composable
                         fun ArticleRow() {
                             FeedItemRow(
@@ -380,28 +393,45 @@ private fun WidgetContent() {
                                 focusedArticleId  = focusedArticleId,
                                 focusScale        = focusScale,
                                 isFocusWidget     = isFocusWidget,
-                                isDissolving      = config.filter == FilterMode.UNREAD.key && isDissolving(article, now),
+                                isDissolving      = rowDissolving,
                                 threadOtherCount  = if (row.kind == ThreadRowKind.LEAD) row.otherCount else 0,
                                 threadExpanded    = row.expanded,
                                 paddingTopDp      = padTop,
                                 paddingBottomDp   = padBottom,
+                                // An RTL row's per-feed accent stripe is at the physical RIGHT, exactly where the
+                                // timeline rail sits (the rail column is added outside the row, flush with the
+                                // item's right edge): the stripe would be a second vertical line 8dp from the rail
+                                // line, so rows that carry a rail drop it (their rail dot/line is the right-edge
+                                // marker; the feed is still identified by the circle icon and the name). LTR rows
+                                // keep their stripe on the left, far from the rail.
+                                showRtlAccentStripe = railPart == RailPart.NONE,
                             )
                         }
                         // The divider(s) after a row. NORMAL is the long-standing 1dp line + 2dp shadow strip;
-                        // THIN (between the rows of an expanded thread) is the 1dp line alone, with the 3dp
-                        // thread-rail colour painted over its first 3dp so the rail reads as one unbroken line
-                        // through the separator (a Box overlay: no weights, no padding on a filled box).
+                        // THIN (between the rows of an expanded thread) is the 1dp line alone, with a 2dp x 1dp
+                        // piece of the rail colour painted over it where the rail line runs (8dp in from the right
+                        // edge: centre of the 18dp rail column) so the rail reads as one unbroken line through the
+                        // separator (a Box overlay: no weights, no padding on a filled box). The 10dp wrapper Box
+                        // is right-aligned by the hairline Box and holds the 2dp piece at ITS start, i.e. at 8dp
+                        // from the physical right.
                         @Composable
                         fun Dividers() {
                             if (separator == Separator.THIN) {
-                                Box(modifier = GlanceModifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(GlanceTheme.colors.surfaceVariant)) {
-                                    Box(modifier = GlanceModifier
-                                        .width(3.dp)
+                                Box(
+                                    modifier = GlanceModifier
+                                        .fillMaxWidth()
                                         .height(1.dp)
-                                        .background(GlanceTheme.colors.primary)) {}
+                                        .background(GlanceTheme.colors.surfaceVariant),
+                                    contentAlignment = Alignment.CenterEnd,
+                                ) {
+                                    Box(modifier = GlanceModifier
+                                        .width(((RAIL_WIDTH_DP + RAIL_LINE_DP) / 2).dp)
+                                        .height(1.dp)) {
+                                        Box(modifier = GlanceModifier
+                                            .width(RAIL_LINE_DP.dp)
+                                            .height(1.dp)
+                                            .background(GlanceTheme.colors.primary)) {}
+                                    }
                                 }
                             }
                             if (separator == Separator.NORMAL) {
@@ -429,25 +459,27 @@ private fun WidgetContent() {
                         // fillMaxHeight() rail child in Glance 1.1.0; the weight of build 909 was not the (only)
                         // cause.
                         Column(modifier = GlanceModifier.fillMaxWidth()) {
-                            if (row.inExpandedThread) {
-                                // Thread rail: a 3dp bar in the theme's primary colour down the physical LEFT of every
-                                // row of an expanded thread (lead + members), overlaid (Box = FrameLayout) on the row,
-                                // which is padded 5dp at the start (3dp bar + 2dp gap, so the bar never merges with an
-                                // LTR row's own 3dp accent stripe). The dividers are NOT inside this wrapper (see
-                                // above): they are siblings of it in the outer Column, and the THIN one carries its own
-                                // 3dp rail-coloured segment.
+                            if (railPart != RailPart.NONE) {
+                                // Story timeline (thread rows): a rail column on the physical RIGHT of the item (a dot
+                                // per article, hollow ring on the lead, filled dots on the members, joined by a 2dp
+                                // line, see ThreadRail), overlaid (Box = FrameLayout) on the row, which is padded
+                                // RAIL_WIDTH_DP at the end so the text never runs under it. The rail lives OUTSIDE (to the
+                                // right of) the FeedItemRow, so it cannot overlap an RTL row's feed circle icon (inside
+                                // the row, left of its stripe). The dividers are NOT inside this wrapper (see above): they
+                                // are siblings of it in the outer Column, and the THIN one carries its own piece of rail
+                                // line. The wrapper has two children, the padded row and the rail.
                                 //
-                                // Physical left: the composition is locked to LayoutDirection.Ltr (provideGlance), so the
-                                // Box's default TopStart alignment and the Column's start padding are both the left,
-                                // like the accent stripe in FeedItemRow.
-                                Box(modifier = GlanceModifier.fillMaxWidth()) {
-                                    Column(modifier = GlanceModifier.fillMaxWidth().padding(start = 5.dp)) {
+                                // Physical right: the composition is locked to LayoutDirection.Ltr (provideGlance), so the
+                                // Box's TopEnd alignment and the Column's end padding are the right edge for RTL and LTR
+                                // feeds alike (same assumption the old left rail made with start/TopStart).
+                                Box(
+                                    modifier = GlanceModifier.fillMaxWidth(),
+                                    contentAlignment = Alignment.TopEnd,
+                                ) {
+                                    Column(modifier = GlanceModifier.fillMaxWidth().padding(end = RAIL_WIDTH_DP.dp)) {
                                         ArticleRow()
                                     }
-                                    Box(modifier = GlanceModifier
-                                        .width(3.dp)
-                                        .fillMaxHeight()
-                                        .background(GlanceTheme.colors.primary)) {}
+                                    ThreadRail(railPart, railDotCenterDp)
                                 }
                             } else {
                                 ArticleRow()

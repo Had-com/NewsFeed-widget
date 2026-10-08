@@ -90,7 +90,7 @@ An article is **marked as read** once you move on to another one (expanding a di
 
 ### Story threads (group similar stories)
 
-When several feeds report the same news story within a few hours (for example ynet, N12, Kan and a Telegram channel), the widget shows it as **one row**: the newest report, with a small **+N** badge at the end of its meta line (N = the other reports). Tap the badge to list the other reports right under it (the badge turns into a **−**; tap it again to fold them away). While a thread is open, a **vertical rail** along the left edge of the lead and all its reports shows that they belong together, and the dividers between them are thinner than between unrelated stories. Tapping the row itself works as usual for your tap mode.
+When several feeds report the same news story within a few hours (for example ynet, N12, Kan and a Telegram channel), the widget shows it as **one row**: the newest report, with a small **+N** badge at the end of its meta line (N = the other reports). Tap the badge to list the other reports right under it (the badge turns into a **−**; tap it again to fold them away). While a thread is open, a **timeline** down the right edge shows that the lead and its reports belong together: one dot per article joined by a thin vertical line, a hollow dot on the newest article (the lead) and filled dots on the other reports, the line ending at the last report. A folded thread shows just the hollow dot next to its +N badge. The dividers between the rows of an open thread are thinner than between unrelated stories. Tapping the row itself works as usual for your tap mode.
 
 - **Matching** is by the key words of the headline (punctuation, quotes, niqqud and common Hebrew/English filler words ignored), across **different** feeds, within 6 hours, needing at least 3 shared key words covering 60% of the shorter headline. Up to 12 reports per thread; the newest is the lead. Headlines that are worded very differently are not grouped.
 - **Reading:** a thread is marked read as a whole when you move on from any of its articles to something outside it (moving between its own articles marks nothing). Under **Unread only** the whole thread then fades out and disappears together. A later report of the same story starts a new unread thread.
@@ -398,6 +398,7 @@ app/src/main/
 │   │   ├── ToggleExpandCallback.kt    # ActionCallback — expand/collapse article (Expand mode)
 │   │   ├── ToggleThreadCallback.kt    # ActionCallback — the +N badge: expand/collapse a story thread
 │   │   ├── ThreadState.kt             # Expanded-thread state (prune/cap), thread recomputation from stored articles for the callbacks
+│   │   ├── ThreadRail.kt              # The story-thread timeline on the right of thread rows: dots (bitmaps) joined by a line
 │   │   ├── SetFocusArticleCallback.kt # ActionCallback — tap-to-focus an article; marks the previously-focused article read (Focus mode)
 │   │   ├── AdjustFocusScaleCallback.kt # ActionCallback — −/+ header buttons (Focus mode)
 │   │   ├── UnreadGracePeriod.kt        # Delayed re-render so a just-read article's grace period actually elapses on-widget and dissolve stages (text turns to dots, then is erased from the end)

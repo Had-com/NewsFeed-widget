@@ -69,9 +69,62 @@ fun layoutThreads(threads: List<StoryThread>, expandedLeadIds: Set<String>, rowL
     )
 }
 
-/** True for the lead of an EXPANDED thread and for every member row: the rows that carry the thread rail. */
-val ThreadRow.inExpandedThread: Boolean
-    get() = kind == ThreadRowKind.MEMBER || (kind == ThreadRowKind.LEAD && expanded)
+/**
+ * Which piece of the story timeline (the rail on the physical right of a thread's rows) a row draws.
+ *  - [NONE]: a single row, no rail;
+ *  - [COLLAPSED_LEAD]: a collapsed thread's lead, just the hollow dot next to the "+N" badge;
+ *  - [LEAD_OPEN]: an expanded lead, hollow dot with the line running down to the first member;
+ *  - [MIDDLE]: a member with another member after it, filled dot with the line above and below;
+ *  - [LAST]: the last visible member, filled dot, the line only comes down from above to its dot;
+ *  - [LEAD_CUT]: an expanded lead whose members were all cut by the row budget, so there is
+ *    nothing to join: hollow dot, no line.
+ */
+enum class RailPart { NONE, COLLAPSED_LEAD, LEAD_OPEN, MIDDLE, LAST, LEAD_CUT }
+
+/** The dot of a rail row: a hollow ring (the lead = the thread's newest article) or a filled dot (members). */
+enum class DotKind { NONE, HOLLOW, FILLED }
+
+/** What to draw for a [RailPart]: its dot and whether the line runs above / below the dot (to the item's top / bottom edge). */
+data class RailSpec(val dot: DotKind, val lineAbove: Boolean, val lineBelow: Boolean)
+
+/** The rail piece of [row]; [isLastOfThread] comes from [isLastOfThread] (false when a member row follows). */
+fun railPartFor(row: ThreadRow, isLastOfThread: Boolean): RailPart = when (row.kind) {
+    ThreadRowKind.SINGLE -> RailPart.NONE
+    ThreadRowKind.LEAD -> when {
+        !row.expanded -> RailPart.COLLAPSED_LEAD
+        isLastOfThread -> RailPart.LEAD_CUT
+        else -> RailPart.LEAD_OPEN
+    }
+    ThreadRowKind.MEMBER -> if (isLastOfThread) RailPart.LAST else RailPart.MIDDLE
+}
+
+fun railSpecFor(part: RailPart): RailSpec = when (part) {
+    RailPart.NONE -> RailSpec(DotKind.NONE, lineAbove = false, lineBelow = false)
+    RailPart.COLLAPSED_LEAD, RailPart.LEAD_CUT -> RailSpec(DotKind.HOLLOW, lineAbove = false, lineBelow = false)
+    RailPart.LEAD_OPEN -> RailSpec(DotKind.HOLLOW, lineAbove = false, lineBelow = true)
+    RailPart.MIDDLE -> RailSpec(DotKind.FILLED, lineAbove = true, lineBelow = true)
+    RailPart.LAST -> RailSpec(DotKind.FILLED, lineAbove = true, lineBelow = false)
+}
+
+/** Width of the rail column on the right of a thread row, and the line / dot sizes inside it (dp). */
+const val RAIL_WIDTH_DP = 18
+const val RAIL_LINE_DP = 2
+const val RAIL_RING_DP = 12
+const val RAIL_DOT_DP = 8
+
+/**
+ * Distance in dp from the top of a list item to the vertical middle of its FIRST text line, where the
+ * rail dot is centred: the row's top padding plus half the height of the meta line (feed circle,
+ * time, feed name and, on a lead, the "+N" badge). The meta line is [metaScale] times the 1.0 sizes:
+ * the feed circle is 14 dp x scale, the badge is its 10 sp x scale text (about 12 dp x scale of line)
+ * plus 4 dp padding above and below. The dot is therefore a FIXED offset per row, independent of how
+ * many lines the headline wraps to, and it follows the font-size setting.
+ */
+fun railDotCenterDpFor(paddingTopDp: Int, metaScale: Float, hasBadge: Boolean): Float {
+    val circle = 14f * metaScale
+    val badge = if (hasBadge) 12f * metaScale + 8f else 0f
+    return paddingTopDp + maxOf(circle, badge) / 2f
+}
 
 /**
  * True when [row] closes its thread block in the rendered list: no member row follows it ([next] is
