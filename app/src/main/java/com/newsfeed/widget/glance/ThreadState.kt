@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.StoryThread
 import com.newsfeed.widget.data.dedupeById
+import com.newsfeed.widget.data.applyRetention
 import com.newsfeed.widget.data.displayThreadsFor
 import com.newsfeed.widget.data.flattenThreads
 import com.newsfeed.widget.data.WidgetConfig
@@ -36,7 +37,11 @@ fun encodeExpandedThreadIds(ids: Collection<String>): String =
  * threads never mix read classes (see StoryThreads.kt), so a filtered render and this unfiltered
  * recomputation produce the same threads for every article the render can show.
  */
-internal fun storedThreads(prefs: Preferences, articles: List<ArticleItem>): List<StoryThread>? {
+internal fun storedThreads(
+    prefs: Preferences,
+    articles: List<ArticleItem>,
+    now: Long = System.currentTimeMillis(),
+): List<StoryThread>? {
     val config = prefs[WidgetStateKey.configJson]
         ?.let { runCatching { Json.decodeFromString<WidgetConfig>(it) }.getOrNull() }
         ?: return null
@@ -44,7 +49,9 @@ internal fun storedThreads(prefs: Preferences, articles: List<ArticleItem>): Lis
     val feedIds = config.feeds.map { it.feedId }.toSet()
     // dedupeById: the render de-duplicates same-id articles (same article served by two feeds) before
     // grouping, so the callbacks must too, or a "+1" thread of one article and its own copy would exist here.
-    return groupStories(dedupeById(articles.filter { it.feedId in feedIds }))
+    // applyRetention: the render drops articles past the "Keep articles for" window (displayThreadsFor), so
+    // the callbacks must too or an expired article would still be counted in a thread (and in its statistics).
+    return groupStories(dedupeById(applyRetention(articles.filter { it.feedId in feedIds }, config, now)))
 }
 
 /**

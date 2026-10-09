@@ -23,6 +23,7 @@ import com.newsfeed.widget.data.OrphanCleanup
 import com.newsfeed.widget.data.WidgetConfigStore
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.mergeFreshArticles
+import com.newsfeed.widget.data.applyRetention
 import com.newsfeed.widget.data.retainWithPerFeedGuarantee
 import com.newsfeed.widget.update.UpdateCheckWorker
 import kotlinx.coroutines.flow.first
@@ -84,16 +85,14 @@ class WidgetWorker(
             val now = System.currentTimeMillis()
             // How long an accumulated article stays in the list, independent of the 300-item
             // safety cap below — 0 means "no date limit" (300-cap-only, the original behavior).
-            val retentionCutoff = if (config.retentionDays > 0)
-                now - config.retentionDays * 24L * 60 * 60 * 1000
-            else 0L
+            // (retentionCutoff/applyRetention are pure and unit tested; the render applies the same cutoff,
+            // so a short window such as 15 minutes also takes effect between worker runs.)
             var merged: List<ArticleItem> = emptyList()
             updateAppWidgetState(context, glanceId) { prefs ->
                 val existing = prefs[WidgetStateKey.articles]
                     ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
                     ?: emptyList()
-                val candidates = mergeFreshArticles(fresh, existing)
-                    .filter { retentionCutoff <= 0L || it.publishedAt >= retentionCutoff }
+                val candidates = applyRetention(mergeFreshArticles(fresh, existing), config, now)
                 merged = retainWithPerFeedGuarantee(candidates, cap = 300, minPerFeed = 10)
                 prefs[WidgetStateKey.articles]        = Json.encodeToString(merged)
                 prefs[WidgetStateKey.configJson]      = Json.encodeToString(config)

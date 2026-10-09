@@ -39,6 +39,19 @@ class ThreadStateTest {
         if (withConfig) it[WidgetStateKey.configJson] = Json.encodeToString(config(group))
     }
 
+    @Test
+    fun `storedThreads drops articles past the Keep-articles window like the render does`() {
+        // m1 / m2 are 1 s and 2 s old (publishedAt 1_000 / 2_000 against now = 3_000): 15 minutes keeps both,
+        // and an hour later (now = 3_000 + 1 h) both are expired and no thread is left.
+        val cfg = config().copy(retentionMinutes = 15)
+        val p = mutablePreferencesOf().also {
+            it[WidgetStateKey.articles] = Json.encodeToString(articles)
+            it[WidgetStateKey.configJson] = Json.encodeToString(cfg)
+        }
+        assertEquals(2, storedThreads(p, articles, now = 3_000L)!!.first { it.lead.id == "m2" }.size)
+        assertTrue(storedThreads(p, articles, now = 3_000L + 60 * 60_000L)!!.isEmpty())
+    }
+
     // ---- encode / parse ---------------------------------------------------------------
 
     @Test

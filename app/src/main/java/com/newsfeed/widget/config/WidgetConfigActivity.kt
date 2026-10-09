@@ -80,7 +80,10 @@ import com.newsfeed.widget.data.FilterMode
 import com.newsfeed.widget.data.OpmlManager
 import com.newsfeed.widget.data.NewsFeedRepository
 import com.newsfeed.widget.data.SortOrder
+import com.newsfeed.widget.data.RETENTION_OPTIONS
 import com.newsfeed.widget.data.TelegramFeedParser
+import com.newsfeed.widget.data.retentionOption
+import com.newsfeed.widget.data.withRetention
 import com.newsfeed.widget.data.WidgetConfig
 import com.newsfeed.widget.data.WidgetConfigStore
 import com.newsfeed.widget.data.TapMode
@@ -198,11 +201,8 @@ class WidgetConfigActivity : ComponentActivity() {
                     "browser"  to "Browser",
                     "share"    to "Share sheet",
                 )
-                // 0 = unlimited (only the 300-article accumulation cap applies)
-                val retentionOptions = listOf(
-                    0 to "Forever", 1 to "1 day", 3 to "3 days", 7 to "1 week",
-                    14 to "2 weeks", 30 to "1 month",
-                )
+                // "Keep articles for": RETENTION_OPTIONS (data/ArticleRetention.kt), shortest to longest,
+                // Forever (no limit; only the 300-article accumulation cap applies) last.
 
                 var addFeedUrl    by remember { mutableStateOf("") }
                 var isAddingFeed  by remember { mutableStateOf(false) }
@@ -618,13 +618,12 @@ class WidgetConfigActivity : ComponentActivity() {
                                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                                     Text("Keep articles for", style = MaterialTheme.typography.bodyMedium)
                                     androidx.compose.foundation.layout.Box {
-                                        val label = retentionOptions.firstOrNull { it.first == config.retentionDays }?.second
-                                            ?: "${config.retentionDays} days"
+                                        val label = config.retentionOption().label
                                         TextButton(onClick = { showRetentionMenu = true }) { Text("$label ▾", fontSize = 13.sp) }
                                         DropdownMenu(showRetentionMenu, { showRetentionMenu = false }) {
-                                            retentionOptions.forEach { (days, lbl) ->
-                                                DropdownMenuItem(text = { Text(lbl) },
-                                                    onClick = { config = config.copy(retentionDays = days); showRetentionMenu = false })
+                                            RETENTION_OPTIONS.forEach { option ->
+                                                DropdownMenuItem(text = { Text(option.label) },
+                                                    onClick = { config = config.withRetention(option); showRetentionMenu = false })
                                             }
                                         }
                                     }

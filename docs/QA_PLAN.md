@@ -281,7 +281,7 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 |---|---|---|---|---|
 | A Install / first run & default feeds | 12 | 1 | 10 | 1 |
 | B Feeds management | 24 | 3 | 19 | 2 |
-| C Fetching & sources (incl. Telegram) | 20 | 3 | 15 | 2 |
+| C Fetching & sources (incl. Telegram) | 21 | 3 | 16 | 2 |
 | D Display & layout | 20 | 2 | 17 | 1 |
 | E Reading (expand / focus / open / share) | 23 | 5 | 18 | 0 |
 | F Read state & Unread-only grace / dissolve | 23 | 7 | 13 | 3 |
@@ -294,7 +294,7 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | M Regression cases for past bugs | 47 | 9 | 37 | 1 |
 | N Focus as a setting & state cleanup | 31 | 12 | 19 | 0 |
 | O Story threads | 35 | 10 | 24 | 1 |
-| **Total** | **350** | **64** | **266** | **20** |
+| **Total** | **351** | **64** | **267** | **20** |
 
 Plus the two pairwise tables (50 configurations each, run through `H-24` and `N-22`).
 
@@ -400,10 +400,11 @@ Section 6 of Settings ("FEED ORDER & STYLE") plus ADD FEED and FIND FEEDS.
 | C-14 | P1 | One blocked feed (HTTP 403) among working ones ⇒ that feed yields 0 articles, others unaffected, **no** "refresh failed" banner (that needs every feed to fail) | UI, LC | none |
 | C-15 | P0 | Airplane mode, tap the footer refresh ⇒ footer shows amber `⚠ refresh failed — tap to retry`; cached articles stay; restore network + tap ⇒ recovers, banner gone | SS, DS (`last_refresh_failed`) | none |
 | C-16 | P1 | Accumulation: with many feeds ⇒ store ≤ 300 articles, every feed keeps its 10 newest even when high-frequency feeds dominate (per-feed floor), ids deduplicated | DS | none |
-| C-17 | P1 | **Keep articles for**: set 1 day, refresh ⇒ older articles pruned, cap still applies; set Forever ⇒ nothing pruned by age. Also 3 days / 1 week / 2 weeks / 1 month accepted and saved | DS (`retentionDays`, `publishedAt`) | none (gap: no unit test for retention cutoff or `retainWithPerFeedGuarantee`) |
+| C-17 | P1 | **Keep articles for**: set 1 day, refresh ⇒ older articles pruned, cap still applies; set Forever ⇒ nothing pruned by age. Also 3 days / 1 week / 2 weeks / 1 month accepted and saved. The dropdown lists the options shortest to longest, **15 minutes** first and **Forever** last (see `C-21`) | DS (`retentionDays`, `retentionMinutes`, `publishedAt`) | UT:ArticleRetentionTest (cutoff, option list, config JSON); the per-feed floor `retainWithPerFeedGuarantee` still has no dedicated test of its own beyond the cases in that class |
 | C-18 | P1 | Merge keeps `readAt` and every fresh field ⇒ mark read, refresh, article still read with the same `readAt` | DS | UT:ArticleMergeTest |
 | C-19 | P1 | Previously read articles stay read after refresh, reboot and app restart (global read-id store) | DS (`newsfeed_read_status`) | none |
 | C-20 | P2 | Odd feeds: gzip, redirect chain, malformed XML, empty feed, 10 MB feed, 25 s+ slow feed ⇒ failure contained to that feed within the 15 s connect / 25 s read timeouts | LC, UI | none |
+| C-21 | P1 | **Keep articles for = 15 minutes.** Settings ⇒ the dropdown lists `15 minutes · 1 day · 3 days · 1 week · 2 weeks · 1 month · Forever` (shortest first, Forever last); a brand-new widget and a widget saved by an older build still show **Forever** (no `retentionMinutes` key, `retentionDays` unchanged: a widget saved with 3 days still reads "3 days"). Pick 15 minutes + Save ⇒ `config_json` carries `"retentionMinutes":15` (and no `retentionDays`); pick 3 days ⇒ `"retentionDays":3` and no `retentionMinutes`; Forever ⇒ neither key. With 15 minutes: after a refresh the list only holds articles published in the last 15 minutes (`articles_json` `publishedAt` all within 15 min of the refresh); leave the widget idle and re-render it (open Settings and Back, tap ↻, or any tap) once an article is older than 15 minutes ⇒ it is gone from the list **without a worker run** (render-time filter), and an article of 14 min 59 s is still shown; a feed with nothing newer than 15 minutes shows no rows (the per-feed floor of 10 only protects the 300-article cap, not age: expected); an expanded story thread whose members all expire disappears whole, no stale `+N`. Switching back to Forever does not bring expired articles back (they were pruned at the last refresh), but later articles accumulate again | UI, DS (`config_json`, `articles_json`), SS | UT:ArticleRetentionTest, ThreadStateTest |
 
 ---
 
@@ -1064,7 +1065,7 @@ records the actual behaviour. None has been "fixed" here (this file is docs-only
 9. **`FeedConfig.enabled`:** the flag exists and is honoured by the fetcher, but there is no UI to toggle it. Not
    testable; no case.
 10. **CI does not run unit tests** (`assembleDebug` only) although the repo has 14 unit-test classes. → `M-38`.
-11. **Untested logic (no unit test):** `retainWithPerFeedGuarantee` / retention cutoff (`C-16`, `C-17`), `ConfigBackup`
+11. **Untested logic (no unit test):** `retainWithPerFeedGuarantee` on its own (`C-16`; the retention cutoff is now covered by `ArticleRetentionTest`, `C-17`, `C-21`), `ConfigBackup`
     (`J-08`), `OpmlManager` (needs the Android XML parser), footer countdown text, `formatDateTime`. Candidates for
     new tests.
 12. **Settings screen rotation:** edit state lives in `remember`, not `rememberSaveable`, so unsaved edits are probably

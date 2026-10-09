@@ -212,7 +212,7 @@ This is entirely local and on-device — nothing is sent anywhere automatically.
 - **Remove** — tap × on any feed row to delete it
 
 ### Article accumulation
-The widget merges freshly fetched articles with previously stored ones (up to 300 total, deduplicated by ID, sorted by date). Articles stay available even between refreshes. A feed's very first fetch pulls its whole available backlog rather than just the newest handful, so newly added feeds don't start with an artificially short history. A **"Keep articles for"** setting (Forever / 1 day / 3 days / 1 week / 2 weeks / 1 month) controls how long an article stays in the accumulated list, independent of the 300-item cap, which always applies regardless.
+The widget merges freshly fetched articles with previously stored ones (up to 300 total, deduplicated by ID, sorted by date). Articles stay available even between refreshes. A feed's very first fetch pulls its whole available backlog rather than just the newest handful, so newly added feeds don't start with an artificially short history. A **"Keep articles for"** setting (15 minutes / 1 day / 3 days / 1 week / 2 weeks / 1 month / Forever) controls how long an article stays in the accumulated list, independent of the 300-item cap, which always applies regardless.
 
 ### Hebrew / RTL news site compatibility
 Feeds are fetched with browser-like HTTP headers so Israeli news sites (ynet, rotter.net, N12, כאן, וואלה, גלובס) do not block the request. Charset encoding is auto-detected for both RSS feeds and full-article page fetches — including sites (like rotter.net) that declare their encoding only via an in-page `<meta charset>` tag rather than the HTTP header, which a header-only charset check would miss entirely.
@@ -246,7 +246,7 @@ Core app-wide list preferences:
 | Sort by | Newest first · Oldest first · By feed · Unread first | See [Sort options](#sort-options) |
 | Show | All · Unread only · Read only | See [Filter options](#filter-options) |
 | Refresh every | 15 min · 30 min · 1h · 2h · 4h · 6h · 12h | Background auto-refresh interval; 15 min is the floor (Android WorkManager's own minimum) |
-| Keep articles for | Forever · 1 day · 3 days · 1 week · 2 weeks · 1 month | Independent of the 300-article accumulation cap, which always applies |
+| Keep articles for | 15 minutes · 1 day · 3 days · 1 week · 2 weeks · 1 month · Forever | Articles older than this are dropped, both when the widget refreshes and when it is drawn (so 15 minutes takes effect without waiting for the next refresh). Independent of the 300-article accumulation cap, which always applies. A feed with nothing newer than the chosen time shows nothing |
 | Open article in | Browser · Share sheet | Where the "Open article →"/"Open in browser ↗" buttons send you |
 | When I tap an article | Expand in place · Focus (enlarge) | Per widget; see [Focus Mode](#focus-mode). Switching resets the widget's expanded/focused article (the Focus zoom set with − / + is kept) |
 | Group similar stories | On (default) · Off | Per widget; see [Story threads](#story-threads-group-similar-stories). Off restores one row per article |

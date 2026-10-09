@@ -109,13 +109,16 @@ private fun pinnedSlice(flat: List<ThreadRow>, limit: Int, pinArticleId: String)
  * What the widget renders for [articles] under [config]: the feeds still configured, filtered and
  * sorted (see [applyFilterAndSort]), de-duplicated by article id ([dedupeById]: the same article
  * served by two feeds is ONE article), then grouped into story threads (or one thread per article
- * when grouping is off). The render and the tap callbacks share this so they cannot disagree.
+ * when grouping is off). Articles older than the "Keep articles for" window ([applyRetention]) are dropped
+ * first. The render and the tap callbacks share this so they cannot disagree.
  * The story-thread boilerplate statistics are computed from the unfiltered, de-duplicated list of the
  * configured feeds ([groupStories]'s `statsFrom`), the same list `storedThreads` groups.
  */
 fun displayThreadsFor(articles: List<ArticleItem>, config: WidgetConfig, now: Long): List<StoryThread> {
     val feedIds = config.feeds.map { it.feedId }.toSet()
-    val inFeeds = articles.filter { it.feedId in feedIds }
+    // Retention at render time too (a short "Keep articles for", e.g. 15 minutes, must not wait for the next
+    // worker run): the same pure cutoff the worker merge uses, and the same list the tap callbacks group.
+    val inFeeds = applyRetention(articles.filter { it.feedId in feedIds }, config, now)
     val available = dedupeById(applyFilterAndSort(inFeeds, config, now))
     // Boilerplate statistics come from the UNFILTERED list - exactly what the tap callbacks group
     // (storedThreads) - so an All / Unread only / Read only filter cannot change the threads.

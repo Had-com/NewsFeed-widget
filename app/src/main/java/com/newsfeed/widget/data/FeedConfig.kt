@@ -40,6 +40,10 @@ data class WidgetConfig(
     val useThemeColors: Boolean = true,        // when true, all feeds use the theme accent instead of per-feed colors
     val backgroundAlpha: Float = 1.0f,         // 0.0 (fully transparent) – 1.0 (fully opaque)
     val retentionDays: Int = 0,                // how long an accumulated article stays in the list; 0 = unlimited (only the 300-article cap applies)
+    // Sub-day retention ("15 minutes"): when > 0 it wins over retentionDays (see retentionWindowMs in
+    // ArticleRetention.kt). Added with its own default so config JSON saved before it existed still decodes
+    // (WidgetContent uses the default Json, no ignoreUnknownKeys) and keeps its retentionDays; a 0 is not written.
+    val retentionMinutes: Int = 0,
     // Unused since 2026-09-20 (Focus no longer shrinks the other rows). Kept ONLY so saved config
     // JSON that still carries this key keeps decoding: WidgetContent decodes configJson with the
     // default Json (no ignoreUnknownKeys), so deleting the property would make that decode throw

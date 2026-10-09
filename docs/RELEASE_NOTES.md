@@ -48,3 +48,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 14
 - Fixed: story threads now group articles only when their headlines share real content words, not just a reporter name or a channel label.
+
+## Note 15
+- New: "Keep articles for" in the widget settings now has a 15 minutes option, so the list can hold only the freshest news.
