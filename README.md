@@ -94,7 +94,7 @@ When several feeds report the same news story within a few hours (for example yn
 
 - **Matching** is by the key words of the headline (punctuation, quotes, niqqud and common Hebrew/English filler words ignored), across **different** feeds, within 6 hours, needing at least 3 shared key words covering 60% of the shorter headline, at least 2 of them real content words. Reporter names (the signature a Telegram channel puts at the start of its posts), channel labels such as "צ'אט כתבים" or "מבזקן 12", and words that recur all day long ("נתניהו", "יום") do not count, so two headlines that only share a reporter, a channel or the names of the day are not grouped. Up to 12 reports per thread; the newest is the lead. Headlines that are worded very differently are not grouped.
 - **Reading:** a thread is marked read as a whole when you move on from any of its articles to something outside it (moving between its own articles marks nothing). Under **Unread only** the whole thread then fades out and disappears together. A later report of the same story starts a new unread thread.
-- **Counts:** the header badge still counts articles; the row limit and **Load more** count rows (a folded thread is one row).
+- **Counts:** the header badge still counts articles; the row limit and **Load more** count rows (a folded thread is one row). A thread you open at the very bottom of a full list is never left empty: its reports are added past the limit, as far as the update-size ceiling (about 45 typical rows in all) and, in Glamour, the bitmap limit allow.
 - **Switch it off per widget** in Settings → Sort & Filter → **Group similar stories** (on by default). Off shows every article as its own row, as before.
 
 ### Default feeds

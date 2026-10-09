@@ -309,4 +309,131 @@ class SerializedRowBudgetTest {
             capFooterText(CapReason.MEMORY, 26, 173, atFontFloor = true))
         assertEquals(null, capFooterText(CapReason.NONE, 20, 20, atFontFloor = false))
     }
+
+    // ---- BUG-031: the members of an expanded thread whose lead is the last row under the cap ----
+
+    private fun leadRow(id: String, others: Int, expanded: Boolean) =
+        ThreadRow(art(id), ThreadRowKind.LEAD, id, otherCount = others, expanded = expanded)
+
+    private fun memberRows(lead: String, n: Int) =
+        (1..n).map { ThreadRow(art("$lead-m$it"), ThreadRowKind.MEMBER, lead) }
+
+    /** [singles] typical singles, then a thread (lead + [members] members when expanded), then [after] singles. */
+    private fun withThread(singles: Int, members: Int, after: Int = 0, expanded: Boolean = true) =
+        typicalRows(singles) + leadRow("L", members, expanded) + (if (expanded) memberRows("L", members) else emptyList()) +
+            (1..after).map { single(art("z$it")) }
+
+    private fun completed(flat: List<ThreadRow>, limit: Int, maxRows: Int = 300, pin: String = "",
+                          cost: (ThreadRow) -> Int = sizing()::bytesFor) =
+        rowLimitCompletingThread(flat, limit, maxRows, pin, cost)
+
+    private fun sliceCost(flat: List<ThreadRow>, limit: Int, pin: String = "", cost: (ThreadRow) -> Int = sizing()::bytesFor) =
+        layoutRows(flat, limit, pin).rows.sumOf { cost(it).toLong() }
+
+    @Test
+    fun `the hard budget sits between the soft budget and the largest parcel known to be delivered`() {
+        assertTrue(SERIALIZED_HARD_BUDGET_BYTES > SERIALIZED_BUDGET_BYTES)
+        assertTrue(SERIALIZED_HARD_BUDGET_BYTES < 460_000)
+        assertEquals(420_000, SERIALIZED_HARD_BUDGET_BYTES)
+    }
+
+    @Test
+    fun `lead as the last row under the soft cap - its members appear`() {
+        val flat = withThread(singles = 35, members = 3, after = 4)
+        val cap = serializedRowCap(flat, upper = 300, pinArticleId = "", costOf = sizing()::bytesFor)
+        // the soft cap stops exactly at the lead (old behaviour: the badge turns to a minus and nothing else shows)
+        assertEquals(36, cap)
+        assertEquals("L", layoutRows(flat, cap).rows.last().article.id)
+        val limit = completed(flat, cap)
+        assertEquals(cap + 3, limit)
+        assertEquals(listOf("L-m1", "L-m2", "L-m3"), layoutRows(flat, limit).rows.takeLast(3).map { it.article.id })
+        assertTrue(sliceCost(flat, limit) <= SERIALIZED_HARD_BUDGET_BYTES)
+    }
+
+    @Test
+    fun `12 members do not all fit - a partial list that respects the hard ceiling`() {
+        // 35 typical singles + the lead = 343 000 B (the soft cap lands on the lead); 12 members would make 457 000 B
+        val flat = withThread(singles = 35, members = 12)
+        val cap = serializedRowCap(flat, upper = 300, pinArticleId = "", costOf = sizing()::bytesFor)
+        assertEquals(36, cap)
+        val limit = completed(flat, cap)
+        assertEquals(cap + 8, limit)                                  // 343 000 + 8 * 9 500 = 419 000 <= 420 000 < 428 500
+        assertTrue(sliceCost(flat, limit) <= SERIALIZED_HARD_BUDGET_BYTES)
+        assertTrue(sliceCost(flat, limit + 1) > SERIALIZED_HARD_BUDGET_BYTES)
+        // heavier members stop earlier, never past the ceiling
+        val heavy: (ThreadRow) -> Int = { if (it.kind == ThreadRowKind.MEMBER) 30_000 else 9_500 }
+        val heavyLimit = completed(flat, 36, cost = heavy)
+        assertTrue(sliceCost(flat, heavyLimit, cost = heavy) <= SERIALIZED_HARD_BUDGET_BYTES)
+        assertTrue(heavyLimit in 36..43)
+        assertTrue(sliceCost(flat, heavyLimit + 1, cost = heavy) > SERIALIZED_HARD_BUDGET_BYTES)
+    }
+
+    @Test
+    fun `a lead that alone is over the hard budget is still shown and nothing is added`() {
+        val flat = withThread(singles = 0, members = 3)
+        val huge: (ThreadRow) -> Int = { 500_000 }
+        assertEquals(1, completed(flat, 1, cost = huge))
+    }
+
+    @Test
+    fun `a thread cut in the middle is completed too`() {
+        val flat = withThread(singles = 10, members = 6, after = 5)       // 10 singles, L, 6 members, 5 more
+        assertEquals("L-m3", flat[13].article.id)                          // limit 14 ends after member 3 of 6
+        assertEquals(17, completed(flat, 14))                              // up to and including member 6
+        assertEquals("L-m6", flat[16].article.id)
+    }
+
+    @Test
+    fun `a cut that does not fall inside the thread changes nothing`() {
+        val flat = withThread(singles = 5, members = 3, after = 40)
+        assertEquals(20, completed(flat, 20))
+        assertEquals(flat.size, completed(flat, flat.size))
+        assertEquals(flat.size + 50, completed(flat, flat.size + 50))        // a limit past the end is just passed through
+    }
+
+    @Test
+    fun `a collapsed thread or a single as the last row is not extended`() {
+        val collapsed = withThread(singles = 35, members = 3, after = 5, expanded = false)
+        assertEquals(36, completed(collapsed, 36))
+        assertEquals(30, completed(typicalRows(60), 30))
+        assertEquals(0, completed(typicalRows(60), 0))
+        assertEquals(0, completed(emptyList(), 10).coerceAtMost(0))
+    }
+
+    @Test
+    fun `the bitmap cap is never exceeded - a Glamour style cap leaves the thread cut`() {
+        val flat = withThread(singles = 25, members = 4)                   // the lead is row 26
+        assertEquals(26, completed(flat, 26, maxRows = 26))                // bitmap budget: no room, no member added
+        assertEquals(28, completed(flat, 26, maxRows = 28))                // room for two
+        assertEquals(30, completed(flat, 26, maxRows = 60))                // room for the whole thread
+    }
+
+    @Test
+    fun `the pin keeps its meaning`() {
+        val flat = withThread(singles = 35, members = 3, after = 3)        // 35 singles, L, 3 members, 3 more
+        val cap = 36
+        // a pinned row beyond the thread: unchanged, layoutRows pins it over the last row exactly as before
+        assertEquals(cap, completed(flat, cap, pin = "z2"))
+        assertEquals(cap, layoutRows(flat, completed(flat, cap, pin = "z2"), "z2").rows.size)
+        // a pin in the head: extended as without a pin
+        assertEquals(cap + 3, completed(flat, cap, pin = "a3"))
+        // a pin on a member of that very thread ends up inside the slice
+        val limit = completed(flat, cap, pin = "L-m3")
+        assertEquals(cap + 3, limit)
+        val rows = layoutRows(flat, limit, "L-m3").rows
+        assertEquals(limit, rows.size)
+        assertTrue(rows.any { it.article.id == "L-m3" })
+    }
+
+    @Test
+    fun `the extended slice never costs more than the hard budget for any thread size and row weight`() {
+        for (members in listOf(1, 2, 5, 12, 40)) for (rowBytes in listOf(9_500, 12_000, 25_000)) {
+            val flat = withThread(singles = 30, members = members, after = 3)
+            val cost: (ThreadRow) -> Int = { rowBytes }
+            val soft = serializedRowCap(flat, 300, "", cost)
+            val limit = completed(flat, soft, cost = cost)
+            assertTrue(limit >= soft)
+            if (limit > soft) assertTrue("members=$members bytes=$rowBytes", sliceCost(flat, limit, cost = cost) <= SERIALIZED_HARD_BUDGET_BYTES)
+        }
+    }
 }

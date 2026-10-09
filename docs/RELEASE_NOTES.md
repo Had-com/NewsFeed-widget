@@ -54,3 +54,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 16
 - Fixed: pressing Load more many times in some themes no longer breaks the widget; it now stops at the number of articles the widget can safely show.
+
+## Note 17
+- Fixed: opening a group of similar stories at the very bottom of a full list now shows its articles instead of only turning the + into a minus.

@@ -235,7 +235,11 @@ private fun WidgetContent() {
     )
     val serializedCap = serializedRowCap(flatRows, maxRowsAllowed, effectiveFocusedId, rowSizing::bytesFor)
     val rowCap = effectiveRowCap(maxRowsAllowed, serializedCap, minOf(maxRowsAllowed, flatRows.size))
-    val layout = layoutRows(flatRows, visibleCount.coerceAtMost(rowCap), effectiveFocusedId)
+    // BUG-031: an expanded thread cut by that limit (typically its lead is the very last row) gets its members
+    // anyway, up to the hard serialized ceiling and never past the bitmap cap (rowLimitCompletingThread).
+    val sliceLimit = rowLimitCompletingThread(
+        flatRows, visibleCount.coerceAtMost(rowCap), maxRowsAllowed, effectiveFocusedId, rowSizing::bytesFor)
+    val layout = layoutRows(flatRows, sliceLimit, effectiveFocusedId)
     val displayRows = layout.rows.let { rows ->
         if (config.filter == FilterMode.UNREAD.key) rows.map { it.copy(article = dissolveArticle(it.article, now)) } else rows
     }

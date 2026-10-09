@@ -58,6 +58,25 @@ import kotlinx.serialization.json.Json
 /** Total serialized RemoteViews bytes the row list may use. See the header comment for the margin. */
 internal const val SERIALIZED_BUDGET_BYTES = 350_000
 
+/**
+ * The HARD serialized ceiling (BUG-031), used ONLY to admit the members of an expanded thread whose lead
+ * is already inside the soft-capped slice (see [rowLimitCompletingThread]); every other row still obeys
+ * the soft [SERIALIZED_BUDGET_BYTES]. Why a thread the user just opened must be allowed past the soft
+ * cap: device QA (14.ai, 1g) showed that opening a thread whose lead is the LAST row at the cap flipped
+ * the badge to "-" and showed nothing, because the members fell past the cut.
+ *
+ * 420 000 = ~9% under 460 KB (the largest parcel KNOWN to be delivered, 50 rows, 14.ah), ~17% under
+ * the ~507 KB oneway Binder limit, and 70 000 above the soft budget: room for ~7 typical member rows
+ * (70 000 / 9 500) on top of a full soft-capped list. By the 14.ai estimate (9.2 KB per row: 32 rows
+ * ~300 KB, 33 rows ~305 KB) a 420 KB slice is ~45 typical rows, below the 50-row render (~460 KB) that
+ * the device really delivered: the margin is smaller than the soft budget's, which is acceptable only
+ * because it applies to the thread the user has just opened and it is why the ceiling is not higher.
+ * A member row is a plain collapsed-size row (no badge; if the user also expanded its body the estimator
+ * counts that), so ROW_BASE_BYTES is the right per-row cost. Not raised without a new device measurement.
+ * ASSUMPTION TO CONFIRM ON DEVICE: that a ~420 KB estimate really stays under the limit (parcel size).
+ */
+internal const val SERIALIZED_HARD_BUDGET_BYTES = 420_000
+
 /** Marginal parcel bytes of one typical collapsed row, measured (slope of 50 -> 60 rows, 14.ah). */
 internal const val ROW_BASE_BYTES = 9_500
 
@@ -164,6 +183,51 @@ internal fun serializedRowCap(
  */
 internal fun effectiveRowCap(maxRowsAllowed: Int, serializedCap: Int, reachable: Int): Int =
     if (serializedCap < reachable) serializedCap else maxRowsAllowed
+
+/**
+ * The row limit that shows the members of the EXPANDED thread the plain [limit] cuts (BUG-031): when the
+ * last row of the plain slice [flat].take([limit]) is an expanded lead or one of its members, the members
+ * that follow it are added one by one, even past [limit] (the soft serialized cap or the Load more count),
+ * as long as
+ *  - the extended slice still fits [hardBudgetBytes] (the slice is costed as [layoutRows] would show it,
+ *    a pinned Focus row included), and
+ *  - the extended slice stays within [maxRows], the bitmap / device-memory row cap (Glamour: this is the
+ *    binding one, so nothing is added when the plain slice is already at it).
+ * Trailing non-thread rows after a thread in the middle of the slice are trimmed by the plain cut itself,
+ * so this is only reached when nothing is left to trim. The result is never below [limit], so the lead (or
+ * whatever the slice already shows) is never dropped, and it is [limit] unchanged for a collapsed lead, a
+ * single, a short list, a cut that is not inside a thread, or a Focus pin beyond the end of the thread
+ * (that pin keeps replacing the last row exactly as [layoutRows] always did).
+ */
+internal fun rowLimitCompletingThread(
+    flat: List<ThreadRow>,
+    limit: Int,
+    maxRows: Int,
+    pinArticleId: String,
+    costOf: (ThreadRow) -> Int,
+    hardBudgetBytes: Int = SERIALIZED_HARD_BUDGET_BYTES,
+): Int {
+    val base = limit.coerceAtLeast(0)
+    if (base == 0 || base >= flat.size) return base
+    val tail = flat[base - 1]
+    val inOpenThread = tail.kind == ThreadRowKind.MEMBER || (tail.kind == ThreadRowKind.LEAD && tail.expanded)
+    if (!inOpenThread) return base
+    var end = base
+    while (end < flat.size && flat[end].kind == ThreadRowKind.MEMBER && flat[end].leadId == tail.leadId) end++
+    if (end == base) return base
+    if (pinArticleId.isNotBlank()) {
+        val pinIdx = flat.indexOfFirst { it.article.id == pinArticleId }
+        if (pinIdx >= end) return base
+    }
+    val ceiling = minOf(end, maxRows)
+    var n = base
+    while (n < ceiling) {
+        val cost = layoutRows(flat, n + 1, pinArticleId).rows.sumOf { costOf(it).toLong() }
+        if (cost > hardBudgetBytes) break
+        n++
+    }
+    return n
+}
 
 /**
  * The stored "how many rows are requested" after a Load more tap: [current] + [chunk], never past [cap]
