@@ -583,6 +583,42 @@ Bugs:
 
 Restore: temporary widget 22 removed through the launcher (long-press, Remove): `appWidget-22` and `appWidgetLayout-22` gone, `OrphanCleanupWorker` SUCCESS, `newsfeed_config` md5 back to the start value 6d485c1f65bad26470de74fbbfb4874b. Widget 15 md5s start to end: `newsfeed_config` 6d485c1f... to 6d485c1f... (same, shared file), `appWidget-15` 5983b828... to 3d4a51d1... (background refresh and the user's own use; 300 articles), `newsfeed_read_status` 72ab1bd7... to 96cb59ad... (shared read set: +10 synthetic ids `p19://R1a-d, R2a-c, dup, F1, F45`, no real id); widget 15 `config_json` byte-identical. Widget 15 settings were not opened or saved. Build 914 left installed.
 
+### 14.ai Serialized row cap and direction marks (build 915), 2026-10-09
+
+Device RFCR91J237W (Android 15, One UI Home). Build under test: HEAD 78c7c50 (34539a1 serialized-size row cap, aab6322 `&rlm;`/`&lrm;` removal, 78c7c50 footer wording), built `-PbuildVersionCode=915`, `adb install -r` over 914 (no uninstall), source untouched. All interaction on temporary widget 23 (One UI picker, default 11 feeds, later +1 Telegram feed; Sort Newest first, Simple theme, Group ON, Show All unless stated). Before every settings Save the config activity was confirmed to be widget 23's (the activity intent carried `appWidgetId=23`); widget 15 was never opened. Screenshots in `C:\t\q20\`. Caps are the footer `Showing X of Y` count, cross-checked by scrolling the whole list and counting rows (32 of 32, 33 of 33, 31 of 31, 26 of 26 matched).
+
+Not done: the control run of the pre-fix build (installing an older APK over the user's live app was refused by the permission system, so the old behaviour was NOT re-reproduced in this run; the reproduction is the 14.ah BUG-1 evidence on the same data set and steps). The update parcel size cannot be read on a non-root device (no parcel size log line exists unless a transaction fails), so it is an estimate from the 14.ah failure (554 832 B at 60 rows = 9.2 KB per row): 32 rows is about 300 KB, 33 flat rows about 305 KB, both under the 507 KB oneway limit.
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1a | Simple, Group ON, Show All, Newest first, about 225 articles: Load more from 10 rows | PASS | taps: `visible_article_count` 20 (header 22(22)), 30 (33(33), no footer), then 32 (40(40)); then no button, footer `Showing 32 of 205 · the widget can't show more at once`; 32 rows counted; DataStore stays 32 (no 60, 130); no `TransactionTooLargeException`, `data parcel size`, `Can't show content` in `logcat -b all`, crash buffer 0 lines; the widget kept rendering and answering taps (`lm_end.png`) |
+| 1b | Second non-Glamour theme (Lavender) | PASS | Save with stored count 32: no Load more, footer `Showing 32 of 208 · the widget can't show more at once`, 32 rows (`lav_a.png`) |
+| 1c | Glamour on the same data | PASS | 26 rows, footer `Showing 26 of 208 · reduce font size to see more` unchanged (`gla_end.png`); the stored count stays 32 (only Load more clamps it) |
+| 1d | Group OFF (Simple) | PASS | cap 33 flat rows, `Showing 33 of 225 · the widget can't show more at once`, count 33, 33 rows counted (`goff_end.png`) |
+| 1e | Show Unread only, Group ON | PASS | 32 rows, `Showing 32 of 202 · the widget can't show more at once`, header 36(36) |
+| 1f | Expand an article at the cap | PASS | expanding a Telegram post at 32 rows: still 32 rows and footer (`exp_cap1.png`); planted 4000-char Telegram description (synthetic `p20://long1`, Full article length) expanded near the end: renders, footer `Showing 31 of 216` (cap drops by 1 row), 31 rows counted, no overflow in logcat |
+| 1g | Expand a thread at the cap | PASS with note | thread in the middle: members appear, trailing rows are trimmed, still 32 rows (`Showing 32 of 207`). Thread whose lead is the LAST row: the badge turns to `-` but its members are not shown (past the cap, `thr_cap2.png`, count stays 32): see BUG-1 |
+| 1h | Focus mode at the cap | PASS | 32 rows; tapping the last row (BUG-026): enlarged row kept with `32/32` and `-/+`, footer `Showing 32 of 208` intact, no overflow (`foc_tap1.png`, `foc_bottomA.png`) |
+| 1i | Font slider smaller / larger | PASS | font 0.5: 32 rows, footer `the widget can't show more at once` (not the `this device` wording); font 2.986 (Huge): still 32 rows, same footer, large text renders (`fmax_end.png`): the serialized cap does not move with the font |
+| 2 | Short lists unchanged | PASS | 10 rows header 10(10) with Load more; 20 rows 22(22); 30 rows 33(33): no footer, button present at each step |
+| 3 | `&rlm;` / `&lrm;` | PASS | fresh fetches of the default 11 feeds: 0 literal `&rlm;`/`&lrm;`/`&#8207;` in 224 and later 267 articles (titles and descriptions); the default Telegram pages carry none today. Real sample: added the public channel `t.me/s/yediothnews` to the temp widget, whose page contains the post `בשם ה'&lrm;`: the stored title is `בשם ה'` with the mark dropped, no literal text (`arts_yed.json`). RTL rows (N12chat, N12_News) display right to left and threads are unaffected (`thr_exp_top.png`). The pre-fix literal was not re-shown on this build (see not-done note) |
+| 4a | BUG-026 focus pin at the cap | PASS | see 1h |
+| 4b | Thread timeline on the right, whole-thread read | PASS | planted 4 and 3 member synthetic threads: hollow lead, filled members and the line on the RIGHT (`thr_exp_top.png`); Expand mode: tapping a member only expands it; moving on to an article outside the thread marked all 4 members read with ONE shared `readAt` (later the 3 member thread the same) |
+| 4c | Unread-only dissolve | PASS | both read threads vanished from the Unread only list on the move-away tap (`unr_top.png`) |
+| 4d | 15 minutes retention option | PASS | `15 minutes, 1 day, 3 days, 1 week, 2 weeks, 1 month, Forever` |
+| 4e | Logs | PASS | no FATAL, ANR, `TransactionTooLarge`, `data parcel size`, `Can't show content`; crash buffer 0 lines before and after |
+
+Findings:
+
+* BUG-1 (Low): expanding a thread whose lead row is the last row inside the cap toggles the badge to `-` but shows none of its members (they fall past the cap) and the footer count stays. Repro: Simple, Group ON, cap reached, scroll to the last row, tap its `+N` badge (`thr_cap1.png` before, `thr_cap2.png` after). Collapsing works. Expected: the members visible (trailing rows trimmed instead) or the badge disabled.
+* Observation (Medium, known from 14.ah BUG-2): Focus tap on the last row re-renders the list scrolled to the TOP; the enlarged row is off screen until scrolled to (`foc_tap1.png`).
+* Observation: header `N(M)` and footer `Showing X of Y` count different things (header = articles shown including hidden thread members, footer = rows): e.g. 40(40) with `Showing 32 of 205`; the header drops when a thread is expanded at the cap (41 to 36) because trailing rows are trimmed.
+* Observation (Low, intermittent): the first tap after a list swipe is sometimes swallowed (fling stop): twice on a badge, once on a Load more; a second tap works.
+* Performance: tap to the first host update, 31 rows Simple font 1.2 Unread only, Telegram post expanded: 2.3 s, 0.36 s, 1.1 s (three taps; later updates of about 2 s follow from the dissolve check); above the 14.ag/14.ah baseline of 0.9 to 1.3 s once.
+* Harness note: `adb shell am force-stop` of the app freezes the widget on the launcher's loading view and cancels its PendingIntents (taps do nothing) until the next refresh; a plain `kill -9` through run-as does not.
+
+Restore: temporary widget 23 removed through the launcher (long-press, Remove): `appWidget-23` and `appWidgetLayout-23` gone, appwidget ids 15, 3, 2 only, crash buffer empty, `newsfeed_config` md5 back to the start value 6d485c1f65bad26470de74fbbfb4874b. Widget 15 md5s start to end: `newsfeed_config` 6d485c1f... to 6d485c1f... (same), `appWidget-15` 70a0cb64... to 42fa4755... (background refreshes and the user's own use), `newsfeed_read_status` 96cb59ad... to 2e36e0bd...: 106 to 116 ids, none dropped; 9 added are synthetic (`p20://T1a-d, T2a-c, long0, long1`) and 1 real (`https://t.me/N12_News/48179`, expanded and moved away from on the temp widget; widget 15 shows it as read if it holds it). Widget 15 `config_json` byte-identical to the start; its settings were not opened or saved. Build 915 left installed (`versionCode=915`).
+
 ---
 
 ## Reporting
