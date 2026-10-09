@@ -176,7 +176,7 @@ Focus is a per-widget setting, not a separate widget. In **Widget settings → W
 
 > **Upgrading from the separate NewsFeed Focus widget:** that widget no longer exists, and the update removes any placed Focus widget from your home screen. Add the **NewsFeed** widget again and set **When I tap an article** to **Focus (enlarge)**.
 
-- **Tap any article** to focus it: that row enlarges, every other row stays at its normal size, and the article's description/full text auto-expands inline — no separate expand tap needed. Tapping the focused row again clears focus.
+- **Tap any article** to focus it: that row enlarges, every other row stays at its normal size, and the article's description/full text auto-expands inline — no separate expand tap needed. Tapping the focused row again clears focus. The list stays where you scrolled it, so the enlarged row is right where you tapped, also for the last row.
 - **Header controls** (only shown in Focus mode):
   - **N/M** — a position indicator showing where the focused article sits among what's currently on screen.
   - **− / +** — adjust how big the focused row is (0.75× – 2.5×) live. The zoom you choose is remembered per widget: it stays when you tap a different article, clear focus, refresh, switch between Expand and Focus, or restart the phone, and only changes when you press − or + again.

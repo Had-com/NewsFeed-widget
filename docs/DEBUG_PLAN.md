@@ -624,3 +624,94 @@ Restore: temporary widget 23 removed through the launcher (long-press, Remove): 
 ## Reporting
 
 For every ❌, capture: exact steps to reproduce, a screenshot, the widget theme/settings active at the time, and whether it reproduces in both tap modes or just one. File findings as you go rather than batching them — several past bugs in this project were only caught because a specific repro was pinned down immediately rather than described vaguely after the fact.
+
+### 14.aj Focus scroll position and tap speed (build 931), 2026-10-09
+
+Device RFCR91J237W (Android 15, One UI Home). Code under test: HEAD 89cb7e3 plus commits `84f0bf7` (header fix), `d2fd73a` (tap speed), `11e345e` (1x no-focus row cap); builds 916 to 931 (`-PbuildVersionCode`, `adb install -r` over the previous one, never an uninstall or a downgrade). 916 to 927 and 929 carried temporary `NFTiming` logs (removed; the patch is kept in `C:\t\q21\instrumented_working_tree.patch` and `C:\t\instr21.py`), 928, 930 and 931 are clean builds. Everything was done on a TEMPORARY second widget (id 24, One UI picker, default 11 feeds, Newest first, later Simple / Glamour, Focus / Expand, All / Unread only); widget 15 was never opened, saved or restored. Every gear tap was guarded: exactly one NewsFeed host view on screen with a height of about 1100 px (widget 15's is about 2000 px and lives on another page) and the settings screen showing Medium font and Newest first. One gear tap was denied by the permission classifier early on because the first script version tapped the first gear on screen without that host-view check; it never executed, and the check was added before any further tap. For the timing and scroll series the widget's article list was replaced by 300 synthetic articles (`p21://nnn`, real headlines of `story_threads_fixture2.tsv`, dated 3 hours ahead so they stay above real articles), see the read-status note at the end. Screenshots, JSON series and scripts in `C:\t\q21\` (`sc21.py`, `perf21.py`, `c21.py`, `plant21.py`, `ds21.py`, `coldidle.py`, `cmp21.py`).
+
+#### A. Focus tap scrolled the list to the top (BUG-032)
+
+Method: scroll the list (fast 150 ms swipes), note the visible rows' time text and y (uiautomator), tap a row at its centre, wait 3.3 s, read again; "KEPT" = the tapped row is still on screen and the first visible row is not the list's first row. One variable per build.
+
+| Build | Change | Result (Simple unless noted) | Evidence |
+|---|---|---|---|
+| 916 (before) | none | last row none to focused: JUMPED (first row 18:48 on screen, 32/32 off screen); clear: JUMPED; middle row after one swipe: JUMPED (22/32 off screen); focus A to B: KEPT; **+**: KEPT | `a_before.png`, `a_after.png`, `m1_before.png`, `m1_after.png`, `e1_before.png`, `e1_after.png` |
+| 916 | Expand mode, tap expands a row while scrolled | KEPT (so a row that grows is not the cause) | `exp2_before.png`, `exp2_after.png` |
+| 918, 916 | rows 32 before and after (cap 32 both), then 20 of 32 rows (Load more in both states) | still JUMPED: hypothesis 1 (row-count / cap discontinuity) is not the cause in Simple | `x3_20rows_*.png` |
+| 917 | header Row with the same number of children, blank non-clickable placeholders | JUMPED | `x1_before_clear.png`, `x1_after_clear.png` |
+| 918 | header exactly as tall in both states (uiautomator list bounds `[70,289][1008,1171]` with and without focus) | JUMPED: not the header height (hypothesis 3) | `x2_nofocus_to_focus_*.png` |
+| 920 | same styles and padding, placeholders without click | JUMPED | `x2p_focus_*.png` |
+| 919 | header identical in both states, real clickable **-** / **+** always there | KEPT, focus and clear | `x4a_*.png`, `x4b_*.png` |
+| 921 / 922 | same, **-** / **+** transparent and (922) zero-step when nothing is focused | KEPT, focus and clear, Simple and Glamour | `x5_*`, `s_last_focus_after.png`, `g_last_focus_after.png` |
+
+Reading: hypothesis 1 (cap continuity), 2 (item ids: stable, `article.id.hashCode()`) and 3 (height) are not the cause; hypothesis 4 holds in the sense that the host keeps the position whenever the update leaves the header's views alone and re-creates the list when the clickable **-** / **+** views are added or removed. Decompiled Glance 1.1.0 (`translateEmittableLazyList`): `setHasStableIds(true)`, `setViewTypeCount(getTopLevelLayoutsCount())`, items added with their `itemId`, so the adapter is reused on update; why the header change still re-creates the list was not isolated further (launcher side). No `setScrollPosition` workaround was needed.
+
+Second finding on build 930 (header fix only), Glamour, scale 1.4: scroll to the 26th row (it exists only because a row is focused: no-focus cap 19, focus cap 26), clear focus: the row vanished and the view landed at the end of the 19-row list (`v_gla_last_clear_after.png`). Variant V1 (build 931): a Focus widget with nothing focused is budgeted at the 1x cap (27 rows); the cap changes by one row at a tap and the pin keeps the tapped row.
+
+Final matrix (build 931 unless noted; first visible row kept and the tapped row on screen):
+
+| Check | Simple | Glamour |
+|---|---|---|
+| tap the last row, then clear | KEPT, KEPT (32/32) `f_simple_last_*` | KEPT, KEPT on 931 (`v1_gla_last_*`); on 922 KEPT, KEPT with the list growing 19 to 26 (`g_last_*`) |
+| tap a middle row, then clear | KEPT, KEPT (`f_simple_mid_*`) | KEPT, KEPT (`v1_gla_mid_*`, `g_mid_*`) |
+| move focus to another row | KEPT (`e1_*` on 916 already) | KEPT |
+| **+** then **-** | zoom 1.40, 1.55, 1.40, KEPT | not repeated |
+| tap the transparent placeholder, nothing focused | no state change, no update (`updateAppWidget` count 0) | not repeated |
+| row count none / focused | 32 / 32 | 27 / 26 (was 19 / 26) |
+
+#### B. Slow taps (BUG-033)
+
+Method: `adb shell 'date +%s.%N; input tap X Y; date +%s.%N'` (device clock, the second stamp is the injection), then `logcat -v epoch`: temporary `NFTiming` lines (callback start, state done, mark-read done, update returned, `WidgetContent` phases, composition end) plus the app's `AppWidgetManager: updateAppWidget()` and the launcher's `[updateAppWidget id=24] perform updateAppWidget`. "tap to host" = injection to the first perform line. Taps alternate rows 2 to 4 at the top of the list, one tap every 6 to 7 s so the dissolve of the previous tap is over; every tap after the first moves focus / the expanded article and so marks a thread read. Median / p95 in ms.
+
+Phases, Simple, Group ON, Unread only, Focus, 26 taps, 33 rows, 300 stored articles (before = build 922: the header fix but none of the speed changes, the grouping code is the one of 916; after = build 927):
+
+| Phase | Before p50 / p95 | After p50 / p95 |
+|---|---|---|
+| tap to callback start (trampoline activity) | 32 / 60 | 35 / 52 |
+| callback state (`cb_state_done`) | 1289 / 1449 | 168 / 251 |
+| of it `renderedRowIds` (grouping 1) | 571 / 641 | 16 / 29 |
+| of it `idsToMarkReadOnMoveAway` (grouping 2) | 646 / 695 | 83 / 109 |
+| render: decode articles JSON | 39 / 63 | 0 / 0 |
+| render: `displayThreadsFor` (grouping 3) | 561 / 618 | 26 / 40 |
+| grouping parts: storyStats / tokens / pairs | 284 / 177 / 92 | 12 / 1 / 9 |
+| `serializedRowCap` | 6 / 22 | 5 / 12 |
+| composition end (from `WidgetContent` start) | 736 / 1102 | 184 / 319 |
+| composition end to `updateAppWidget` (Glance builds the RemoteViews) | 186 / 492 | 194 / 269 |
+| **tap to the app's first `updateAppWidget`** | 2308 / 2982 | 630 / 1149 |
+| **tap to the launcher's first update** | **2327 / 3029** | **669 / 1189** |
+
+Per scenario, tap to launcher update (instrumented builds; before = 922, after = 927 for Simple Focus and 929 for the others, same speed code):
+
+| Scenario | n before / after | Before p50 / p95 | After p50 / p95 |
+|---|---|---|---|
+| Simple, Unread only, Focus | 26 / 26 | 2327 / 3029 | 669 / 1189 |
+| Simple, Unread only, Expand | 25 / 25 | 1981 / 2385 | 660 / 1184 |
+| Glamour, Show All, Focus (moves only: 1921 / 3059 before, 773 / 1277 after) | 16 / 26 | 1398 / 2963 | 787 / 1335 |
+| Glamour, Show All, Expand | 24 / 24 | 1174 / 1819 | 716 / 1223 |
+| Simple, Unread only, Focus, idle (45 s between taps, process alive) | 4 / 4 | 1725, 1747, 3182, 3510 | 683, 827, 1151, 1633 |
+| Simple, Unread only, Focus, first tap after `kill -9` | 3 / 5 | 4627, 5280, 6298 | 1955, 4669, 5300, 5307, 5308 |
+| Simple, Unread only, Focus, clean build 928, warm | | | 663 / 1703 (two outliers, 1884 and 4381 ms, in 26 taps) |
+
+Each optimisation, Simple Focus Unread, taps that move focus (tap to launcher update, p50 / p95): 922 baseline 2325 / 3041 (n 25); token memo (923) 1010 / 1578 (22); windowed pair scan (924) 896 / 1580 (24); int-id compare (925) 814 / 1430 (17); article list cache (926, controlled move-only taps) 635 / 1158 (25); storyStats one map (927) 669 / 1189 (26, run-to-run noise is about 50 ms). Whole-run medians on the same scenario: 2327, 1006, 957, 810, 690, 669.
+
+JVM microbenchmark (`StoryThreadsPerfTest`, 478 real headlines, desktop JVM, warm, ms per call): 55 before (first measurement on the unchanged code) to 13 to 24 after; the phone is 15 to 25 times slower per call because ART interprets and compiles cold code, which is why the phone numbers above are the ones that count. The unit test also proves equality with the original all-pairs algorithm on both fixtures and, in a mixed read-state and shuffled-order run, on every pair.
+
+Cold start (build 929 with logs, median of 4): process start and trampoline 220 ms, callback state 1787 ms (500 ms of it the first grouping, the rest DataStore and serialization class loading), `cb_to_wc` 2538 ms, composition 823 ms, RemoteViews build 1040 ms, tap to launcher update 4754 ms. That is class loading and JIT of the Glance / Compose / DataStore stack in a debug build; it did not move with the grouping fix (4.6 to 6.3 s before, 2.0 to 5.3 s after, five samples). A baseline profile or a release build is the lever. Not done.
+
+Not changed (numbers too small for the risk): `serializedRowCap` binary search (4 to 7 ms), the grace `SideEffect` scan (1 ms), restricting the thread lookup's grouping to unread articles (about 40 ms), memoising `storyStats` across the three groupings (about 35 ms).
+
+#### Results
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Focus tap keeps the scroll position (Simple, Glamour, last row, middle row, clear, move, zoom) | PASS on 931, table A |
+| 2 | Tap speed, warm | PASS: medians 2327 / 1981 / 1398 / 1174 ms to 669 / 660 / 787 / 716 ms; p95 3029 to 1189 ms on the reported scenario |
+| 3 | Tap speed, first tap on a killed process | NOT FIXED (about 5 s), see above |
+| 4 | Results identical to the old grouping | PASS (oracle unit test on both fixtures, mixed read states, three orders) |
+| 5 | Unit tests | 446 run, 445 pass; the known `WidgetThemesTest colorProvidersFor custom wraps the same scheme rawColorSchemeFor produces` failure is the only one and was already failing |
+| 6 | Logs | no FATAL, ANR, `TransactionTooLarge`, `data parcel size`, `Can't show content` in logcat; crash buffer 0 lines at the end |
+
+Restore: temporary widget 24 removed through the launcher (long-press, Remove): `appWidget-24` and `appWidgetLayout-24` are gone, only widget 15's files remain, crash buffer empty, `newsfeed_config` md5 back to the start value `6d485c1f65bad26470de74fbbfb4874b`. Widget 15 md5s start to end: `newsfeed_config` 6d485c1f... to 6d485c1f... (same), `appWidget-15` 30853153... to 253d4c2a... (background refreshes and the user's own use), `newsfeed_read_status` 2e36e0bd... to f10c04d0.... The installed build is 931 (HEAD code).
+
+Side effect to know about: the read-status store is global (last 500 ids, shared by all widgets), so every article a tap of mine marked read there reaches widget 15 at its next refresh. 211 ids from this session are synthetic (`p21://`) and harmless, but they use up space in the 500-id list (440 now, so nothing was evicted yet). In the first hour of this session (before the list was replaced by synthetic, future-dated articles) the Glamour baselines ran on a list whose top rows were real, new articles, so some real ids were marked read by my taps, probably a few dozen N12chat / N12_News / ynet items between roughly 19:10 and 19:45 on the device clock (the real part of the store grew from 82 ids in the end snapshot of the previous session, `C:	\q20
+s_end.pb`, to 209, mixed with the user's own reading, which cannot be separated afterwards). They may show as read in widget 15. The store was not edited to undo it.

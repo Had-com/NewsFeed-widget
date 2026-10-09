@@ -60,3 +60,7 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 18
 - Changed: the "Showing X of Y" line at the bottom of a full list now counts articles, the same way the number at the top does, instead of counting list rows.
+
+## Note 19
+- Fixed: tapping an article in Focus mode no longer jumps the list back to the top, so the enlarged article stays right where you tapped, also the last one; clearing focus keeps your place too.
+- Faster: tapping an article now updates the widget about three times sooner, especially with similar-story grouping on.
