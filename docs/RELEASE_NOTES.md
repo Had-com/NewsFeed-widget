@@ -51,3 +51,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 15
 - New: "Keep articles for" in the widget settings now has a 15 minutes option, so the list can hold only the freshest news.
+
+## Note 16
+- Fixed: pressing Load more many times in some themes no longer breaks the widget; it now stops at the number of articles the widget can safely show.

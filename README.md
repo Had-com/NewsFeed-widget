@@ -47,7 +47,7 @@ The widget is **fully standalone** — it fetches RSS/Atom feeds directly over t
 - **Settings button** (⚙) in the footer row opens the widget config screen directly from the widget
 
 ### Scrollable article list
-The widget uses a scrollable list — swipe up and down within the widget to browse articles without leaving the home screen. The number of rows shown at once is computed from real per-row memory cost (not a flat guess), and a **Load more articles ↓** button at the bottom reveals more of your accumulated history in chunks as you need them. When "Showing X of Y" appears at the bottom instead, that's a real device memory ceiling — try a smaller font size to raise it.
+The widget uses a scrollable list — swipe up and down within the widget to browse articles without leaving the home screen. The number of rows shown at once is computed from real per-row memory cost (not a flat guess), and a **Load more articles ↓** button at the bottom reveals more of your accumulated history in chunks as you need them. When "Showing X of Y" appears at the bottom instead, that's a real ceiling: either the device's bitmap memory (a smaller font size raises that one) or the size of the update the widget can hand to the launcher (about 36 typical rows in any theme; a smaller font does not raise that one).
 
 ### Tap to read inline
 Tapping an article title expands it inside the widget:

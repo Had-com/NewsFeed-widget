@@ -29,7 +29,10 @@ class LoadMoreArticlesCallback : ActionCallback {
     ) {
         updateAppWidgetState(context, glanceId) { prefs ->
             val current = prefs[WidgetStateKey.visibleArticleCount] ?: ARTICLE_CHUNK_SIZE
-            prefs[WidgetStateKey.visibleArticleCount] = current + ARTICLE_CHUNK_SIZE
+            // BUG-029: never accumulate past the serialized-size cap (null = not binding, old behaviour):
+            // taps past the cap used to pile up a count that changed nothing on screen.
+            val cap = runCatching { serializedCapFromPrefs(prefs) }.getOrNull()
+            prefs[WidgetStateKey.visibleArticleCount] = nextVisibleCount(current, ARTICLE_CHUNK_SIZE, cap)
         }
         updateNewsFeedWidget(context, glanceId)
     }

@@ -222,7 +222,20 @@ private fun WidgetContent() {
     // Dissolve is applied to every visible row, members included: a thread is read as a whole with
     // one shared readAt, so all of its rows dissolve in lockstep.
     // The focused row is pinned into the slice when it would otherwise fall beyond the row cap.
-    val layout = layoutRows(flatRows, visibleCount.coerceAtMost(maxRowsAllowed), effectiveFocusedId)
+    // Second, independent cap (BUG-029): the SERIALIZED size of the RemoteViews (Binder parcel limit, see
+    // SerializedRowBudget.kt), applied to every theme on top of the bitmap cap above. The effective cap is
+    // the old maxRowsAllowed untouched unless the serialized cap really binds, so a short list is unchanged.
+    val rowSizing = RowSizing(
+        config            = config,
+        expandedArticleId = expandedArticleId,
+        focusedArticleId  = effectiveFocusedId,
+        fullArticleId     = fullArticleId,
+        fullArticleChars  = fullArticleText.length,
+        fullArticleShown  = fullArticleShown,
+    )
+    val serializedCap = serializedRowCap(flatRows, maxRowsAllowed, effectiveFocusedId, rowSizing::bytesFor)
+    val rowCap = effectiveRowCap(maxRowsAllowed, serializedCap, minOf(maxRowsAllowed, flatRows.size))
+    val layout = layoutRows(flatRows, visibleCount.coerceAtMost(rowCap), effectiveFocusedId)
     val displayRows = layout.rows.let { rows ->
         if (config.filter == FilterMode.UNREAD.key) rows.map { it.copy(article = dissolveArticle(it.article, now)) } else rows
     }
@@ -233,7 +246,7 @@ private fun WidgetContent() {
     // ceiling, hiding the button on the very first render whenever that happened instead
     // of only once truly exhausted. visibleCount vs the two ceilings is what actually
     // determines whether tapping "Load more" would reveal anything new.
-    val canLoadMoreArticles = visibleCount < maxRowsAllowed && visibleCount < layout.availableRows
+    val canLoadMoreArticles = visibleCount < rowCap && visibleCount < layout.availableRows
     // Complementary "stuck" state: maxRowsAllowed itself (not the requested chunk size) is
     // the binding constraint, so tapping "Load more" would never reveal anything no matter
     // how many times it's tapped — this happens whenever maxRowsAllowed <= visibleCount
@@ -243,7 +256,7 @@ private fun WidgetContent() {
     // from "the feed is simply exhausted" — the widget just silently stopped growing with
     // zero indication that a large backlog was sitting unreachable behind it (reported as a
     // bug: "Load more" permanently unreachable at normal/large font sizes).
-    val memoryCapReached = displayArticles.size >= maxRowsAllowed &&
+    val memoryCapReached = displayArticles.size >= rowCap &&
         displayArticles.size < layout.availableRows
     // Scoped to displayArticles, not the full accumulated store (which can hold up to
     // 300) — counting the full store made the header badge claim "99+" unread while only
