@@ -72,7 +72,10 @@ internal fun applyFocusTapThread(prefs: MutablePreferences, articleId: String, n
             val ids = if (onScreen == null || current in onScreen)
                 idsToMarkReadOnMoveAway(prefs, articles, current, articleId) else emptyList()
             if (ids.isNotEmpty()) {
-                prefs[WidgetStateKey.articles] = Json.encodeToString(markIdsRead(articles, ids, now))
+                val updated = markIdsRead(articles, ids, now)
+                val updatedJson = Json.encodeToString(updated)
+                ArticleListCache.remember(updatedJson, updated)
+                prefs[WidgetStateKey.articles] = updatedJson
                 marked = ids
             }
         }

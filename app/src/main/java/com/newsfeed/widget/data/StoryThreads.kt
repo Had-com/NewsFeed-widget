@@ -1,6 +1,7 @@
 package com.newsfeed.widget.data
 
 import java.text.Normalizer
+import java.util.Collections
 import kotlin.math.abs
 
 /**
@@ -104,6 +105,25 @@ private fun isHebrew(c: Char) = c in '֐'..'׿'
  * The returned set keeps first-occurrence order (the per-feed byline logic reads the opening words).
  */
 fun storyTokens(title: String): Set<String> {
+    synchronized(TOKEN_CACHE) { TOKEN_CACHE[title] }?.let { return it }
+    val tokens = Collections.unmodifiableSet(storyTokensUncached(title))
+    synchronized(TOKEN_CACHE) { TOKEN_CACHE[title] = tokens }
+    return tokens
+}
+
+/**
+ * Process-wide memo of [storyTokens] by exact title (DEBUG_PLAN 14.aj, BUG-033): grouping tokenised every
+ * title three times per run (storyStats' two passes, then the matching pass) and ran on every render and in
+ * both tap callback passes; tokenising (a dozen regexes and a Unicode normalisation per title) was 60% of the
+ * 0.6-0.7 s a grouping took on the phone. A title always yields the same tokens, so the result is cached
+ * (read-only sets, first-occurrence order kept). Bounded LRU: a widget holds at most 300 articles.
+ */
+private const val TOKEN_CACHE_MAX = 2048
+private val TOKEN_CACHE = object : LinkedHashMap<String, Set<String>>(512, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Set<String>>) = size > TOKEN_CACHE_MAX
+}
+
+internal fun storyTokensUncached(title: String): Set<String> {
     var t = Normalizer.normalize(title, Normalizer.Form.NFKC)
     t = DIRECTION_MARKS.replace(t, "")
     t = NIQQUD.replace(t, "")
@@ -141,6 +161,27 @@ fun storyTokensSimilar(a: Set<String>, b: Set<String>, generic: Set<String> = em
     var shared = 0
     var content = 0
     for (w in small) if (w in big) { shared++; if (w !in generic) content++ }
+    return shared >= STORY_MIN_SHARED && shared * 100 >= shorter * STORY_MIN_COVERAGE_PERCENT &&
+        content >= STORY_MIN_CONTENT
+}
+
+/**
+ * [storyTokensSimilar] on sorted int-id arrays (one id per distinct token; [generic] marks the generic words):
+ * the same three rules, counted with a merge instead of hash lookups. Both arrays hold distinct ids.
+ */
+internal fun idsSimilar(a: IntArray, b: IntArray, generic: BooleanArray): Boolean {
+    val shorter = minOf(a.size, b.size)
+    if (shorter < STORY_MIN_SHARED) return false
+    var i = 0
+    var j = 0
+    var shared = 0
+    var content = 0
+    while (i < a.size && j < b.size) {
+        val x = a[i]
+        val y = b[j]
+        if (x == y) { shared++; if (!generic[x]) content++; i++; j++ }
+        else if (x < y) i++ else j++
+    }
     return shared >= STORY_MIN_SHARED && shared * 100 >= shorter * STORY_MIN_COVERAGE_PERCENT &&
         content >= STORY_MIN_CONTENT
 }
@@ -194,21 +235,22 @@ internal fun storyStats(articles: List<ArticleItem>): StoryStats {
     }
     val partial = StoryStats(bylines, emptySet())
     // 2. generic words, from the key words that remain after the byline removal.
-    val count = HashMap<String, Int>()
-    val first = HashMap<String, Long>()
-    val last = HashMap<String, Long>()
+    // One map entry per word with its count and first / last publish time (a single hash lookup per word, no boxing).
+    class WordSpan(var count: Int, var first: Long, var last: Long)
+    val spans = HashMap<String, WordSpan>()
     for (a in articles) {
         for (w in partial.keyTokens(a)) {
-            count.merge(w, 1, Int::plus)
-            first.merge(w, a.publishedAt, ::minOf)
-            last.merge(w, a.publishedAt, ::maxOf)
+            val sp = spans.getOrPut(w) { WordSpan(0, Long.MAX_VALUE, Long.MIN_VALUE) }
+            sp.count++
+            if (a.publishedAt < sp.first) sp.first = a.publishedAt
+            if (a.publishedAt > sp.last) sp.last = a.publishedAt
         }
     }
     val n = articles.size
     val generic = HashSet<String>()
-    for ((w, c) in count) {
-        if (c >= STORY_GENERIC_MIN_TITLES && c * 100 >= STORY_GENERIC_MIN_PERCENT * n &&
-            last.getValue(w) - first.getValue(w) > STORY_WINDOW_MS) generic += w
+    for ((w, sp) in spans) {
+        if (sp.count >= STORY_GENERIC_MIN_TITLES && sp.count * 100 >= STORY_GENERIC_MIN_PERCENT * n &&
+            sp.last - sp.first > STORY_WINDOW_MS) generic += w
     }
     return StoryStats(bylines, generic)
 }
@@ -239,14 +281,31 @@ fun groupStories(articles: List<ArticleItem>, statsFrom: List<ArticleItem> = art
         while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x] }
         return x
     }
-    for (i in 0 until n) {
+    // Linking is symmetric, so the pairs can be visited in any order and the partition is the same as the
+    // original all-pairs i<j loop. Only articles with at least STORY_MIN_SHARED key words can ever link (see
+    // storyTokensSimilar), and two can only link within STORY_WINDOW_MS of each other: sorted by time, each
+    // article is compared with the ones that follow it inside that window instead of with all of them.
+    val times = LongArray(n) { articles[it].publishedAt }
+    val classes = LongArray(n) { readClass(articles[it]) }
+    val candidates = (0 until n).filter { tokens[it].size >= STORY_MIN_SHARED }.sortedBy { times[it] }
+    // Tokens as sorted int ids, so a pair is compared with a merge of two small int arrays instead of string
+    // hash lookups (same answer as storyTokensSimilar, see idsSimilar).
+    val tokenId = HashMap<String, Int>()
+    val ids = Array(n) { i ->
+        if (tokens[i].size < STORY_MIN_SHARED) IntArray(0)
+        else tokens[i].map { tokenId.getOrPut(it) { tokenId.size } }.toIntArray().also { it.sort() }
+    }
+    val genericId = BooleanArray(tokenId.size)
+    for ((w, id) in tokenId) if (w in stats.generic) genericId[id] = true
+    for (p in candidates.indices) {
+        val i = candidates[p]
         val a = articles[i]
-        for (j in i + 1 until n) {
-            val b = articles[j]
-            if (a.feedId == b.feedId) continue
-            if (abs(a.publishedAt - b.publishedAt) > STORY_WINDOW_MS) continue
-            if (readClass(a) != readClass(b)) continue
-            if (storyTokensSimilar(tokens[i], tokens[j], stats.generic)) parent[find(i)] = find(j)
+        var q = p + 1
+        while (q < candidates.size && times[candidates[q]] - times[i] <= STORY_WINDOW_MS) {
+            val j = candidates[q++]
+            if (a.feedId == articles[j].feedId) continue
+            if (classes[i] != classes[j]) continue
+            if (idsSimilar(ids[i], ids[j], genericId)) parent[find(i)] = find(j)
         }
     }
     val byRoot = LinkedHashMap<Int, MutableList<Int>>()

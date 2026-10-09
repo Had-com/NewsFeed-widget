@@ -69,8 +69,7 @@ internal fun renderedRowIds(prefs: Preferences, articles: List<ArticleItem>, now
 }
 
 internal fun decodeStoredArticles(prefs: Preferences): List<ArticleItem>? =
-    prefs[WidgetStateKey.articles]
-        ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
+    prefs[WidgetStateKey.articles]?.let { ArticleListCache.decode(it) }
 
 /**
  * Expands / collapses the thread led by [leadId] (the "+N" badge tap, ToggleThreadCallback). Also:

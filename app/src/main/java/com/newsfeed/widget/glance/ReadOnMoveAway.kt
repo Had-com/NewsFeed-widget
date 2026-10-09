@@ -60,7 +60,10 @@ internal fun markPreviousTappedReadThread(
     val ids = idsToMarkReadOnMoveAway(prefs, articles, prev, tappedId)
     if (ids.isEmpty()) return emptyList()
 
-    prefs[WidgetStateKey.articles] = Json.encodeToString(markIdsRead(articles, ids, now))
+    val updated = markIdsRead(articles, ids, now)
+    val updatedJson = Json.encodeToString(updated)
+    ArticleListCache.remember(updatedJson, updated)
+    prefs[WidgetStateKey.articles] = updatedJson
     return ids
 }
 

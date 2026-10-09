@@ -150,7 +150,7 @@ private fun WidgetContent() {
     val isFocusWidget = TapMode.fromKey(config.tapMode) == TapMode.FOCUS
 
     val articles: List<ArticleItem> = articlesJson
-        ?.let { runCatching { Json.decodeFromString<List<ArticleItem>>(it) }.getOrNull() }
+        ?.let { ArticleListCache.decode(it) }
         ?: emptyList()
 
     val feedMap         = config.feeds.associateBy { it.feedId }
