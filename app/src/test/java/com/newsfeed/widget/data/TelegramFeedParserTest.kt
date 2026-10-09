@@ -1,6 +1,7 @@
 package com.newsfeed.widget.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class TelegramFeedParserTest {
@@ -364,6 +365,49 @@ class TelegramFeedParserTest {
         // 9999999 fits in Int but exceeds the real Unicode ceiling (0x10FFFF = 1114111) -
         // Character.toChars() would throw IllegalArgumentException for it uncaught.
         assertEquals("&#9999999;", TelegramFeedParser.stripTelegramHtml("&#9999999;"))
+    }
+
+    // BUG-3 (QA 14.ah): an N12chat title kept the literal text "&rlm;". Invisible direction marks
+    // (LRM U+200E, RLM U+200F, ALM U+061C) are dropped entirely, in any spelling, so they neither
+    // show up as text nor take part in token matching.
+    @Test
+    fun `stripTelegramHtml drops named direction marks`() {
+        assertEquals("ענבר טויזר: שריפה", TelegramFeedParser.stripTelegramHtml("ענבר טויזר&rlm;: שריפה"))
+        assertEquals("abc", TelegramFeedParser.stripTelegramHtml("&lrm;abc&lrm;"))
+        assertEquals("שלום עולם", TelegramFeedParser.stripTelegramHtml("&rlm;שלום&rlm; עולם&lrm;"))
+    }
+
+    @Test
+    fun `stripTelegramHtml drops numeric direction marks decimal and hex`() {
+        assertEquals("שלום עולם", TelegramFeedParser.stripTelegramHtml("&#8207;שלום&#8206; עולם"))
+        assertEquals("שלום עולם", TelegramFeedParser.stripTelegramHtml("&#x200F;שלום&#x200e; עולם&#1564;"))
+    }
+
+    @Test
+    fun `stripTelegramHtml drops direction mark characters that are already in the text`() {
+        assertEquals("שלום עולם", TelegramFeedParser.stripTelegramHtml("\u200Fשלום\u200E עולם\u061C"))
+    }
+
+    @Test
+    fun `stripTelegramHtml keeps an escaped direction mark entity as the literal text it names`() {
+        // "&amp;rlm;" means "display the text &rlm;" - the same single-pass rule as "&amp;lt;"
+        assertEquals("&rlm;", TelegramFeedParser.stripTelegramHtml("&amp;rlm;"))
+    }
+
+    @Test
+    fun `stripTelegramHtml keeps other format characters and decodes hex numeric entities generally`() {
+        // only the three direction MARKS go; a zero width joiner (emoji sequences) stays
+        assertEquals("a\u200Db", TelegramFeedParser.stripTelegramHtml("a&#8205;b"))
+        assertEquals("🔴", TelegramFeedParser.stripTelegramHtml("&#x1F534;"))
+    }
+
+    @Test
+    fun `parseArticles leaves no direction marks or entity text in the title or description`() {
+        val a = parseOne("ענבר טויזר&rlm;: שריפה בגבעתיים&lrm;<br/>פרטים נוספים&#8207; בהמשך")
+        assertEquals("ענבר טויזר: שריפה בגבעתיים פרטים נוספים בהמשך", a.title)
+        assertFalse(a.title.contains("&"))
+        val b = parseOne("כותרת<br/>שורה שנייה<br/>&rlm;גוף&#8207; ההודעה&lrm;")
+        assertEquals("גוף ההודעה", b.description)
     }
 
     // Telegram split (restored after the c718e74 regression): title = first two lines joined,

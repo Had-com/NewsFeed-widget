@@ -26,6 +26,15 @@ class StoryThreadsTest {
     // ---- storyTokens -------------------------------------------------------------------
 
     @Test
+    fun `direction marks and the literal rlm lrm entities are not key words`() {
+        val plain = storyTokens("ענבר טויזר שריפה בגבעתיים")
+        assertEquals(plain, storyTokens("ענבר טויזר&rlm; שריפה&lrm; בגבעתיים"))
+        assertEquals(plain, storyTokens("ענבר טויזר\u200F שריפה\u200E בגבעתיים\u061C"))
+        assertFalse("rlm" in storyTokens("&rlm;שריפה בגבעתיים &lrm;"))
+        assertFalse("lrm" in storyTokens("&rlm;שריפה בגבעתיים &lrm;"))
+    }
+
+    @Test
     fun `quotes niqqud and punctuation are stripped and stop words dropped`() {
         // Rotter writes quotes as '' , ynet as " - both must reduce to the same words.
         assertEquals(storyTokens("איזנקוט: ''נתניהו פועל'' בחקירה"), storyTokens("איזנקוט: \"נתניהו פועל\" בחקירה"))

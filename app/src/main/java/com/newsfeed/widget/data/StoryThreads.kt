@@ -67,6 +67,10 @@ data class StoryThread(val lead: ArticleItem, val others: List<ArticleItem> = em
 }
 
 private val NIQQUD = Regex("""[֑-ׇ]""")
+// Invisible direction marks (LRM, RLM, ALM) and their literal entity text ("&rlm;" / "&lrm;" kept by
+// articles stored before the Telegram parser dropped them): never part of a word, and the entity text
+// would otherwise become the key words "rlm" / "lrm".
+private val DIRECTION_MARKS = Regex("[\\u200E\\u200F\\u061C]|&(?:rlm|lrm);")
 // "<title> - <source>" (Google News feeds append " - כאן 11" / " - N12"): drop a trailing
 // separator-delimited tail of at most 3 words and 24 characters.
 private val SOURCE_SUFFIX = Regex("""^(.*\S)\s+[-–—]\s+([^-–—]{1,24})$""")
@@ -101,6 +105,7 @@ private fun isHebrew(c: Char) = c in '֐'..'׿'
  */
 fun storyTokens(title: String): Set<String> {
     var t = Normalizer.normalize(title, Normalizer.Form.NFKC)
+    t = DIRECTION_MARKS.replace(t, "")
     t = NIQQUD.replace(t, "")
     t = CHANNEL_LEAD.replaceFirst(t, "")
     t = N12_LABEL.replace(t, " ")

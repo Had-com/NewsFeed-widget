@@ -167,7 +167,13 @@ object TelegramFeedParser {
 
     private val BR_TAG_REGEX = Regex("(?i)<br\\s*/?>")
     private val ANY_TAG_REGEX = Regex("<[^>]+>")
-    private val NUMERIC_ENTITY_REGEX = Regex("&#(\\d+);")
+    // Decimal (&#8207;) or hexadecimal (&#x200F;, x case-insensitive) numeric character reference.
+    private val NUMERIC_ENTITY_REGEX = Regex("&#(?:[xX]([0-9a-fA-F]+)|(\\d+));")
+    // Invisible direction MARKS: LRM U+200E, RLM U+200F, ALM U+061C. They carry no text and only
+    // steer the bidi algorithm, so they are removed from titles and descriptions altogether (QA 14.ah
+    // BUG-3: an N12chat title showed the literal "&rlm;"). Embeddings / isolates and the zero width
+    // joiner (emoji sequences) are deliberately kept.
+    private val DIRECTION_MARKS_REGEX = Regex("[\\u200E\\u200F\\u061C]")
 
     // Only matches a well-formed <a href="...">...</a> with a double-quoted href and a real
     // closing tag. DOT_MATCHES_ALL so a <br> or another tag inside the link text doesn't stop
@@ -288,14 +294,19 @@ object TelegramFeedParser {
             .replace("&quot;", "\"")
             .replace("&#39;", "'")
             .replace("&nbsp;", " ")
+            // the named direction marks go before &amp; like every named entity, so "&amp;rlm;" stays literal
+            .replace("&rlm;", "")
+            .replace("&lrm;", "")
             .replace("&amp;", "&")
         decoded = NUMERIC_ENTITY_REGEX.replace(decoded) { match ->
-            match.groupValues[1].toIntOrNull()
+            val hex = match.groupValues[1]
+            (if (hex.isNotEmpty()) hex.toIntOrNull(16) else match.groupValues[2].toIntOrNull())
                 ?.takeIf { it in 0..0x10FFFF }
                 ?.let { String(Character.toChars(it)) }
                 ?: match.value
         }
-        return decoded.trim()
+        // Also drops the characters themselves (a numeric reference decoded just above, or one already in the text).
+        return DIRECTION_MARKS_REGEX.replace(decoded, "").trim()
     }
 
     // [\s\S]*? (not \s*) because the header div can carry a verified/scam/fake badge
