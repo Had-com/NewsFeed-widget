@@ -579,42 +579,46 @@ private fun WidgetHeader(
                 fontWeight = FontWeight.Bold,
                 color      = GlanceTheme.colors.primary,
             )
-            // Position indicator ("N / M") — only meaningful once something is focused;
-            // otherwise every row is the same size and "position" doesn't mean anything.
-            // Answers "where am I in the list" without counting rows by eye.
-            if (focusedArticleId.isNotBlank() && focusedIndex >= 0) {
-                Text(
-                    text = "${focusedIndex + 1}/$displayCount",
-                    style = TextStyle(
-                        fontSize   = 10.sp,
-                        fontFamily = FontFamily.SansSerif,
-                        color      = GlanceTheme.colors.onSurfaceVariant,
-                    ),
-                    modifier = GlanceModifier.padding(horizontal = 4.dp),
-                )
-            }
-            // Focus-area size — only meaningful once something is focused (nothing to scale
-            // otherwise).
-            if (focusedArticleId.isNotBlank()) {
-                Text(
-                    text = "−",
-                    style = scaleButtonStyle,
-                    modifier = GlanceModifier
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                        .clickable(actionRunCallback<AdjustFocusScaleCallback>(
-                            actionParametersOf(AdjustFocusScaleCallback.DELTA_KEY to -AdjustFocusScaleCallback.STEP)
-                        )),
-                )
-                Text(
-                    text = "+",
-                    style = scaleButtonStyle,
-                    modifier = GlanceModifier
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                        .clickable(actionRunCallback<AdjustFocusScaleCallback>(
-                            actionParametersOf(AdjustFocusScaleCallback.DELTA_KEY to AdjustFocusScaleCallback.STEP)
-                        )),
-                )
-            }
+            // The header Row of a Focus widget has EXACTLY the same views whether a row is focused or not.
+            // Only the text and colour differ: with no focus the position indicator is blank and the -/+
+            // buttons are drawn transparent with a zero step (AdjustFocusScaleCallback ignores delta 0), so
+            // nothing visible or tappable changes. WHY (BUG-032, DEBUG_PLAN 14.aj): when the -/+ buttons
+            // (clickable Texts) appeared on the first focus tap and vanished on the clear tap, the launcher
+            // re-created the whole list, i.e. scrolled it back to the TOP, so the enlarged row was off screen
+            // and the tap looked like it did nothing. Moving focus from one row to another (header unchanged)
+            // never reset the scroll. The cause inside the host was not isolated further; the same views in
+            // both states (clickable included) is what keeps the position, measured on device builds 917-922.
+            val hasFocus = focusedArticleId.isNotBlank()
+            val invisibleButtonStyle = scaleButtonStyle.copy(color = ColorProvider(Color.Transparent))
+            Text(
+                text = if (hasFocus && focusedIndex >= 0) "${focusedIndex + 1}/$displayCount" else " ",
+                style = TextStyle(
+                    fontSize   = 10.sp,
+                    fontFamily = FontFamily.SansSerif,
+                    color      = GlanceTheme.colors.onSurfaceVariant,
+                ),
+                modifier = GlanceModifier.padding(horizontal = 4.dp),
+            )
+            Text(
+                text = "−",
+                style = if (hasFocus) scaleButtonStyle else invisibleButtonStyle,
+                modifier = GlanceModifier
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                    .clickable(actionRunCallback<AdjustFocusScaleCallback>(
+                        actionParametersOf(AdjustFocusScaleCallback.DELTA_KEY to
+                            AdjustFocusScaleCallback.headerStep(hasFocus, -AdjustFocusScaleCallback.STEP))
+                    )),
+            )
+            Text(
+                text = "+",
+                style = if (hasFocus) scaleButtonStyle else invisibleButtonStyle,
+                modifier = GlanceModifier
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                    .clickable(actionRunCallback<AdjustFocusScaleCallback>(
+                        actionParametersOf(AdjustFocusScaleCallback.DELTA_KEY to
+                            AdjustFocusScaleCallback.headerStep(hasFocus, AdjustFocusScaleCallback.STEP))
+                    )),
+            )
             Spacer(GlanceModifier.width(6.dp))
         }
         // Both numbers scoped to displayArticles (what's actually on screen right now),

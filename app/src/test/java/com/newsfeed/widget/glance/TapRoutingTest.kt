@@ -183,6 +183,25 @@ class TapRoutingTest {
         assertEquals("not json", prefs[WidgetStateKey.articles])
     }
 
+    // ---- header -/+ placeholders (BUG-032: the header must keep the same views focused or not) ----
+
+    @Test
+    fun `header buttons carry the real step only while a row is focused`() {
+        assertEquals(AdjustFocusScaleCallback.STEP, AdjustFocusScaleCallback.headerStep(true, AdjustFocusScaleCallback.STEP), 0f)
+        assertEquals(-AdjustFocusScaleCallback.STEP, AdjustFocusScaleCallback.headerStep(true, -AdjustFocusScaleCallback.STEP), 0f)
+        assertEquals(0f, AdjustFocusScaleCallback.headerStep(false, AdjustFocusScaleCallback.STEP), 0f)
+        assertEquals(0f, AdjustFocusScaleCallback.headerStep(false, -AdjustFocusScaleCallback.STEP), 0f)
+    }
+
+    @Test
+    fun `a zero step is inert and a real step is not`() {
+        assertTrue(AdjustFocusScaleCallback.isInertStep(AdjustFocusScaleCallback.headerStep(false, AdjustFocusScaleCallback.STEP)))
+        assertFalse(AdjustFocusScaleCallback.isInertStep(AdjustFocusScaleCallback.STEP))
+        assertFalse(AdjustFocusScaleCallback.isInertStep(-AdjustFocusScaleCallback.STEP))
+        // and a zero step would leave the stored zoom exactly where it is anyway
+        assertEquals(1.4f, AdjustFocusScaleCallback.adjustedScale(1.4f, 0f), 0f)
+    }
+
     // ---- adjustedScale: the -/+ buttons ----
 
     @Test

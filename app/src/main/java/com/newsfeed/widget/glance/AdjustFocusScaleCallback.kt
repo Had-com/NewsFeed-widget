@@ -43,6 +43,16 @@ class AdjustFocusScaleCallback : ActionCallback {
         // reusing it for ordinary rows, which never carry that multiplier, is strictly cheaper.
         const val HEADLINE_MAX_LINES = 8
 
+        /**
+         * The step the header's -/+ button carries. With nothing focused the buttons are transparent
+         * placeholders (the header must keep the same views in both states, BUG-032) and carry a ZERO
+         * step, which [isInertStep] makes a no-op.
+         */
+        fun headerStep(hasFocus: Boolean, step: Float): Float = if (hasFocus) step else 0f
+
+        /** A zero step does nothing (no state write, no re-render). */
+        fun isInertStep(delta: Float): Boolean = delta == 0f
+
         /** [current] nudged by [delta] (a +/- button step), clamped to MIN_SCALE..MAX_SCALE. */
         fun adjustedScale(current: Float, delta: Float): Float =
             (current + delta).coerceIn(MIN_SCALE, MAX_SCALE)
@@ -50,6 +60,8 @@ class AdjustFocusScaleCallback : ActionCallback {
 
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val delta = parameters[DELTA_KEY] ?: return
+        // A zero step is the transparent placeholder button shown while nothing is focused (see WidgetHeader): inert.
+        if (isInertStep(delta)) return
         updateAppWidgetState(context, glanceId) { prefs ->
             val current = prefs[WidgetStateKey.focusScale] ?: DEFAULT_SCALE
             prefs[WidgetStateKey.focusScale] = adjustedScale(current, delta)
