@@ -90,6 +90,66 @@ class ThreadRowsTest {
         assertEquals(4, l.availableRows)
     }
 
+    // ---- the footer speaks the header's unit (articles), not rows ----
+
+    @Test
+    fun `availableArticles counts every article, hidden members of collapsed threads included`() {
+        // a(1) + b(1+2) + c(1) + d(1+1) = 7, whatever is expanded and however many rows exist
+        assertEquals(7, layoutThreads(threads, emptySet(), rowLimit = 2).availableArticles)
+        assertEquals(7, layoutThreads(threads, setOf("b"), rowLimit = 2).availableArticles)
+        assertEquals(7, layoutThreads(threads, setOf("b", "d"), rowLimit = 100).availableArticles)
+        assertEquals(7, layoutThreads(threads, emptySet(), rowLimit = 0).availableArticles)
+        // while the row count is what Load more has always counted
+        assertEquals(4, layoutThreads(threads, emptySet(), rowLimit = 2).availableRows)
+        assertEquals(6, layoutThreads(threads, setOf("b"), rowLimit = 2).availableRows)
+    }
+
+    @Test
+    fun `the footer X (articleCount) is the header total at every limit, collapsed or expanded, and never above Y`() {
+        for (expanded in listOf(emptySet(), setOf("b"), setOf("d"), setOf("b", "d"))) {
+            for (limit in 0..8) {
+                val l = layoutThreads(threads, expanded, limit)
+                // the header badge and the footer's X are the same number by construction
+                assertEquals(l.rows.size + l.rows.filter { it.kind == ThreadRowKind.LEAD && !it.expanded }.sumOf { it.otherCount }, l.articleCount)
+                assertEquals(true, l.articleCount <= l.availableArticles)
+                // fewer rows than exist => fewer articles shown than exist (so a "Showing X of Y" line is never X == Y)
+                if (l.rows.size < l.availableRows) assertEquals(true, l.articleCount < l.availableArticles)
+            }
+        }
+    }
+
+    @Test
+    fun `an expanded thread cut at the limit - the footer counts what is shown, the total counts all members`() {
+        // 40-style case at small scale: limit 3 shows a, b, b1 (b expanded, b2 cut); c and d (+1 hidden) are beyond
+        val l = layoutThreads(threads, setOf("b"), rowLimit = 3)
+        assertEquals(3, l.articleCount)
+        assertEquals(7, l.availableArticles)
+    }
+
+    @Test
+    fun `with a pinned row the footer counts the pinned slice`() {
+        val l = layoutThreads(threads, emptySet(), rowLimit = 2, pinArticleId = "d")   // a, d (+1 hidden)
+        assertEquals(3, l.articleCount)
+        assertEquals(7, l.availableArticles)
+    }
+
+    @Test
+    fun `grouping off - articles equal rows as before`() {
+        val arts = listOf(art("a"), art("b", isRead = true), art("c"))
+        val l = layoutThreads(ungroupedStories(arts), emptySet(), rowLimit = 2)
+        assertEquals(l.availableRows, l.availableArticles)
+        assertEquals(2, l.articleCount)
+        assertEquals(l.rows.size, l.articleCount)
+    }
+
+    @Test
+    fun `a fully shown list has X equal to Y`() {
+        val l = layoutThreads(threads, setOf("b"), rowLimit = 100)
+        assertEquals(l.availableArticles, l.articleCount)
+        val c = layoutThreads(threads, emptySet(), rowLimit = 100)
+        assertEquals(c.availableArticles, c.articleCount)
+    }
+
     // ---- resumeKeys --------------------------------------------------------------------
 
     private fun read(id: String, readAt: Long) =

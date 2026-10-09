@@ -518,11 +518,13 @@ private fun WidgetContent() {
                             ) {
                                 Text(
                                     // Which cap binds decides the wording (BUG-029): the serialized-size cap does not
-                                    // depend on font size, so it never gets the "reduce font size" hint.
+                                    // depend on font size, so it never gets the "reduce font size" hint. The cap decision
+                                    // counts ROWS; the numbers shown are ARTICLES, the header's unit: X = the header's
+                                    // total (layout.articleCount, collapsed members included), Y = all articles available.
                                     text = capFooterText(
                                         capReason(maxRowsAllowed, serializedCap, layout.availableRows),
-                                        displayArticles.size, layout.availableRows, atFontFloor,
-                                    ) ?: "Showing ${displayArticles.size} of ${layout.availableRows}",
+                                        layout.articleCount, layout.availableArticles, atFontFloor,
+                                    ) ?: "Showing ${layout.articleCount} of ${layout.availableArticles}",
                                     style = TextStyle(
                                         fontSize   = 11.sp,
                                         fontFamily = FontFamily.SansSerif,

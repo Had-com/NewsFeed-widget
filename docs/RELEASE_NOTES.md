@@ -57,3 +57,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 17
 - Fixed: opening a group of similar stories at the very bottom of a full list now shows its articles instead of only turning the + into a minus.
+
+## Note 18
+- Changed: the "Showing X of Y" line at the bottom of a full list now counts articles, the same way the number at the top does, instead of counting list rows.

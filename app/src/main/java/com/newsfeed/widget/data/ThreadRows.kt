@@ -22,16 +22,20 @@ data class ThreadRow(
 /**
  * The visible slice of the list plus the numbers the widget needs:
  *  - [rows]: the first `rowLimit` rows (this is what is rendered);
- *  - [availableRows]: how many rows exist in total (what "Load more" / "Showing X of Y" count);
+ *  - [availableRows]: how many rows exist in total (what "Load more" and the cap decisions count);
  *  - [articleCount] / [unreadCount]: ARTICLES represented by [rows] (the header badge), i.e. a
  *    collapsed thread counts its hidden members too, so the badge means exactly what it did
- *    before threads existed.
+ *    before threads existed;
+ *  - [availableArticles]: how many ARTICLES exist in total (every member of every thread, collapsed or
+ *    not). The "Showing X of Y" footer speaks the header's unit: X = [articleCount], Y = [availableArticles],
+ *    so the footer's X is always the header's total. With grouping off, articles and rows are the same.
  */
 data class ThreadLayout(
     val rows: List<ThreadRow>,
     val availableRows: Int,
     val articleCount: Int,
     val unreadCount: Int,
+    val availableArticles: Int,
 )
 
 /**
@@ -89,6 +93,7 @@ fun layoutRows(flat: List<ThreadRow>, rowLimit: Int, pinArticleId: String = ""):
         availableRows = flat.size,
         articleCount = rows.size + hidden.sumOf { it.otherCount },
         unreadCount = rows.count { !it.article.isRead } + rows.sumOf { it.hiddenUnread },
+        availableArticles = flat.size + flat.sumOf { if (it.kind == ThreadRowKind.LEAD && !it.expanded) it.otherCount else 0 },
     )
 }
 
