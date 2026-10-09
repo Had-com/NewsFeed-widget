@@ -45,3 +45,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 13
 - Fixed: Focus mode no longer loses the article you tapped near the bottom of the list, and the same article coming from two feeds is now shown only once.
+
+## Note 14
+- Fixed: story threads now group articles only when their headlines share real content words, not just a reporter name or a channel label.

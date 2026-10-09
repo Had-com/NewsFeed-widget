@@ -12,26 +12,17 @@ import java.util.Locale
 /**
  * Runs the matcher over REAL headlines (src/test/resources/story_threads_fixture.tsv: 294 public
  * headlines from 11 feeds captured on 2026-09-20 and 2026-10-07; columns feedKey, publishedAt epoch
- * ms, title). Also writes the group list for human review to app/build/story-threads-review.txt.
+ * ms, title; the second golden set is StoryThreadsFixture2Test). Also writes the group list for
+ * human review to app/build/story-threads-review.txt.
  */
 class StoryThreadsFixtureTest {
 
-    private val articles: List<ArticleItem> by lazy {
-        val text = javaClass.classLoader!!.getResourceAsStream("story_threads_fixture.tsv")!!
-            .bufferedReader(Charsets.UTF_8).readText()
-        text.lines().filter { it.isNotBlank() && !it.startsWith("#") }.mapIndexed { i, line ->
-            val (feed, at, title) = line.split("\t", limit = 3)
-            ArticleItem(
-                id = "fx$i", feedId = feed, feedName = feed, title = title,
-                publishedAt = at.toLong(), isRead = false,
-            )
-        }
-    }
+    private val articles: List<ArticleItem> by lazy { StoryFixtures.load("story_threads_fixture.tsv") }
 
     private val threads: List<StoryThread> by lazy { groupStories(articles) }
 
     private fun find(feed: String, titleStart: String): ArticleItem {
-        val hits = articles.filter { it.feedId == feed && it.title.startsWith(titleStart) }
+        val hits = articles.filter { it.feedId == StoryFixtures.feedId(feed) && it.title.startsWith(titleStart) }
         assertEquals("fixture lookup '$titleStart' in $feed", 1, hits.size)
         return hits[0]
     }
@@ -49,7 +40,9 @@ class StoryThreadsFixtureTest {
     @Test
     fun `real group count stays in the reviewed range`() {
         val multi = threads.count { it.size > 1 }
-        // Reviewed on 2026-10-07: 27 groups. A change outside this band means the matcher was
+        // Reviewed on 2026-10-07: 27 groups; 28 since the 2026-10-09 similarity revision (BUG-028): the
+        // "מבזקן 12" label no longer dilutes the N12 chat flash, so it now joins the N12 channel's
+        // twin post about the Neve Tzuf scene. A change outside this band means the matcher was
         // retuned - re-run the review (see the plan's Task 2 Step 8) before adjusting the band.
         assertTrue("groups=$multi", multi in 22..32)
     }
@@ -113,6 +106,15 @@ class StoryThreadsFixtureTest {
     }
 
     @Test
+    fun `the N12 chat flash label does not keep the Neve Tzuf scene posts apart`() {
+        // "מבזקן 12 זירת הפיגוע בנווה צוף. צילום: מד"א" vs "<reporter>: תיעוד מזירת הפיגוע בנווה צוף" shared
+        // 4 of 7 words (57%) while the flash label counted as two words; without it they link (BUG-028).
+        val flash = find("n12-chat", "מבזקן 12 זירת הפיגוע בנווה צוף")
+        val doc = find("n12-tg", "גאנם איברהים: תיעוד מזירת הפיגוע בנווה צוף")
+        assertEquals(threadOf(flash).lead.id, threadOf(doc).lead.id)
+    }
+
+    @Test
     fun `write the review listing`() {
         val fmt = SimpleDateFormat("MM-dd HH:mm", Locale.ROOT)
         val sb = StringBuilder()
@@ -121,7 +123,7 @@ class StoryThreadsFixtureTest {
         for (t in multi) {
             sb.append("---\n")
             for (m in t.members) {
-                sb.append("  ${if (m === t.lead) "*" else " "} ${fmt.format(Date(m.publishedAt))} ${m.feedId.padEnd(10)} | ${m.title.take(100)}\n")
+                sb.append("  ${if (m === t.lead) "*" else " "} ${fmt.format(Date(m.publishedAt))} ${m.feedName.padEnd(10)} | ${m.title.take(100)}\n")
             }
         }
         val out = File(System.getProperty("user.dir"), "build/story-threads-review.txt")

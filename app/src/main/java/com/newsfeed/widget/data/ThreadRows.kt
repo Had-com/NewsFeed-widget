@@ -110,11 +110,16 @@ private fun pinnedSlice(flat: List<ThreadRow>, limit: Int, pinArticleId: String)
  * sorted (see [applyFilterAndSort]), de-duplicated by article id ([dedupeById]: the same article
  * served by two feeds is ONE article), then grouped into story threads (or one thread per article
  * when grouping is off). The render and the tap callbacks share this so they cannot disagree.
+ * The story-thread boilerplate statistics are computed from the unfiltered, de-duplicated list of the
+ * configured feeds ([groupStories]'s `statsFrom`), the same list `storedThreads` groups.
  */
 fun displayThreadsFor(articles: List<ArticleItem>, config: WidgetConfig, now: Long): List<StoryThread> {
     val feedIds = config.feeds.map { it.feedId }.toSet()
-    val available = dedupeById(applyFilterAndSort(articles.filter { it.feedId in feedIds }, config, now))
-    return if (config.groupStories) groupStories(available) else ungroupedStories(available)
+    val inFeeds = articles.filter { it.feedId in feedIds }
+    val available = dedupeById(applyFilterAndSort(inFeeds, config, now))
+    // Boilerplate statistics come from the UNFILTERED list - exactly what the tap callbacks group
+    // (storedThreads) - so an All / Unread only / Read only filter cannot change the threads.
+    return if (config.groupStories) groupStories(available, statsFrom = dedupeById(inFeeds)) else ungroupedStories(available)
 }
 
 /**
