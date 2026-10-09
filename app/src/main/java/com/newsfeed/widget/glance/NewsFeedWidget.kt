@@ -513,10 +513,12 @@ private fun WidgetContent() {
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    text = if (atFontFloor)
-                                        "Showing ${displayArticles.size} of ${layout.availableRows} · this device can't show more at once"
-                                    else
-                                        "Showing ${displayArticles.size} of ${layout.availableRows} · reduce font size to see more",
+                                    // Which cap binds decides the wording (BUG-029): the serialized-size cap does not
+                                    // depend on font size, so it never gets the "reduce font size" hint.
+                                    text = capFooterText(
+                                        capReason(maxRowsAllowed, serializedCap, layout.availableRows),
+                                        displayArticles.size, layout.availableRows, atFontFloor,
+                                    ) ?: "Showing ${displayArticles.size} of ${layout.availableRows}",
                                     style = TextStyle(
                                         fontSize   = 11.sp,
                                         fontFamily = FontFamily.SansSerif,

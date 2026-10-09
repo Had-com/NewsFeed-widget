@@ -262,3 +262,30 @@ internal fun serializedCapFromPrefs(prefs: Preferences, now: Long = System.curre
     val cap = serializedRowCap(flat, flat.size, effectiveFocusedId, sizing::bytesFor)
     return if (cap < flat.size) cap else null
 }
+
+/** Which cap stops the list short of the available rows (decides the footer wording). */
+internal enum class CapReason { NONE, MEMORY, SERIALIZED }
+
+/**
+ * Why the list stops before [available] rows. [SERIALIZED] when the serialized-size cap is below both the
+ * bitmap cap [maxRowsAllowed] and [available] (also when both bind: font size cannot fix that one);
+ * [MEMORY] when only the bitmap / device-memory cap is below [available]; else [NONE].
+ */
+internal fun capReason(maxRowsAllowed: Int, serializedCap: Int, available: Int): CapReason = when {
+    serializedCap < minOf(maxRowsAllowed, available) -> CapReason.SERIALIZED
+    maxRowsAllowed < available -> CapReason.MEMORY
+    else -> CapReason.NONE
+}
+
+/**
+ * The non-tappable footer shown instead of Load more, or null when no cap binds. A smaller font size only
+ * raises the bitmap cap, so the "reduce font size" hint is used only for [CapReason.MEMORY] (and not at the
+ * font slider's floor, where it is impossible); the serialized cap never depends on font size.
+ */
+internal fun capFooterText(reason: CapReason, shown: Int, available: Int, atFontFloor: Boolean): String? = when (reason) {
+    CapReason.NONE -> null
+    CapReason.SERIALIZED -> "Showing $shown of $available · the widget can't show more at once"
+    CapReason.MEMORY ->
+        if (atFontFloor) "Showing $shown of $available · this device can't show more at once"
+        else "Showing $shown of $available · reduce font size to see more"
+}

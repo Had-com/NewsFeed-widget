@@ -262,4 +262,51 @@ class SerializedRowBudgetTest {
         assertEquals(40, nextVisibleCount(current = 30, chunk = chunk, cap = null))   // cap unknown: old behaviour
         assertEquals(1, nextVisibleCount(current = 0, chunk = 0, cap = 0))            // never below one
     }
+
+    // ---- the truthful footer ------------------------------------------------------------------
+
+    @Test
+    fun `the cap reason is serialized when only the serialized cap binds`() {
+        // non-Glamour: bitmap cap 250, 173 rows, serialized cap 36
+        assertEquals(CapReason.SERIALIZED, capReason(maxRowsAllowed = 250, serializedCap = 36, available = 173))
+    }
+
+    @Test
+    fun `the cap reason is memory when only the bitmap cap binds`() {
+        // Glamour: bitmap cap 26 (serialized cap is limited to it by upper), 173 rows
+        assertEquals(CapReason.MEMORY, capReason(maxRowsAllowed = 26, serializedCap = 26, available = 173))
+    }
+
+    @Test
+    fun `the cap reason is serialized when both bind`() {
+        assertEquals(CapReason.SERIALIZED, capReason(maxRowsAllowed = 100, serializedCap = 36, available = 173))
+    }
+
+    @Test
+    fun `the cap reason is none when everything fits`() {
+        assertEquals(CapReason.NONE, capReason(maxRowsAllowed = 250, serializedCap = 20, available = 20))
+        assertEquals(CapReason.NONE, capReason(maxRowsAllowed = 26, serializedCap = 20, available = 20))
+    }
+
+    @Test
+    fun `the reason follows the real caps end to end`() {
+        val sz = sizing()
+        val flat = typicalRows(173)
+        assertEquals(CapReason.SERIALIZED, capReason(250, serializedRowCap(flat, 250, "", sz::bytesFor), flat.size))
+        assertEquals(CapReason.MEMORY, capReason(26, serializedRowCap(flat, 26, "", sz::bytesFor), flat.size))
+        assertEquals(CapReason.NONE, capReason(250, serializedRowCap(typicalRows(20), 250, "", sz::bytesFor), 20))
+    }
+
+    @Test
+    fun `footer wording - serialized never suggests a smaller font, memory does`() {
+        assertEquals("Showing 36 of 173 · the widget can't show more at once",
+            capFooterText(CapReason.SERIALIZED, 36, 173, atFontFloor = false))
+        assertEquals("Showing 36 of 173 · the widget can't show more at once",
+            capFooterText(CapReason.SERIALIZED, 36, 173, atFontFloor = true))
+        assertEquals("Showing 26 of 173 · reduce font size to see more",
+            capFooterText(CapReason.MEMORY, 26, 173, atFontFloor = false))
+        assertEquals("Showing 26 of 173 · this device can't show more at once",
+            capFooterText(CapReason.MEMORY, 26, 173, atFontFloor = true))
+        assertEquals(null, capFooterText(CapReason.NONE, 20, 20, atFontFloor = false))
+    }
 }
