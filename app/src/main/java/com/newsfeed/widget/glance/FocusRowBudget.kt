@@ -15,10 +15,14 @@ import kotlin.math.max
  *
  * The list's rows are at 1.0x, except in Focus mode ONE row (the focused one) which renders at
  * focusScale x (never below 1). Therefore:
- *  - no focused row (or not a Focus widget): the historical bound, UNCHANGED - every row budgeted at
- *    the same worst-case scale (max(focusScale, 1) for a Focus widget, 1 otherwise): n = B / cost(s);
+ *  - no focused row (or not a Focus widget): every row renders at 1x, so n = B / cost(1), exactly what an
+ *    Expand widget gets. (Until BUG-032 a Focus widget with nothing focused budgeted every row at
+ *    max(focusScale, 1) although none is enlarged: 19 rows instead of 27 in Glamour at scale 1.4, so the
+ *    tap that focused a row GREW the list to 26 and the clearing tap SHRANK it back, and the rows past the
+ *    19th, possibly the very row the user had just been reading, vanished from under the finger);
  *  - a focused row on screen: the real worst case, (n - 1) rows at cost(1) plus one at cost(focusScale):
- *    n = floor((B - extra) / cost(1)), extra = cost(focusScale) - cost(1).
+ *    n = floor((B - extra) / cost(1)), extra = cost(focusScale) - cost(1). Tapping therefore changes the cap by
+ *    at most ceil(extra / cost(1)) rows (1-2 for a normal scale) and the pin keeps the tapped row.
  *
  * Memory-safety proof for the focused case. Let c1 = cost(1), cF = cost(max(focusScale,1)),
  * extra = cF - c1 >= 0, B = ROW_BUDGET_BYTES, n = floor((B - extra) / c1) (before the clamp). The
@@ -78,13 +82,9 @@ internal fun maxRowsAllowedFor(
     focusActive: Boolean,
 ): Int {
     val ceiling = if (isGlamour) 60 else 300
-    val worstScale = if (isFocusWidget) max(focusScale, 1f) else 1f
-    if (!(isFocusWidget && focusActive)) {
-        val perRow = rowCostBytes(fontSize, worstScale, isGlamour, widthPx, scaledDensity)
-        return (ROW_BUDGET_BYTES / perRow).toInt().coerceIn(1, ceiling)
-    }
     val c1 = rowCostBytes(fontSize, 1f, isGlamour, widthPx, scaledDensity)
-    val cFocused = rowCostBytes(fontSize, worstScale, isGlamour, widthPx, scaledDensity)
+    if (!(isFocusWidget && focusActive)) return (ROW_BUDGET_BYTES / c1).toInt().coerceIn(1, ceiling)
+    val cFocused = rowCostBytes(fontSize, max(focusScale, 1f), isGlamour, widthPx, scaledDensity)
     val extra = (cFocused - c1).coerceAtLeast(0f)
     return ((ROW_BUDGET_BYTES - extra) / c1).toInt().coerceIn(1, ceiling)
 }

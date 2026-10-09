@@ -34,14 +34,35 @@ class FocusRowBudgetTest {
     private val screens = listOf(937 to 2.75f, 1193 to 3.5f, 300 to 2.0f)
 
     @Test
-    fun `no focused row gives exactly the historical value for a Focus widget`() {
+    fun `no focused row in a Focus widget is the 1x cap an Expand widget gets (BUG-032)`() {
         for (f in fonts) for (s in scales) for (t in themes) for ((w, d) in screens) {
             assertEquals(
                 "font=$f scale=$s theme=$t w=$w d=$d",
-                legacyMaxRowsAllowed(f, t, w, d, isFocusWidget = true, focusScale = s),
+                legacyMaxRowsAllowed(f, t, w, d, isFocusWidget = false, focusScale = s),
                 maxRowsAllowedFor(f, t == "glamer", w, d, isFocusWidget = true, focusScale = s, focusActive = false),
             )
         }
+    }
+
+    @Test
+    fun `the cap is continuous across a focus tap - focusing never grows it and drops at most ceil(extra over cost1) rows (BUG-032)`() {
+        for (f in fonts) for (s in scales) for (t in themes) for ((w, d) in screens) {
+            val glamour = t == "glamer"
+            val none = maxRowsAllowedFor(f, glamour, w, d, true, s, focusActive = false)
+            val focused = maxRowsAllowedFor(f, glamour, w, d, true, s, focusActive = true)
+            val c1 = rowCostBytes(f, 1f, glamour, w, d)
+            val extra = (rowCostBytes(f, maxOf(s, 1f), glamour, w, d) - c1).coerceAtLeast(0f)
+            val maxDrop = kotlin.math.ceil((extra / c1).toDouble()).toInt() + 1   // + the floor() of the division
+            assertTrue("font=$f scale=$s theme=$t w=$w d=$d none=$none focused=$focused", focused <= none)
+            assertTrue("font=$f scale=$s theme=$t w=$w d=$d drop ${none - focused} > $maxDrop", none - focused <= maxDrop)
+        }
+    }
+
+    @Test
+    fun `glamour font 1_0 at 937px 2_75 density and scale 2_5 - 27 rows without focus, 26 with (the no-focus cap was 11)`() {
+        assertEquals(26, maxRowsAllowedFor(1.0f, true, 937, 2.75f, true, 2.5f, focusActive = true))
+        assertEquals(27, maxRowsAllowedFor(1.0f, true, 937, 2.75f, true, 2.5f, focusActive = false))
+        assertEquals(11, legacyMaxRowsAllowed(1.0f, "glamer", 937, 2.75f, true, 2.5f))
     }
 
     @Test
