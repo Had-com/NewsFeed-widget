@@ -47,7 +47,8 @@ Consequences, in order of importance:
    [K Self-update & release notes](#k--self-update--release-notes) · [L Robustness](#l--robustness) ·
    [M Regressions](#m--regression-cases-for-past-bugs) ·
    [N Focus as a setting & state cleanup](#n--focus-as-a-setting--state-cleanup) ·
-   [O Story threads](#o--story-threads)
+   [O Story threads](#o--story-threads) ·
+   [P Problem report & refresh log](#p--problem-report--refresh-log)
 9. Appendices: [A Bug ledger](#appendix-a--cases-added-because-of-a-bug) ·
    [B Pairwise tables](#appendix-b--pairwise-configuration-tables) ·
    [C Test data](#appendix-c--reference-test-data) ·
@@ -263,7 +264,7 @@ mid-development checks and hotfix triage. Not sufficient for a release.
    where a case says "both" or names Focus.
 2. Matrix `G-M01…G-M12` (filter × sort × tap behaviour) — all 12 rows, each in both tap behaviours. Run them with Group similar stories ON (the default); `O-06` covers OFF.
 3. Pairwise `PW-A` (50 configurations, Appendix B) via case `H-24`; `PW-B` (with the Tap factor) via `N-22`.
-4. Sections N and O in full (N: Focus as a setting, mode switching, orphan cleanup; O: story threads, run with Group similar stories ON, the default, plus the OFF cases).
+4. Sections N, O and P in full (N: Focus as a setting, mode switching, orphan cleanup; O: story threads, run with Group similar stories ON, the default, plus the OFF cases; P: problem report and refresh log).
 5. Unit tests, CI status, logcat check, restore of backed-up state.
 
 Estimated effort: Smoke ≈ 45 min; Full ≈ 6–8 h including PW-A (≈ 2 h alone; the 50 rows are ordered so an
@@ -271,7 +272,7 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 
 ### Smoke subset — P0 cases in sections A–M
 
-46 rows = **40 distinct executions** (`M-01`, `M-02`, `M-10`, `M-40`, `M-41`, `M-52` are the same execution as `F-01/F-02`, `F-04`, `F-12`, `N-30`, `F-23`, `I-15`), ≈ 45–60 min for A–M (≈ 60–80 min with section N). `E-20` and `F-08` are the Focus-mode cases. Section N adds 12 more P0 cases (`N-01…N-07`, `N-09`, `N-14`, `N-18`, `N-27`, `N-30`) and section O adds 8 more (`O-01…O-07`, `O-28`), so the Smoke subset is 66 rows.
+46 rows = **40 distinct executions** (`M-01`, `M-02`, `M-10`, `M-40`, `M-41`, `M-52` are the same execution as `F-01/F-02`, `F-04`, `F-12`, `N-30`, `F-23`, `I-15`), ≈ 45–60 min for A–M (≈ 60–80 min with section N). `E-20` and `F-08` are the Focus-mode cases. Section N adds 12 more P0 cases (`N-01…N-07`, `N-09`, `N-14`, `N-18`, `N-27`, `N-30`) section O adds 8 more (`O-01…O-07`, `O-28`) and section P adds 4 more (`P-01`, `P-03`, `P-04`, `P-05`), so the Smoke subset is 70 rows.
 
 `A-01`, `B-01`, `B-05`, `B-07`, `C-01`, `C-04`, `C-15`, `D-03`, `D-17`, `E-01`, `E-04`, `E-07`, `E-09`, `E-20`, `F-01`, `F-02`, `F-04`, `F-08`, `F-09`, `F-12`, `F-23`, `G-05`, `G-M05`, `H-01`, `I-02`, `I-07`, `I-15`, `I-22`, `J-05`, `J-06`, `K-01`, `K-03`, `K-12`, `L-01`, `L-12`, `M-01`, `M-02`, `M-09`, `M-10`, `M-11`, `M-38`, `M-40`, `M-41`, `M-44`, `M-48`, `M-52`
 
@@ -294,7 +295,8 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | M Regression cases for past bugs | 54 | 11 | 41 | 2 |
 | N Focus as a setting & state cleanup | 31 | 12 | 19 | 0 |
 | O Story threads | 35 | 10 | 24 | 1 |
-| **Total** | **368** | **68** | **278** | **22** |
+| P Problem report & refresh log | 14 | 4 | 9 | 1 |
+| **Total** | **382** | **72** | **287** | **23** |
 
 Plus the two pairwise tables (50 configurations each, run through `H-24` and `N-22`).
 
@@ -679,7 +681,7 @@ Glamour ignores per-feed font and B/I/U (bitmap headlines).
 | L-10 | P1 | **System language Hebrew**: Settings mirrors RTL and stays readable; feeds explicitly set LTR/RTL — **record** whether the stripe/meta row mirror with the locale (BUG-002 open, structural Glance limit); timestamps, badge and (Focus mode) N/M read correctly | SS, UI | none |
 | L-11 | P1 | Locale switch English↔Hebrew while widgets are placed ⇒ no crash; widget re-renders | LC | none |
 | L-12 | P0 | Logcat over the whole run ⇒ **zero** `FATAL EXCEPTION`/`AndroidRuntime` for `com.newsfeed.widget`, no `exceeds maximum bitmap memory`, no `Can't show content` | LC | none |
-| L-13 | P1 | Bug reports: empty state text "No crashes detected on this device."; `adb shell am crash com.newsfeed.widget` ⇒ still crashes for real; relaunch ⇒ entry (type, message, count, build, time) marked **Unsolved**; **Share crash report** ⇒ chooser with a `crash_report.txt` file (no inline text); no network activity | UI, VIS, LC | UT:CrashLogStoreTest |
+| L-13 | P1 | Bug reports (the report button itself is covered by section P): empty state text "No crashes detected on this device."; `adb shell am crash com.newsfeed.widget` ⇒ still crashes for real; relaunch ⇒ entry (type, message, count, build, time) marked **Unsolved**; **Share report** ⇒ chooser with a `newsfeed-report-*.txt` file (no inline text) that contains the crash (see P-14); no network activity | UI, VIS, LC | UT:CrashLogStoreTest |
 | L-14 | P1 | After updating to a newer build without re-crashing ⇒ that entry shows **Solved** | UI | UT:CrashLogStoreTest |
 | L-15 | P2 | Corrupt/empty live config DataStore ⇒ no crash loop; backup restore path works | LC, DS | none |
 | L-16 | P1 | Time zone / clock change ⇒ article times re-render in local time; countdown sane | UI | none |
@@ -850,6 +852,29 @@ Existing unit tests: `TapRoutingTest`, `WidgetConfigTapModeTest`, `OrphanCleanup
 
 ---
 
+## P — Problem report & refresh log
+
+**Status: shipped in code (Settings → REPORT A PROBLEM and LAST REFRESHES; `data/RefreshLog.kt`, `data/BugReport.kt`); awaiting the on-device release run.** Spec: `docs/superpowers/specs/2026-09-10-bug-logger-design.md` ("Phase 1b"). Phase 1b has **no** network transport: the report is a plain text file the user shares. The log file is `files/refresh_log.json`, reports are written to `cache/reports/` (`run-as com.newsfeed.widget` to inspect on a debug build). Use a temporary widget with a deliberately failing feed (a URL that answers 404, e.g. `https://raw.githubusercontent.com/Had-com/NewsFeed-widget/main/does-not-exist.xml`) for the failure cases.
+
+| ID | P | Do ⇒ Expect | Evid | Auto |
+|---|---|---|---|---|
+| P-01 | P0 | **The report is always available.** Device with **no** crash recorded (clear app data or fresh install) ⇒ Settings shows "No crashes detected on this device." and, below it, **REPORT A PROBLEM** with **Preview report** and **Share report** both enabled (never greyed out); tapping **Share report** opens the Android share sheet; **Save** is not needed | UI, VIS | none |
+| P-02 | P1 | **Report content.** Type a note, tap **Preview report** ⇒ monospace, scrollable text with: header `NewsFeed problem report (schema 1)`, `Version: … (build N)` equal to Settings → APP UPDATE, device model and Android version, locale and time zone, your note under `[What happened]`, `[Refresh status]`, one line per widget under `[Widgets]` (tap, filter, sort, theme, interval, keep, group stories, article length, font sizes, feed count) with each feed's NAME, `[Recent refreshes]`, `[Crashes]`, and the last line `-- end of report (schema 1) --`; scrolling reaches the end | UI, SS | UT:BugReportTest |
+| P-03 | P0 | **Feed addresses are excluded by default.** The **Include my feed addresses** box is OFF on first open. Preview and Share (checkbox OFF) with a failing feed in the log ⇒ `adb shell run-as com.newsfeed.widget cat cache/reports/newsfeed-report-*.txt`: `grep -ci "https\?://"` is 0 and none of your feed hosts appears anywhere (also not inside the failure details, e.g. a DNS error message, or in a crash stack trace); feed NAMES and statuses are still listed | ADB, UI | UT:BugReportTest |
+| P-04 | P0 | **Addresses are redacted when included.** On a temporary widget add the feed `https://user:pw@example.org/rss?token=abc123&q=news` (it will fail, which is fine), tick **Include my feed addresses**, Share ⇒ the file shows the address as `https://example.org/rss?token=REDACTED&q=news`: no `user:pw`, no `abc123`; host, path and the `q` query stay; repeat with `apikey=`, `access_token=` and `session=` ⇒ values redacted. Remove the temporary widget afterwards | ADB | UT:BugReportTest |
+| P-05 | P0 | **The share sheet carries a .txt attachment.** **Share report** ⇒ chooser "Share problem report"; pick Gmail / Messages / Drive ⇒ the attachment is `newsfeed-report-<yyyyMMdd>-<HHmm>.txt` (text/plain), opens and reads correctly in the receiving app (no "permission denied" or FileProvider error, no `IllegalArgumentException` in logcat); the subject is `NewsFeed problem report (build N)` and the message body is three lines (build and device, failed-feed line, "full report is attached"). **Preview → Share** shares the same text that was previewed (same `Created:` time) | UI, VIS, LC | UT:ReportFilesTest |
+| P-06 | P1 | **Optional recipient.** **Send reports to (email, optional)** is empty on a fresh install (nothing hard-coded: `git grep` finds no address in the app sources). Type a valid address, leave Settings and reopen it ⇒ still filled in (`run-as … cat shared_prefs/report_settings.xml`); **Share report** with Gmail ⇒ the To field is pre-filled. Type `not-an-email` ⇒ field shows an error, Share still works, a Toast says the address was left out, the To field is empty and the bad value is not saved. Blank it again ⇒ no recipient | UI, ADB | none |
+| P-07 | P1 | **The refresh log records a failing feed with its reason.** Temporary widget with one working feed and the 404 feed above, Save ⇒ after the refresh LAST REFRESHES (tap **Show**; reopen Settings if the list was already open) has a new top row `HH:mm · settings save · 1/2 feeds OK` in **amber**; tap it ⇒ the failing feed with `HTTP_ERROR 404`, its time in ms and the detail `HTTP 404`; the working feed in normal colour. The footer shows `⚠ 1 failed`. The shared report lists the same run with `! <feed name> [HTTP_ERROR 404, … ms] | HTTP 404`. Variants: airplane mode + footer tap ⇒ all feeds `NETWORK_ERROR` with a `dns:` detail (the run is `retry` while attempts remain); a feed URL that returns a normal web page ⇒ `NOT_A_FEED` | UI, SS | UT:RefreshLogTest |
+| P-08 | P1 | **Triggers are recorded.** Footer tap ⇒ row says `tap`; Settings Save ⇒ `settings save`; a periodic run ⇒ `periodic`; the watchdog catch-up of I-21 ⇒ `watchdog`. `run-as … cat files/refresh_log.json` shows `trigger`, `attempt`, `durationMs`, `widgetCount`, `verdict` and per-feed `label`, `url`, `status`, `httpCode`, `articleCount`, `elapsedMs`, `detail`, `widgetId` | ADB | UT:RefreshLogTest |
+| P-09 | P1 | **Ring cap and size.** Put a synthetic `refresh_log.json` with 60 runs (`run-as`), open Settings ⇒ at most 20 rows; trigger one run ⇒ the file holds exactly **50** runs (oldest dropped, newest last); the report's `[Recent refreshes]` header says `20 of 50 recorded`; with a 100-feed run repeated 20 times the report stays under 60,000 characters, still starts with the header and ends with the footer line, and the dropped lines are the OLDEST (marker line `(... older lines left out ...)`) | ADB, UI | UT:RefreshLogTest, UT:BugReportTest |
+| P-10 | P1 | **Empty states.** Fresh install or cleared data ⇒ LAST REFRESHES, **Show** ⇒ "No refreshes recorded yet."; the report preview shows `[Recent refreshes] (newest first, 0 of 0 recorded)` and `No crashes recorded.`; nothing crashes | UI | UT:BugReportTest |
+| P-11 | P1 | **7-day cleanup.** Share two reports; set one file's date 8 days back (`run-as com.newsfeed.widget touch -d "8 days ago" cache/reports/<file>`) and add an unrelated `cache/reports/keep.bin`; reopen Settings ⇒ the 8-day-old `newsfeed-report-*.txt` is gone, the new one and `keep.bin` remain | ADB | UT:ReportFilesTest |
+| P-12 | P2 | **Preview dialog and layout.** Preview is read-only monospace, scrolls to the last line, **Close** dismisses it, **Share** shares. Note field stops at 2,000 characters. With the system language Hebrew the REPORT A PROBLEM / LAST REFRESHES rows mirror correctly (RTL) while the report text itself stays left-to-right; with a Hebrew feed name the name appears intact in the row and in the report | UI, SS | none |
+| P-13 | P1 | **Logging can never break a refresh.** With `run-as`, replace `files/refresh_log.json` with garbage (`echo garbage > files/refresh_log.json`) ⇒ a refresh still completes, articles and footer update, LAST REFRESHES shows the new run afterwards (the damaged file is replaced), logcat has no `FATAL EXCEPTION`; the refresh behaves identically with the log present or absent (footer, `last_refresh_time`, `failed_feed_count` as in I-18) | LC, DS | UT:RefreshLogTest |
+| P-14 | P1 | **Crashes are inside the report.** `adb shell am crash com.newsfeed.widget`, relaunch, share a report ⇒ `[Crashes]` lists the exception type, message, count, build, "not fixed", and a `Stack trace (…)` block (at most the last 3 traces); with **Include my feed addresses** OFF no URL or feed host is in that block either | ADB, UI | UT:BugReportTest |
+
+---
+
 ## Appendix A — Cases added because of a bug
 
 Ledger of bug → case. New lines are added at the bottom under the [rule](#bug-to-test-rule--how-to-add-a-case). "Status" is the
@@ -913,6 +938,7 @@ status recorded in `docs/BUGS.md` / `DEBUG_PLAN.md` when this plan was written (
 | BUG-034 | "Sometimes the widget does not refresh automatically": 13 of 27 background runs had every DNS lookup blocked and fetched nothing; a saved interval could fall back to 15 min | Periodic job had no network constraint (`required_network_type=NOT_REQUIRED`), `ensureScheduled` hard-coded 15 min, `schedule` used `REPLACE`; fix: one request builder with `CONNECTED`, `UPDATE` policy with app-start migration (`WORK_SCHEMA_VERSION`), `effectiveRefreshIntervalMinutes` | I-15, I-16, I-17, M-52 (C-15, I-04, I-05, I-08, M-33 tightened) | Fixed (device verification pending, DEBUG_PLAN 14.al) |
 | BUG-035 | A failed refresh looked like a success with no news; the footer countdown restarted after a run that fetched nothing | `fetchFeedArticles` returned an empty list for non-2xx, `lastRefreshTime` overwritten by every run, worker always `success()`; fix: `RefreshOutcome` classifier (`classifyFeedFetch`), failed feeds throw, `lastRefreshTime` only on a real fetch, `Result.retry()` capped at 3 attempts (`workerVerdict`), `failedFeedCount` / `lastRefreshAttemptTime` state | I-18, I-19, M-53 (I-08, C-15 tightened) | Fixed in code (outcomes and footer; device verification pending, DEBUG_PLAN 14.al) |
 | BUG-036 | The widget stopped refreshing by itself until a reboot or re-add | The `CLOCK_TICK` alarm chain (it opens the network window for the job) was armed only in `onEnabled` / boot and never healed; no watchdog; fix: idempotent tick re-armed from receiver `onReceive` / `onUpdate`, worker end, Settings, app start (only while a widget exists), `shouldKickRefresh` watchdog enqueues one `NewsFeedRefreshNow` after 2 missed intervals | I-20, I-21, I-22, M-54 (I-06, I-07, I-08, N-15 tightened) | Fixed in code (device verification pending, DEBUG_PLAN 14.al) |
+| Feature (no bug number): Report a problem + refresh log (2026-10-10) | After `⚠ 2 failed` there was no way to report a non-crash problem and the app did not record WHICH feed failed or WHY; the share button existed only when a crash was logged | Always-on REPORT A PROBLEM (plain-text report, feed addresses off by default and redacted), local refresh log with per-feed status, LAST REFRESHES list; no network transport | P-01–P-14, L-13 | Shipped (on-device verification pending) |
 
 ---
 

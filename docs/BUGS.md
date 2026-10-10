@@ -764,6 +764,16 @@ dependency); synchronous file I/O inside a Compose `remember{}` block on the mai
 (moved to `LaunchedEffect`/`Dispatchers.IO`, matching this file's own established
 convention); and the unbounded-`Intent.EXTRA_TEXT`-size risk mentioned above.
 
+**Phase 1b (2026-10-10, a feature, not a bug)**: the BUG REPORTS section only let you share
+something after a crash, so a non-crash problem (the footer saying `⚠ 2 failed`) could not be
+reported, and the app never recorded WHICH feed failed or WHY. Settings now has an always-enabled
+"REPORT A PROBLEM" block (optional note, "Include my feed addresses" off by default, optional
+"Send reports to" recipient stored locally and empty by default, Preview report, Share report) that
+writes a plain-text file (`data/BugReport.kt`; URLs redacted, 60,000-character cap) and shares it through
+`FileProvider`, and a local refresh log (`data/RefreshLog.kt`, `refresh_log.json`, last 50 runs, one
+entry per worker run with the status, HTTP code, time and reason of every feed) shown as "LAST REFRESHES".
+Still no network transport and no credential in the APK. QA cases: `docs/QA_PLAN.md` section P.
+
 ## Queued, not yet brainstormed or scoped
 
 - **Share button on the widget** — send the widget's/article's link via WhatsApp, Telegram,

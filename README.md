@@ -198,9 +198,19 @@ Logged crashes show up in a **BUG REPORTS** section in Settings, grouped by exce
 - A **Solved** / **Unsolved** badge — "Solved" means that crash signature hasn't recurred since a newer build was installed (derived automatically from build numbers, not manually tracked — so a crash that simply hasn't happened again yet can show as "Solved" even if it wasn't actually fixed).
 - How many times it's occurred and when it was last seen.
 
-A **Share crash report** button shares the full details (every stored crash, with build number, timestamp, exception type/message, and stack trace) as a plain-text file via the OS share sheet (email, WhatsApp, etc.).
+Every stored crash (build number, timestamp, exception type/message and the stack trace) is included in the problem report described in [Reporting a problem](#reporting-a-problem), which you can share at any time, with or without a crash.
 
 This is entirely local and on-device — nothing is sent anywhere automatically. There is no background upload, no crash-reporting service, and no network request of any kind tied to this feature; sharing only happens if you explicitly tap Share and pick a destination yourself.
+
+### Reporting a problem
+Something not working, for example the footer says `⚠ 2 failed`? Open **Settings → REPORT A PROBLEM**. It is always available, crash or not:
+- Optionally describe what you saw (**What did you see?**), then tap **Preview report** to read exactly what would be shared, or **Share report** to hand it to the Android share sheet (email, Drive, a messaging app, ...) as a plain text file named `newsfeed-report-<date>-<time>.txt`.
+- The report contains: the app build, your phone model and Android version, language and time zone, your note, the settings of each widget (tap behavior, filter, sort, theme, refresh interval, retention and so on), the feed **names**, the refresh status (last successful refresh, last attempt, how many feeds failed), the last 20 refreshes with, for every feed that failed, why (HTTP code, timeout, DNS or network error, not a feed ...), and any recorded crashes with their stack traces.
+- **Feed addresses (URLs) are left out unless you tick Include my feed addresses** (off by default). When ticked, user names, passwords and the values of token, key or session style parameters in the addresses are replaced by `REDACTED`.
+- Optionally fill in **Send reports to (email)** once; the share sheet then pre-fills that recipient. The field is empty by default and the app contains no address of its own.
+- **Nothing is sent automatically.** The app has no upload and no network request for this feature; you choose where the file goes. Report files are kept in the app's cache and deleted after 7 days.
+
+The **LAST REFRESHES** list in Settings shows the same log on the phone: one row per refresh (`HH:mm · trigger · 6/8 feeds OK`, amber when a feed failed); tap a row to see each feed's result and reason. The log keeps the last 50 refreshes in a local file and never leaves the device unless you share a report. A footer that says `⚠ N failed` means N feeds failed in the last refresh; open LAST REFRESHES to see which and why.
 
 ### Feed management
 - **Add by URL** — paste any RSS or Atom feed URL, or a Telegram channel reference (see [Telegram channels as a feed source](#telegram-channels-as-a-feed-source) above); the field's placeholder reads "RSS, Telegram or Atom feed URL". The widget fetches and validates the feed/channel title automatically
@@ -300,8 +310,16 @@ One row per feed, in your chosen display order:
 - **Check now** — checks immediately and, if a newer build exists, downloads it and hands it to Android's install screen (see [Self-updating](#self-updating)).
 
 ### 8. Bug Reports
-- Crashes detected on this device, grouped by exception type and message, each with a **Solved**/**Unsolved** badge and occurrence count. Shows "No crashes detected on this device" when empty.
-- **Share crash report** — shares full crash details as a text file via the OS share sheet. See [Crash detection & bug reports](#crash-detection--bug-reports).
+- Crashes detected on this device, grouped by exception type and message, each with a **Solved**/**Unsolved** badge and occurrence count. Shows "No crashes detected on this device" when empty. See [Crash detection & bug reports](#crash-detection--bug-reports).
+
+### 9. Report a problem
+- **What did you see?** — optional note (up to 2,000 characters) added to the report.
+- **Include my feed addresses** — off by default; see [Reporting a problem](#reporting-a-problem).
+- **Send reports to (email, optional)** — pre-fills the recipient in the share sheet; empty by default.
+- **Preview report** — shows the full report text (scrollable) with a **Share** button. **Share report** is always enabled and opens the share sheet with the report attached as a `.txt` file.
+
+### 10. Last refreshes
+- Collapsible list of the last 20 refreshes, newest first, each as `HH:mm · trigger · 6/8 feeds OK` (amber when a feed failed). Tap a row for the result of every feed (status, HTTP code, time, reason). Shows "No refreshes recorded yet." when empty.
 
 ---
 
@@ -425,6 +443,10 @@ app/src/main/
 │   │   ├── NewsFeedRepository.kt     # RSS/Atom fetching, feed search, charset fix, image extraction, thumbnails
 │   │   ├── TelegramFeedParser.kt     # Scrapes a public t.me/s/<channel> preview page into ArticleItems
 │   │   ├── CrashLogStore.kt          # Local-only crash log (JSON file) + Solved/Unsolved summarization
+│   │   ├── RefreshLog.kt             # Pure model/JSON/ring buffer of the local refresh log, per-feed status mapping
+│   │   ├── RefreshLogStore.kt        # refresh_log.json in filesDir (last 50 runs, atomic writes)
+│   │   ├── BugReport.kt              # Pure plain-text problem report builder + URL redaction
+│   │   ├── ReportFiles.kt            # Pure helpers: report file name, 7-day cleanup rule, share summary
 │   │   ├── ThumbnailHelper.kt        # Shared cache file path helper for thumbnails
 │   │   ├── FaviconHelper.kt          # Shared cache file path helper for feed favicons
 │   │   └── OpmlManager.kt            # OPML 2.0 import/export

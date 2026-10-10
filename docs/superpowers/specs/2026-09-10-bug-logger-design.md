@@ -301,3 +301,38 @@ normally (re-throw path works), reopen Settings, confirm the crash appears under
 REPORTS" as Unsolved, confirm "Share crash report" opens the OS share sheet with the crash
 text, then (harder to test without a real second build) confirm a crash logged under an
 older `versionCode` shows as Solved once a newer build is installed.
+
+## Phase 1b: always-available problem report and local refresh log (2026-10-10)
+
+Phase 1 only offered "Share crash report" once a crash existed. A problem that is not a crash (for
+example the widget footer showing `⚠ 2 failed`) could not be reported, and the app did not record which
+feed failed or why. Phase 1b closes both gaps and keeps the Phase 1 constraint: **no network transport and
+no credential in the APK**. The report is a plain text file so a later transport (Phase 2) can send the same
+file.
+
+- **Refresh log** (`data/RefreshLog.kt` pure model, JSON and ring buffer; `data/RefreshLogStore.kt` file
+  `refresh_log.json` in `filesDir`, atomic temp-file + rename, `@Synchronized`). One entry per `WidgetWorker`
+  run (also the all-failed retry path): timestamp, trigger (PERIODIC, MANUAL_TAP, WATCHDOG, SETTINGS_SAVE,
+  WIDGET_ADDED, OTHER; passed as WorkManager input data), attempt, duration, widget count, verdict, and per
+  feed: label, URL (stored in full, never shown unless the user opts in), status (OK, OK_EMPTY, HTTP_ERROR,
+  TIMEOUT, NETWORK_ERROR with detail `dns:` for an unresolvable host, NOT_A_FEED, PARSE_ERROR, OTHER;
+  BLOCKED is reserved and not produced yet; the trigger WIDGET_ADDED is likewise reserved, a widget's first run is logged as PERIODIC or SETTINGS_SAVE), HTTP code, article count, elapsed ms and a detail (exception class and message,
+  at most 120 characters). The last 50 runs are kept. Written in `runCatching`, so logging can never fail or
+  change a refresh; the existing `RefreshOutcome` and footer logic are untouched.
+- **Report** (`data/BugReport.kt`, pure, deterministic): build, device, locale, the user's note (at most
+  2,000 characters), the settings of each widget, the feed names, the refresh status, the last 20 runs (failed
+  feeds listed with status and reason), crash summaries and the last 3 stack traces, a schema line
+  (`schema 1`). Hard cap 60,000 characters: the oldest log lines go first, the header is never cut. Feed
+  addresses are included only when the user ticks **Include my feed addresses** (off by default), then
+  passed through `redactUrl` (user-info removed, values of token/key/auth/secret/pass/sig/session/access/code
+  style query parameters replaced by `REDACTED`). With the box off, no URL and no feed host appears anywhere,
+  including inside exception messages and stack traces (`scrubAddresses`).
+- **Settings** (`config/ReportSection.kt`): "REPORT A PROBLEM" (note, checkbox, optional recipient kept in
+  the `report_settings` SharedPreferences file and empty by default, Preview report, Share report: always
+  enabled) and "LAST REFRESHES" (collapsible, 20 rows, amber when a feed failed, expandable per feed). The
+  report is written to `cacheDir/reports/newsfeed-report-<yyyyMMdd-HHmm>.txt` and shared with
+  `ACTION_SEND` + `EXTRA_STREAM` through the existing `FileProvider` (cache path `reports/`); report files
+  older than 7 days are deleted when Settings opens.
+- **Not in this phase**: any upload, account or credential; automatic sending; ANR detection.
+- **Verification**: pure logic is unit tested (`RefreshLogTest`, `BugReportTest`, `ReportFilesTest`); the share
+  sheet, the preview dialog and a real failing feed are verified on a device (`docs/QA_PLAN.md` section P).

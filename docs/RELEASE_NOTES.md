@@ -67,3 +67,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 20
 - Fixed: the widget now refreshes in the background more reliably, and the footer tells you when it last updated.
+
+## Note 21
+- New: Settings → Report a problem lets you share a diagnostic report any time, and the app now keeps a log of which feeds failed to refresh and why.
