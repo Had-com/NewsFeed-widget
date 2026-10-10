@@ -264,4 +264,125 @@ class BugReportTest {
         val r = buildBugReport(input().copy(timeZone = "Not/AZone"))
         assertTrue(r.contains("Created: 2023-11-14 22:30:00 (UTC)"))
     }
+
+    // -- BUG-037: host scrub must not corrupt stack traces or unrelated words --
+
+    @Test
+    fun `short host t_me does not corrupt reflect Method`() {
+        val known = listOf("https://t.me/s/N12chat")
+        assertEquals("reflect.Method", scrubAddresses("reflect.Method", known))
+        val trace = "\tat java.lang.reflect.Method.invoke(Native Method)"
+        assertEquals(trace, scrubAddresses(trace, known))
+        val inReport = "java.lang.NullPointerException\n\tat java.lang.reflect.Method.invoke(Native Method)\nCaused by: x.reflect.Method"
+        assertEquals(inReport, scrubAddresses(inReport, known))
+    }
+
+    @Test
+    fun `a host is replaced when it is a whole token`() {
+        val known = listOf("https://t.me/s/N12chat")
+        assertEquals("""Unable to resolve host "<host>": No address""", scrubAddresses("""Unable to resolve host "t.me": No address""", known))
+        assertEquals("failed for <host>", scrubAddresses("failed for t.me", known))
+        assertEquals("<host> failed", scrubAddresses("T.ME failed", known))
+        assertEquals("(<host>)", scrubAddresses("(t.me)", known))
+        assertEquals("<host>.", scrubAddresses("t.me.", known))
+        assertEquals("'<host>'", scrubAddresses("'t.me'", known))
+    }
+
+    @Test
+    fun `subdomains and www variants of a known host are replaced as one token`() {
+        assertEquals("""host "<host>" bad""", scrubAddresses("""host "www.example.com" bad""", listOf("https://example.com/rss")))
+        assertEquals("""host "<host>" bad""", scrubAddresses("""host "feeds.example.com" bad""", listOf("https://feeds.example.com/rss")))
+        assertEquals("""host "<host>" bad""", scrubAddresses("""host "www.feeds.example.com" bad""", listOf("https://feeds.example.com/rss")))
+        assertEquals("""host "<host>" bad""", scrubAddresses("""host "example.com" bad""", listOf("https://www.example.com/rss")))
+    }
+
+    @Test
+    fun `a host that is only part of a longer word or name stays`() {
+        val known = listOf("https://example.com/rss", "https://me/")
+        assertEquals("notexample.com", scrubAddresses("notexample.com", known))
+        assertEquals("example.community", scrubAddresses("example.community", known))
+        assertEquals("example.com-old", scrubAddresses("example.com-old", known))
+        assertEquals("some.co.ilx and xco.il", scrubAddresses("some.co.ilx and xco.il", listOf("https://co.il/")))
+        // a two letter host is never replaced (too ambiguous), so ordinary words stay
+        assertEquals("name me meet", scrubAddresses("name me meet", known))
+        assertEquals("java.lang.reflect.Method", scrubAddresses("java.lang.reflect.Method", known))
+    }
+
+    @Test
+    fun `co_il host in free text is replaced but not inside a package name`() {
+        val known = listOf("https://co.il/feed")
+        assertEquals("""resolve "<host>" failed""", scrubAddresses("""resolve "co.il" failed""", known))
+        assertEquals("at com.co.il.Foo.bar(Foo.kt:1)", scrubAddresses("at com.co.il.Foo.bar(Foo.kt:1)", known))
+    }
+
+    @Test
+    fun `stack trace lines only get dotted bounded host scrubbing`() {
+        val known = listOf("https://ynet.co.il/rss", "https://news")
+        val trace = "java.net.UnknownHostException: Unable to resolve host \"www.ynet.co.il\"\n" +
+            "\tat java.net.Inet.lookup(Inet.java:5)\n" +
+            "Caused by: java.net.UnknownHostException: ynet.co.il\n" +
+            "\tat com.example.NewsFeed.fetch(Feed.kt:1)"
+        val out = scrubAddresses(trace, known)
+        assertFalse(out, out.contains("ynet.co.il"))
+        assertTrue(out, out.contains("host \"<host>\""))
+        assertTrue(out, out.contains("Caused by: java.net.UnknownHostException: <host>"))
+        assertTrue(out, out.contains("\tat java.net.Inet.lookup(Inet.java:5)"))
+        assertTrue(out, out.contains("\tat com.example.NewsFeed.fetch(Feed.kt:1)"))
+    }
+
+    @Test
+    fun `a dotless host is not scrubbed from a stack trace line`() {
+        val known = listOf("https://news/rss")
+        assertEquals("\tat com.news.Foo.bar(Foo.kt:1)", scrubAddresses("\tat com.news.Foo.bar(Foo.kt:1)", known))
+        assertEquals("""host "<host>" failed""", scrubAddresses("""host "news" failed""", known))
+    }
+
+    @Test
+    fun `scrubbing still removes urls and ip literals everywhere`() {
+        val out = scrubAddresses("\tat x.Y(Y.kt:1) https://other.org/a?token=1 /10.0.0.5:443", listOf("https://t.me/x"))
+        assertEquals("\tat x.Y(Y.kt:1) <address> /<ip>:443", out)
+    }
+
+    @Test
+    fun `report with a t_me feed keeps the reflect Method stack frame intact`() {
+        val c = CrashLogStore.CrashRecord(1_700_000_300_000L, 10, "java.lang.NullPointerException", "npe",
+            "java.lang.NullPointerException: npe\n\tat java.lang.reflect.Method.invoke(Native Method)")
+        val i = input(crashes = listOf(c)).let {
+            it.copy(widgets = listOf(it.widgets[0].copy(feeds = listOf(BugReportFeed("Telegram", "https://t.me/s/N12chat", true)))))
+        }
+        val r = buildBugReport(i)
+        assertTrue(r, r.contains("at java.lang.reflect.Method.invoke(Native Method)"))
+        assertFalse(r.contains("<host>thod"))
+    }
+
+    // -- BUG-038: the typed note is scrubbed like the rest --
+
+    @Test
+    fun `note urls are replaced when addresses are off`() {
+        val r = buildBugReport(input(note = "see https://secret-host.example.org/rss?token=SECRET9 thanks"))
+        assertTrue(r, r.contains("see <address> thanks"))
+        assertFalse(r.contains("SECRET9"))
+        assertFalse(r.contains("secret-host"))
+    }
+
+    @Test
+    fun `note host and ip are scrubbed when addresses are off`() {
+        val r = buildBugReport(input(note = "plain.example.net is down, server 192.168.1.20 answers"))
+        assertTrue(r, r.contains("<host> is down, server <ip> answers"))
+        assertFalse(r.contains("plain.example.net is down"))
+    }
+
+    @Test
+    fun `note tokens are redacted when addresses are on`() {
+        val r = buildBugReport(input(includeAddresses = true, note = "see https://u:p@e.com/rss?token=SECRET9&x=1 thanks"))
+        assertTrue(r, r.contains("see https://e.com/rss?token=REDACTED&x=1 thanks"))
+        assertFalse(r.contains("SECRET9"))
+    }
+
+    @Test
+    fun `a plain note stays as typed and keeps hebrew`() {
+        val note = "הווידג'ט לא מתעדכן, ראיתי 2 failed"
+        assertTrue(buildBugReport(input(note = note)).contains(note))
+        assertTrue(buildBugReport(input(includeAddresses = true, note = note)).contains(note))
+    }
 }

@@ -53,6 +53,7 @@ import com.newsfeed.widget.BuildConfig
 import com.newsfeed.widget.data.BUG_REPORT_MAX_NOTE_CHARS
 import com.newsfeed.widget.data.BugReportInput
 import com.newsfeed.widget.data.BugReportRefreshStatus
+import com.newsfeed.widget.data.BusyGuard
 import com.newsfeed.widget.data.CrashLogStore
 import com.newsfeed.widget.data.RefreshLogEntry
 import com.newsfeed.widget.data.RefreshLogStore
@@ -91,7 +92,18 @@ class ReportUiState(initialRecipient: String) {
     var recipient by mutableStateOf(initialRecipient)
     /** The report text shown in the preview dialog; null = dialog closed. */
     var previewText by mutableStateOf<String?>(null)
+    /** Mirrors [guard] for the UI (progress wheel). */
     var busy by mutableStateOf(false)
+        private set
+    private val guard = BusyGuard()
+
+    /**
+     * Takes the one-at-a-time slot synchronously, BEFORE any coroutine is launched, so a double tap on Share /
+     * Preview / Send cannot start two runs (BUG-039). Every true result must be paired with [end] in a finally.
+     */
+    fun tryBegin(): Boolean = guard.tryAcquire().also { if (it) busy = true }
+
+    fun end() { guard.release(); busy = false }
     /** Newest first, at most [REPORT_UI_RUNS]. */
     var runs by mutableStateOf<List<RefreshLogEntry>>(emptyList())
     var logOpen by mutableStateOf(false)
@@ -182,9 +194,8 @@ private suspend fun collectReportInput(context: Context, note: String, includeAd
 
 /** Builds the report for the preview dialog. */
 fun previewReport(activity: ComponentActivity, scope: CoroutineScope, state: ReportUiState) {
-    if (state.busy) return
+    if (!state.tryBegin()) return
     scope.launch {
-        state.busy = true
         try {
             state.previewText = withContext(Dispatchers.IO) {
                 buildBugReport(collectReportInput(activity, state.note, state.includeAddresses))
@@ -192,19 +203,18 @@ fun previewReport(activity: ComponentActivity, scope: CoroutineScope, state: Rep
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             Toast.makeText(activity, "Could not build the report: ${e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
-        } finally { state.busy = false }
+        } finally { state.end() }
     }
 }
 
 /**
- * Writes the report to cacheDir/reports/newsfeed-report-<yyyyMMdd-HHmm>.txt and opens the share sheet with it
+ * Writes the report to cacheDir/reports/newsfeed-report-<yyyyMMdd-HHmmss>.txt and opens the share sheet with it
  * attached (FileProvider + EXTRA_STREAM, like the OPML export). [readyText] is the text already shown in the
  * preview dialog, so what the user read is exactly what is shared.
  */
 fun shareReport(activity: ComponentActivity, scope: CoroutineScope, state: ReportUiState, readyText: String? = null) {
-    if (state.busy) return
+    if (!state.tryBegin()) return
     scope.launch {
-        state.busy = true
         try {
             val input = collectReportInput(activity, state.note, state.includeAddresses)
             val text = readyText ?: buildBugReport(input)
@@ -233,7 +243,7 @@ fun shareReport(activity: ComponentActivity, scope: CoroutineScope, state: Repor
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             Toast.makeText(activity, "Could not share the report: ${e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
-        } finally { state.busy = false }
+        } finally { state.end() }
     }
 }
 

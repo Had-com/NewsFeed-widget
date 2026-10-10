@@ -10,10 +10,18 @@ import java.util.concurrent.TimeUnit
 class ReportFilesTest {
 
     @Test
-    fun `file name uses the local date and time`() {
-        // 1_700_001_000_000 = 2023-11-14 22:30 UTC = 2023-11-15 00:30 in Jerusalem
-        assertEquals("newsfeed-report-20231114-2230.txt", reportFileName(1_700_001_000_000L, ZoneId.of("UTC")))
-        assertEquals("newsfeed-report-20231115-0030.txt", reportFileName(1_700_001_000_000L, ZoneId.of("Asia/Jerusalem")))
+    fun `file name uses the local date and time with seconds`() {
+        // 1_700_001_000_000 = 2023-11-14 22:30:00 UTC = 2023-11-15 00:30:00 in Jerusalem
+        assertEquals("newsfeed-report-20231114-223000.txt", reportFileName(1_700_001_000_000L, ZoneId.of("UTC")))
+        assertEquals("newsfeed-report-20231115-003000.txt", reportFileName(1_700_001_000_000L, ZoneId.of("Asia/Jerusalem")))
+    }
+
+    @Test
+    fun `two reports in the same minute get different names`() {
+        val a = reportFileName(1_700_001_000_000L, ZoneId.of("UTC"))
+        val b = reportFileName(1_700_001_000_000L + 7_000L, ZoneId.of("UTC"))
+        assertEquals("newsfeed-report-20231114-223007.txt", b)
+        assertTrue(a != b)
     }
 
     @Test

@@ -14,9 +14,9 @@ import java.util.concurrent.TimeUnit
 /** Report files in the cache are deleted after this long. */
 val REPORT_FILE_MAX_AGE_MS: Long = TimeUnit.DAYS.toMillis(7)
 
-/** `newsfeed-report-20261010-1403.txt` (local time of [zone]). */
+/** `newsfeed-report-20261010-140352.txt` (local time of [zone], with seconds so two reports in one minute do not overwrite each other). */
 fun reportFileName(nowMs: Long, zone: ZoneId): String =
-    "newsfeed-report-" + DateTimeFormatter.ofPattern("yyyyMMdd-HHmm", Locale.ROOT).withZone(zone)
+    "newsfeed-report-" + DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss", Locale.ROOT).withZone(zone)
         .format(Instant.ofEpochMilli(nowMs)) + ".txt"
 
 /** A file in the reports folder: its name and last-modified time. */

@@ -15,7 +15,8 @@ import java.util.Locale
  *  - feed addresses (URLs) appear ONLY when [BugReportInput.includeFeedAddresses] is true, and then secrets
  *    are removed by [redactUrl]; with the switch off no URL, and no host of a feed, appears anywhere, not even
  *    inside exception messages or stack traces ([scrubAddresses]);
- *  - the user's own note is included as typed (at most [BUG_REPORT_MAX_NOTE_CHARS] chars).
+ *  - the user's own note is included (at most [BUG_REPORT_MAX_NOTE_CHARS] chars) and goes through the same
+ *    scrubbing / redaction as every other free text, so a pasted address cannot slip past the switch.
  */
 
 const val BUG_REPORT_SCHEMA_VERSION = 1
@@ -113,7 +114,9 @@ fun buildBugReport(input: BugReportInput): String {
     header += "Locale: ${input.locale}, time zone: ${input.timeZone}"
     header += ""
     header += "[What happened]"
-    val note = input.userNote.trim().take(BUG_REPORT_MAX_NOTE_CHARS)
+    // The note is scrubbed like every other free text (BUG-038): URLs, hosts and IPs go when addresses are off,
+    // secrets inside URLs are redacted when they are on. Done before the length cut so a URL is never half cut.
+    val note = text(input.userNote.trim()).take(BUG_REPORT_MAX_NOTE_CHARS)
     header += if (note.isEmpty()) "(no note)" else note
     header += ""
     header += "[Refresh status]"
@@ -276,11 +279,33 @@ fun hostOf(url: String): String {
 /**
  * For a report WITHOUT feed addresses: replaces every URL, every known feed host and every IPv4 literal in free
  * text, so an exception message such as `Unable to resolve host "feeds.example.com"` does not leak the address.
+ *
+ * A host is replaced only as a whole host token: it must not touch a letter, digit, `-` or `.` before it, and
+ * must not be followed by a letter, digit, `-` or `.label`. Sub-domains and `www.` variants are replaced as one
+ * token (`www.feeds.example.com` -> `<host>`). So a short host such as `t.me` can no longer eat the inside of
+ * `java.lang.reflect.Method` (BUG-037). Lines of a stack trace (`at ...`, `Caused by: ...`) hold package and
+ * class names, so they only get dotted hosts (`ynet.co.il`), never a bare word such as `news`.
  */
 fun scrubAddresses(text: String, knownUrls: List<String>): String {
-    var out = URL_IN_TEXT.replace(text, "<address>")
-    knownUrls.map { hostOf(it) }.filter { it.length >= 3 }.distinct().sortedByDescending { it.length }.forEach { host ->
-        out = out.replace(host, "<host>", ignoreCase = true)
+    val withUrls = URL_IN_TEXT.replace(text, "<address>")
+    val hosts = knownUrls.map { hostOf(it) }.filter { it.length >= 3 }
+        .flatMap { h -> if (h.startsWith("www.") && h.length - 4 >= 3) listOf(h, h.removePrefix("www.")) else listOf(h) }
+        .distinct().sortedByDescending { it.length }
+    val out = if (hosts.isEmpty()) withUrls else {
+        val all = hostTokenRegex(hosts)
+        val dotted = hosts.filter { '.' in it }.let { if (it.isEmpty()) null else hostTokenRegex(it) }
+        withUrls.split('\n').joinToString("\n") { line ->
+            val isStackLine = line.trimStart().startsWith("at ") || line.contains("Caused by:")
+            val rx = if (isStackLine) dotted else all
+            if (rx == null) line else rx.replace(line, "<host>")
+        }
     }
     return IPV4.replace(out, "<ip>")
 }
+
+private fun hostTokenRegex(hosts: List<String>): Regex =
+    Regex(
+        "(?<![A-Za-z0-9.-])(?:[A-Za-z0-9-]+\\.)*(?:" + hosts.joinToString("|") { Regex.escape(it) } +
+            ")(?![A-Za-z0-9-]|\\.[A-Za-z0-9])",
+        RegexOption.IGNORE_CASE,
+    )

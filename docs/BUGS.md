@@ -1269,3 +1269,45 @@ Worker: `lastRefreshTime` is the last time at least ONE feed was fetched OK and 
 (3) Boot and app update (`BootReceiver.kt`, `AndroidManifest.xml`, `shouldRearmOnBroadcast`): the receiver now handles `BOOT_COMPLETED` and `MY_PACKAGE_REPLACED` (an update cancels the alarms and does not always re-create the widget). It always re-arms the periodic job (`rearm`: UPDATE, saved interval, network constraint) and the tick, even when the system reports no widget id yet (the list can be momentarily empty right after boot or an update), and re-arms the daily update check and runs the watchdog only when a widget exists, as before. A user who really has no widget does not keep an alarm chain: the first tick finds no placed widget and does not re-arm (`ensureClockTick`); the periodic job stays as a cheap network-constrained no-op because the worker never cancels itself on an empty list (that is still done only by `onDisabled` on a genuine last-widget removal, and the orphan sweep never cancels anything). `LOCKED_BOOT_COMPLETED` is deliberately not handled: the receiver is not direct-boot aware and the DataStore with the saved configs is not readable before the first unlock, `BOOT_COMPLETED` follows it. `RECEIVE_BOOT_COMPLETED` is already in the manifest.
 
 **Tests:** `RefreshPolicyTest` (11 new: healthy, stale, never, rate limit, next kick, clock moved back for both times, bad interval, burst collapse, boot / replace / locked boot).
+
+## BUG-037 — The host scrub of a report without addresses corrupted stack traces
+
+**Status:** Fixed in code (unit tested); device re-check pending, QA `P-15`.
+
+**Symptom:** with "Include my feed addresses" OFF and a feed on a short host such as `t.me` (the default Telegram feed), the stack trace in the report read `at java.lang.reflec<host>thod.invoke(Native Method)` (`t.Me` inside `reflect.Method`). Privacy was not affected, the text was just damaged; any 3 to 4 character host could hit ordinary words.
+
+**Root cause:** `scrubAddresses` replaced each known feed host as a plain case-insensitive substring.
+
+**Fix (`BugReport.kt`):** a host is replaced only as a whole host token: not preceded by a letter, digit, `-` or `.`, and not followed by a letter, digit, `-` or `.label`. Sub-domains and `www.` variants are replaced as one token (`www.feeds.example.com` becomes `<host>`). Lines of a stack trace (`at ...`, `Caused by:`) hold package and class names, so they only get dotted hosts (`ynet.co.il`), never a bare word. URL and IPv4 scrubbing is unchanged. Hosts shorter than 3 characters are still never replaced.
+
+**Tests:** `BugReportTest` (`reflect.Method` with `t.me`, `java.lang.reflect.Method.invoke`, `co.il` in a package name, sub-domains and `www.`, host at the end of a string, in quotes and brackets, stack lines with and without a dot, a whole report with a `t.me` feed).
+
+## BUG-038 — The note typed by the user was never scrubbed
+
+**Status:** Fixed in code (unit tested); device re-check pending, QA `P-16`.
+
+**Symptom:** a note such as `see https://secret.example.net/rss?token=SECRET9 thanks` appeared verbatim in the report with the box OFF and with it ON, although the checkbox promises that addresses are left out unless ticked and that tokens are removed when ticked.
+
+**Root cause:** the note was the only free text not passed through the scrubbing / redaction step.
+
+**Fix (`BugReport.kt`):** the note goes through the same step as exception messages: OFF = `scrubAddresses` (every URL becomes `<address>`, known feed hosts become `<host>`, IPv4 literals become `<ip>`), ON = `redactUrlsInText` (user-info and token / key / session values replaced by `REDACTED`). Done before the 2,000 character cut so a URL is never cut in half. A note without addresses is unchanged, Hebrew included.
+
+**Tests:** `BugReportTest` (URL, host and IP in the note OFF, token redaction ON, plain Hebrew note unchanged).
+
+## BUG-039 — A double tap on Share report (or Preview report) opened two sheets
+
+**Status:** Fixed in code (unit tested); device re-check pending, QA `P-17`.
+
+**Symptom:** two quick taps on **Share report** stacked two share sheets (the first Back left a chooser on top).
+
+**Root cause:** `shareReport` / `previewReport` tested `state.busy` before `scope.launch { state.busy = true ... }`, so the second tap passed the check before the first coroutine had started.
+
+**Fix (`BusyGuard.kt`, `ReportSection.kt`):** `BusyGuard` is a compare-and-set flag; `ReportUiState.tryBegin()` takes it synchronously on the tap, BEFORE the coroutine is launched, and `end()` releases it in the `finally` block. Share, Preview and the new Send button use the same guard, so only one of them runs at a time.
+
+**Tests:** `BusyGuardTest` (second acquire fails, release, `runGuarded` releases after an exception, 8 concurrent taps give one winner).
+
+## BUG-040 — With the keyboard open the sticky "Widget settings / Save" row sits under the status bar
+
+**Status:** Open (cosmetic, probably older than the report feature). Not fixed on purpose: it needs a window-insets change of the whole Settings screen, which is out of scope for the report fixes. QA `P-12` (observe only).
+
+**Symptom (DEBUG_PLAN 14.am):** with the keyboard open on the note field, the sticky title row slides up under the status bar so the clock and battery icons overlap the title and **Save**; the supporting text under the recipient field is partly cut by the keyboard edge while it shows the invalid-address error. Save is still reachable after closing the keyboard.
