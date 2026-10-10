@@ -289,6 +289,15 @@ class WidgetWorker(
             )
         }
 
+        /**
+         * WorkManager state of the shared periodic job for the problem report ("ENQUEUED", "RUNNING",
+         * "not scheduled" ...), null if it could not be read. Blocks briefly: call it off the main thread.
+         */
+        fun periodicJobState(context: Context): String? = runCatching {
+            val infos = WorkManager.getInstance(context).getWorkInfosForUniqueWork(WORK_NAME).get(3, TimeUnit.SECONDS)
+            if (infos.isEmpty()) "not scheduled" else infos.joinToString("/") { it.state.name }
+        }.getOrNull()
+
         fun cancel(context: Context) {
             WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
             RefreshStatusStore(context).clearJobState()

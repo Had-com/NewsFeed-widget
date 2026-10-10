@@ -243,6 +243,19 @@ class WidgetConfigActivity : ComponentActivity() {
                     }
                 }
 
+                // Report a problem + last refreshes. State lives here, outside the LazyColumn, so scrolling cannot reset
+                // the note the user is typing; the log and the old-report cleanup run once when Settings opens.
+                val reportState = remember { ReportUiState(ReportSettings.recipient(this@WidgetConfigActivity)) }
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    withContext(Dispatchers.IO) { cleanOldReports(this@WidgetConfigActivity) }
+                    reportState.runs = withContext(Dispatchers.IO) {
+                        runCatching { loadRefreshRuns(this@WidgetConfigActivity) }.getOrDefault(emptyList())
+                    }
+                }
+                ReportPreviewDialog(reportState) { readyText ->
+                    shareReport(this@WidgetConfigActivity, scope, reportState, readyText)
+                }
+
                 // Edit-feed dialog state
                 var editingFeed   by remember { mutableStateOf<FeedConfig?>(null) }
                 var editName      by remember { mutableStateOf("") }
@@ -464,32 +477,6 @@ class WidgetConfigActivity : ComponentActivity() {
                                 type = "text/xml"; putExtra(Intent.EXTRA_STREAM, uri)
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }, "Export OPML",
-                        ))
-                    }
-                }
-
-                fun doShareCrashReport() {
-                    scope.launch {
-                        // Written to a cache file and shared via FileProvider + EXTRA_STREAM,
-                        // not inlined into EXTRA_TEXT (mirrors doExport() above): up to 50
-                        // records at ~4000 chars of stack trace each can reach ~430KB, uncomfortably
-                        // close to Binder's ~1MB per-process transaction ceiling.
-                        val file = withContext(Dispatchers.IO) {
-                            val dir = File(cacheDir, "crashreports").also { it.mkdirs() }
-                            val body = crashRecords.joinToString("\n\n---\n\n") { r ->
-                                "Build ${r.versionCode} · ${java.util.Date(r.timestamp)}\n" +
-                                    "${r.exceptionType}: ${r.message}\n${r.stackTrace}"
-                            }
-                            File(dir, "crash_report.txt").also { it.writeText(body) }
-                        }
-                        val uri = FileProvider.getUriForFile(this@WidgetConfigActivity, "${packageName}.fileprovider", file)
-                        startActivity(Intent.createChooser(
-                            Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_SUBJECT, "NewsFeed crash report")
-                                putExtra(Intent.EXTRA_STREAM, uri)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }, "Share crash report",
                         ))
                     }
                 }
@@ -1232,10 +1219,28 @@ class WidgetConfigActivity : ComponentActivity() {
                                         }
                                         HorizontalDivider(thickness = 0.5.dp)
                                     }
-                                    Spacer(Modifier.height(8.dp))
-                                    TextButton(onClick = { doShareCrashReport() }) { Text("Share crash report") }
                                 }
                             }
+                        }
+
+                        // ── Report a problem (always available, crash or not) ──
+                        item {
+                            HorizontalDivider(thickness = 0.5.dp)
+                            ReportProblemSection(
+                                state = reportState,
+                                onSaveRecipient = { v ->
+                                    // Only a valid address (or blank) is remembered; never a half-typed one.
+                                    if (v.isBlank() || ReportSettings.isValidEmail(v)) ReportSettings.setRecipient(this@WidgetConfigActivity, v.trim())
+                                },
+                                onPreview = { previewReport(this@WidgetConfigActivity, scope, reportState) },
+                                onShare = { shareReport(this@WidgetConfigActivity, scope, reportState) },
+                            )
+                        }
+
+                        // ── Last refreshes (local refresh log) ──
+                        item {
+                            HorizontalDivider(thickness = 0.5.dp)
+                            LastRefreshesSection(reportState)
                         }
                     }
                 }

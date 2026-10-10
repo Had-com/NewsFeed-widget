@@ -3,4 +3,5 @@
     <cache-path name="opml_share" path="opml/" />
     <cache-path name="updates" path="updates/" />
     <cache-path name="crash_reports" path="crashreports/" />
+    <cache-path name="problem_reports" path="reports/" />
 </paths>
