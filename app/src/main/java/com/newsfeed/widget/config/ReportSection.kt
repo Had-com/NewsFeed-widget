@@ -27,6 +27,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,20 +55,30 @@ import com.newsfeed.widget.data.BUG_REPORT_MAX_NOTE_CHARS
 import com.newsfeed.widget.data.BugReportInput
 import com.newsfeed.widget.data.BugReportRefreshStatus
 import com.newsfeed.widget.data.BusyGuard
+import com.newsfeed.widget.data.LastSent
 import com.newsfeed.widget.data.CrashLogStore
 import com.newsfeed.widget.data.RefreshLogEntry
 import com.newsfeed.widget.data.RefreshLogStore
 import com.newsfeed.widget.data.RefreshStatusStore
+import com.newsfeed.widget.data.REPORT_PREFS_NAME
 import com.newsfeed.widget.data.ReportFileInfo
+import com.newsfeed.widget.data.ReportUploader
+import com.newsfeed.widget.data.SharedPrefsReportStore
+import com.newsfeed.widget.data.UploadResult
 import com.newsfeed.widget.data.WidgetConfigStore
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.buildBugReport
+import com.newsfeed.widget.data.cooldownMessage
+import com.newsfeed.widget.data.cooldownRemainingMs
 import com.newsfeed.widget.data.effectiveRefreshIntervalMinutes
+import com.newsfeed.widget.data.lastSentText
+import com.newsfeed.widget.data.readLastSent
 import com.newsfeed.widget.data.reportFileName
 import com.newsfeed.widget.data.reportShareSummary
 import com.newsfeed.widget.data.staleReportFiles
 import com.newsfeed.widget.data.summarizeRun
 import com.newsfeed.widget.data.toBugReportWidget
+import com.newsfeed.widget.data.uploadMessage
 import com.newsfeed.widget.glance.NewsFeedWidget
 import com.newsfeed.widget.glance.WidgetWorker
 import kotlinx.coroutines.CoroutineScope
@@ -81,12 +92,14 @@ import java.util.TimeZone
 
 /**
  * Settings: "REPORT A PROBLEM" (always available) and "LAST REFRESHES" (bug logger phase 1b).
- * The report is a plain text file the user shares through the system share sheet; nothing is sent by the app
- * itself. The pure content lives in data/BugReport.kt, this file only gathers the inputs and shows the UI.
+ * The report is a plain text file the user shares through the system share sheet, or, in a build that was given
+ * a server address and key (see docs/REPORT_SERVER.md), sent to the developer after an explicit confirmation.
+ * Nothing is ever sent without a tap on Send. The pure content lives in data/BugReport.kt and data/ReportUploader.kt,
+ * this file only gathers the inputs and shows the UI.
  */
 
 /** Everything the two sections show or edit. Hoisted out of the LazyColumn so a scroll cannot reset it. */
-class ReportUiState(initialRecipient: String) {
+class ReportUiState(initialRecipient: String, initialLastSent: LastSent? = null) {
     var note by mutableStateOf("")
     var includeAddresses by mutableStateOf(false)
     var recipient by mutableStateOf(initialRecipient)
@@ -106,6 +119,14 @@ class ReportUiState(initialRecipient: String) {
     fun end() { guard.release(); busy = false }
     /** Newest first, at most [REPORT_UI_RUNS]. */
     var runs by mutableStateOf<List<RefreshLogEntry>>(emptyList())
+    /** The confirmation dialog of "Send to developer" is open. */
+    var confirmSendOpen by mutableStateOf(false)
+    /** The text the user already previewed and will send; null = a fresh report is built at send time. */
+    var pendingSendText by mutableStateOf<String?>(null)
+    /** Progress / result line under the buttons. */
+    var sendMessage by mutableStateOf<String?>(null)
+    var sendFailed by mutableStateOf(false)
+    var lastSent by mutableStateOf(initialLastSent)
     var logOpen by mutableStateOf(false)
     var expandedRunTimestamps by mutableStateOf<Set<Long>>(emptySet())
 }
@@ -114,7 +135,7 @@ const val REPORT_UI_RUNS = 20
 
 /** App-level optional recipient, kept in its own tiny SharedPreferences file. Blank by default, never hardcoded. */
 object ReportSettings {
-    private const val NAME = "report_settings"
+    private const val NAME = REPORT_PREFS_NAME
     private const val K_RECIPIENT = "recipient_email"
 
     fun recipient(context: Context): String =
@@ -124,6 +145,8 @@ object ReportSettings {
         context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
             .edit().putString(K_RECIPIENT, value).apply()
     }
+
+    fun lastSent(context: Context): LastSent? = readLastSent(SharedPrefsReportStore(context))
 
     fun isValidEmail(value: String): Boolean = Patterns.EMAIL_ADDRESS.matcher(value.trim()).matches()
 }
@@ -247,16 +270,78 @@ fun shareReport(activity: ComponentActivity, scope: CoroutineScope, state: Repor
     }
 }
 
+/**
+ * The Send button (or Send in the preview dialog) was tapped: stops at once while the cooldown after the last
+ * successful send is running, otherwise opens the confirmation dialog. Nothing is sent here.
+ */
+fun requestSend(state: ReportUiState, readyText: String? = null) {
+    if (!ReportUploader.isConfigured || state.busy) return
+    val wait = cooldownRemainingMs(state.lastSent?.timeMs ?: 0L, System.currentTimeMillis())
+    if (wait > 0L) {
+        state.sendFailed = true
+        state.sendMessage = cooldownMessage(wait)
+        return
+    }
+    state.pendingSendText = readyText
+    state.confirmSendOpen = true
+}
+
+/**
+ * Sends the report once, after the user confirmed. [readyText] is the text shown in the preview dialog (so what was
+ * read is exactly what is sent); without it a fresh report is built from the current note and checkbox. The result is
+ * shown under the buttons and in a Toast. No automatic retry.
+ */
+fun sendReport(activity: ComponentActivity, scope: CoroutineScope, state: ReportUiState, readyText: String? = null) {
+    if (!ReportUploader.isConfigured) return
+    if (!state.tryBegin()) return
+    scope.launch {
+        try {
+            state.sendFailed = false
+            state.sendMessage = "Sending…"
+            val wait = cooldownRemainingMs(state.lastSent?.timeMs ?: 0L, System.currentTimeMillis())
+            if (wait > 0L) {
+                state.sendFailed = true
+                state.sendMessage = cooldownMessage(wait)
+                return@launch
+            }
+            val text = readyText ?: withContext(Dispatchers.IO) {
+                buildBugReport(collectReportInput(activity, state.note, state.includeAddresses))
+            }
+            val result = ReportUploader.send(activity, text)
+            val message = uploadMessage(result)
+            state.sendFailed = result !is UploadResult.Sent
+            state.sendMessage = message
+            if (result is UploadResult.Sent) state.lastSent = ReportSettings.lastSent(activity)
+            Toast.makeText(activity, message, Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) { state.sendMessage = null; throw e }
+            val message = "Could not send the report. Use Share report instead."
+            state.sendFailed = true
+            state.sendMessage = message
+            Toast.makeText(activity, message, Toast.LENGTH_LONG).show()
+        } finally { state.end() }
+    }
+}
+
 // ── UI ─────────────────────────────────────────────────────────────────────
 
 @Composable
-fun ReportProblemSection(state: ReportUiState, onSaveRecipient: (String) -> Unit, onPreview: () -> Unit, onShare: () -> Unit) {
+fun ReportProblemSection(
+    state: ReportUiState,
+    onSaveRecipient: (String) -> Unit,
+    onPreview: () -> Unit,
+    onShare: () -> Unit,
+    onSend: () -> Unit,
+) {
+    // Hidden (not disabled) in a build without a server address and key: local builds, forks.
+    val canSend = ReportUploader.isConfigured
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text("REPORT A PROBLEM", fontSize = 10.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.05.sp)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Something not working? Make a report and share it wherever you like. Nothing is sent automatically.",
+            if (canSend) "Something not working? Make a report, share it wherever you like, or send it straight to the developer. Nothing is sent unless you tap Share or Send."
+            else "Something not working? Make a report and share it wherever you like. Nothing is sent automatically.",
             fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(8.dp))
@@ -294,16 +379,40 @@ fun ReportProblemSection(state: ReportUiState, onSaveRecipient: (String) -> Unit
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = onPreview) { Text("Preview report") }
-            Button(onClick = onShare) { Text("Share report") }
-            if (state.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+        if (canSend) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onSend, modifier = Modifier.weight(1f)) { Text("Send to developer") }
+                OutlinedButton(onClick = onShare, modifier = Modifier.weight(1f)) { Text("Share report") }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onPreview) { Text("Preview report") }
+                if (state.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            }
+            state.sendMessage?.let {
+                Text(
+                    it, fontSize = 12.sp,
+                    color = if (state.sendFailed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            state.lastSent?.let {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    lastSentText(it, ZoneId.systemDefault(), Locale.getDefault()),
+                    fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onPreview) { Text("Preview report") }
+                Button(onClick = onShare) { Text("Share report") }
+                if (state.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            }
         }
     }
 }
 
 @Composable
-fun ReportPreviewDialog(state: ReportUiState, onShare: (String) -> Unit) {
+fun ReportPreviewDialog(state: ReportUiState, onShare: (String) -> Unit, onSend: (String) -> Unit) {
     val text = state.previewText ?: return
     AlertDialog(
         onDismissRequest = { state.previewText = null },
@@ -316,8 +425,47 @@ fun ReportPreviewDialog(state: ReportUiState, onShare: (String) -> Unit) {
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { state.previewText = null; onShare(text) }) { Text("Share") } },
-        dismissButton = { TextButton(onClick = { state.previewText = null }) { Text("Close") } },
+        confirmButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                Row {
+                    TextButton(onClick = { state.previewText = null }) { Text("Close") }
+                    TextButton(onClick = { state.previewText = null; onShare(text) }) { Text("Share") }
+                }
+                if (ReportUploader.isConfigured) {
+                    Button(onClick = { state.previewText = null; onSend(text) }) { Text("Send to developer") }
+                }
+            }
+        },
+    )
+}
+
+/** "Send to developer": says what is sent and where, and only the Send button sends. */
+@Composable
+fun ReportSendConfirmDialog(state: ReportUiState, onPreviewFirst: () -> Unit, onSend: (String?) -> Unit) {
+    if (!state.confirmSendOpen) return
+    val previewed = state.pendingSendText
+    val host = ReportUploader.serverHost.orEmpty()
+    AlertDialog(
+        onDismissRequest = { state.confirmSendOpen = false },
+        title = { Text("Send this report to the developer?") },
+        text = {
+            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "What is sent: " + (if (previewed != null) "the report you just previewed. " else "the report you can read with Preview report. ") +
+                        "It holds the app version, your phone model and Android version, your widget settings, the feed names, " +
+                        "the refresh results, any recorded crashes and your note. Feed addresses are " +
+                        (if (state.includeAddresses) "included, with passwords and tokens removed." else "not included."),
+                    fontSize = 13.sp,
+                )
+                Text("Where it goes: $host, over HTTPS.", fontSize = 13.sp)
+                Text("Nothing is sent automatically. This report is sent only because you tap Send.", fontSize = 13.sp)
+                if (previewed == null) {
+                    TextButton(onClick = { state.confirmSendOpen = false; onPreviewFirst() }) { Text("Preview first") }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { state.confirmSendOpen = false; onSend(previewed) }) { Text("Send") } },
+        dismissButton = { TextButton(onClick = { state.confirmSendOpen = false }) { Text("Cancel") } },
     )
 }
 

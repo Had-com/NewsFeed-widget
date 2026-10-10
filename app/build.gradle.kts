@@ -5,6 +5,19 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// "Send to developer" (docs/REPORT_SERVER.md): the collector's address and its app key are NOT in the repository,
+// the build injects them. Order: Gradle property (-PREPORT_BASE_URL=... -PREPORT_APP_KEY=...), then an environment
+// variable of the same name (CI secrets), else "". With either one empty the app hides the Send button.
+// Values are trimmed; a value with control characters is ignored (treated as empty) rather than altered.
+fun reportBuildValue(name: String): String =
+    listOfNotNull(project.findProperty(name) as String?, System.getenv(name))
+        .map { it.trim() }
+        .firstOrNull { it.isNotEmpty() && it.none { c -> c.isISOControl() } }
+        ?: ""
+
+fun asBuildConfigString(value: String): String =
+    "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
 android {
     namespace = "com.newsfeed.widget"
     compileSdk = 35
@@ -15,6 +28,9 @@ android {
         targetSdk = 35
         versionCode = (project.findProperty("buildVersionCode") as String?)?.toIntOrNull() ?: 1
         versionName = "1.0"
+
+        buildConfigField("String", "REPORT_BASE_URL", asBuildConfigString(reportBuildValue("REPORT_BASE_URL")))
+        buildConfigField("String", "REPORT_APP_KEY", asBuildConfigString(reportBuildValue("REPORT_APP_KEY")))
     }
 
     signingConfigs {

@@ -245,16 +245,23 @@ class WidgetConfigActivity : ComponentActivity() {
 
                 // Report a problem + last refreshes. State lives here, outside the LazyColumn, so scrolling cannot reset
                 // the note the user is typing; the log and the old-report cleanup run once when Settings opens.
-                val reportState = remember { ReportUiState(ReportSettings.recipient(this@WidgetConfigActivity)) }
+                val reportState = remember { ReportUiState(ReportSettings.recipient(this@WidgetConfigActivity), ReportSettings.lastSent(this@WidgetConfigActivity)) }
                 androidx.compose.runtime.LaunchedEffect(Unit) {
                     withContext(Dispatchers.IO) { cleanOldReports(this@WidgetConfigActivity) }
                     reportState.runs = withContext(Dispatchers.IO) {
                         runCatching { loadRefreshRuns(this@WidgetConfigActivity) }.getOrDefault(emptyList())
                     }
                 }
-                ReportPreviewDialog(reportState) { readyText ->
-                    shareReport(this@WidgetConfigActivity, scope, reportState, readyText)
-                }
+                ReportPreviewDialog(
+                    reportState,
+                    onShare = { readyText -> shareReport(this@WidgetConfigActivity, scope, reportState, readyText) },
+                    onSend = { readyText -> requestSend(reportState, readyText) },
+                )
+                ReportSendConfirmDialog(
+                    reportState,
+                    onPreviewFirst = { previewReport(this@WidgetConfigActivity, scope, reportState) },
+                    onSend = { readyText -> sendReport(this@WidgetConfigActivity, scope, reportState, readyText) },
+                )
 
                 // Edit-feed dialog state
                 var editingFeed   by remember { mutableStateOf<FeedConfig?>(null) }
@@ -1234,6 +1241,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                 },
                                 onPreview = { previewReport(this@WidgetConfigActivity, scope, reportState) },
                                 onShare = { shareReport(this@WidgetConfigActivity, scope, reportState) },
+                                onSend = { requestSend(reportState) },
                             )
                         }
 
