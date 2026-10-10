@@ -81,6 +81,7 @@ import com.newsfeed.widget.data.OpmlManager
 import com.newsfeed.widget.data.NewsFeedRepository
 import com.newsfeed.widget.data.SortOrder
 import com.newsfeed.widget.data.RETENTION_OPTIONS
+import com.newsfeed.widget.data.RefreshTrigger
 import com.newsfeed.widget.data.TelegramFeedParser
 import com.newsfeed.widget.data.retentionOption
 import com.newsfeed.widget.data.withRetention
@@ -553,7 +554,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                             updateNewsFeedWidget(this@WidgetConfigActivity, glanceId)
                                             NewsFeedWidget().updateAll(this@WidgetConfigActivity)
                                         }
-                                        WidgetWorker.refreshNow(this@WidgetConfigActivity)
+                                        WidgetWorker.refreshNow(this@WidgetConfigActivity, RefreshTrigger.SETTINGS_SAVE)
                                         setResult(RESULT_OK, Intent().apply { putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId) })
                                         finish()
                                     }

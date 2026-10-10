@@ -87,6 +87,7 @@ data class FeedSearchResult(
 data class ArticleFetchResult(
     val articles: List<ArticleItem>,
     val outcome: RefreshOutcome,   // per-feed counts of this fetch (ok / empty / http / network / timeout / blocked)
+    val feedLog: List<FeedLogEntry> = emptyList(),   // one entry per enabled feed with its status and the reason (RefreshLog.kt)
 ) {
     val allFailed: Boolean get() = outcome.allFailed   // true only when every enabled feed failed
 }

@@ -10,6 +10,7 @@ import androidx.glance.appwidget.updateAll
 import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
+import androidx.work.Data
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -25,7 +26,11 @@ import com.newsfeed.widget.data.ReadStatusStore
 import com.newsfeed.widget.data.NewsFeedRepository
 import com.newsfeed.widget.data.MIN_REFRESH_INTERVAL_MINUTES
 import com.newsfeed.widget.data.OrphanCleanup
+import com.newsfeed.widget.data.FeedLogEntry
+import com.newsfeed.widget.data.RefreshLogEntry
+import com.newsfeed.widget.data.RefreshLogStore
 import com.newsfeed.widget.data.RefreshOutcome
+import com.newsfeed.widget.data.RefreshTrigger
 import com.newsfeed.widget.data.RefreshStatusStore
 import com.newsfeed.widget.data.WorkerVerdict
 import com.newsfeed.widget.data.workerVerdict
@@ -56,6 +61,9 @@ class WidgetWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
+        val startedAtMs = System.currentTimeMillis()
+        val trigger = RefreshTrigger.fromName(inputData.getString(KEY_TRIGGER))
+        val feedLog = mutableListOf<FeedLogEntry>()
         val store     = WidgetConfigStore(context)
         val repo      = NewsFeedRepository(context)
         val readIds   = ReadStatusStore(context).readIdsFlow().first()
@@ -99,6 +107,7 @@ class WidgetWorker(
             val fetchResult = repo.getArticles(config, knownFeedIds)
             val outcome     = fetchResult.outcome
             runOutcome += outcome
+            feedLog += fetchResult.feedLog
             val fresh       = fetchResult.articles.map { a ->
                 if (a.id in readIds) a.copy(isRead = true) else a
             }
@@ -140,7 +149,19 @@ class WidgetWorker(
         // Every feed failed: WorkManager's exponential backoff retries, at most MAX_REFRESH_ATTEMPTS
         // runs per period (workerVerdict); after that this run ends as a success and the next period
         // handles it, so there is never an endless quick retry loop.
-        return when (workerVerdict(runOutcome, runAttemptCount)) {
+        val verdict = workerVerdict(runOutcome, runAttemptCount)
+        // Local refresh log (RefreshLog.kt): best effort, it can never break or delay the refresh result.
+        runCatching {
+            RefreshLogStore.append(
+                context,
+                RefreshLogEntry(
+                    timestamp = startedAtMs, trigger = trigger, attempt = runAttemptCount,
+                    durationMs = System.currentTimeMillis() - startedAtMs, widgetCount = widgetIds.size,
+                    verdict = if (verdict == WorkerVerdict.RETRY) "retry" else "success", feeds = feedLog,
+                ),
+            )
+        }
+        return when (verdict) {
             WorkerVerdict.RETRY   -> Result.retry()
             WorkerVerdict.SUCCESS -> Result.success()
         }
@@ -151,6 +172,11 @@ class WidgetWorker(
         // One name for the tap on the footer, the Settings Save and the watchdog's catch-up
         // (BUG-036): with KEEP a burst of them collapses into a single run.
         private const val REFRESH_NOW_WORK_NAME = "NewsFeedRefreshNow"
+        // Input data: how this run was enqueued (RefreshTrigger.name), only used for the local refresh log.
+        private const val KEY_TRIGGER = "trigger"
+
+        private fun triggerData(trigger: RefreshTrigger): Data =
+            Data.Builder().putString(KEY_TRIGGER, trigger.name).build()
 
         // Receivers cannot wait for DataStore; work that must read it runs here, off the main thread.
         private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -166,11 +192,12 @@ class WidgetWorker(
         fun periodicRequest(intervalMinutes: Long): PeriodicWorkRequest =
             PeriodicWorkRequestBuilder<WidgetWorker>(
                 intervalMinutes.coerceAtLeast(MIN_REFRESH_INTERVAL_MINUTES.toLong()), TimeUnit.MINUTES,
-            ).setConstraints(networkConstraints()).build()
+            ).setConstraints(networkConstraints()).setInputData(triggerData(RefreshTrigger.PERIODIC)).build()
 
         /** The one-time request used by the footer tap, Settings Save and the watchdog. */
-        fun oneTimeRequest(): OneTimeWorkRequest =
-            OneTimeWorkRequestBuilder<WidgetWorker>().setConstraints(networkConstraints()).build()
+        fun oneTimeRequest(trigger: RefreshTrigger = RefreshTrigger.MANUAL_TAP): OneTimeWorkRequest =
+            OneTimeWorkRequestBuilder<WidgetWorker>().setConstraints(networkConstraints())
+                .setInputData(triggerData(trigger)).build()
 
         // UPDATE (WorkManager 2.8+): replaces the job's definition (interval, constraints) in place and
         // keeps its schedule phase, so calling this from several places is safe and an existing
@@ -249,16 +276,16 @@ class WidgetWorker(
             val intervalMs = TimeUnit.MINUTES.toMillis(intervalMinutes.toLong())
             if (!shouldKickRefresh(status.lastOkRefreshMs, nowMs, intervalMs, status.lastKickMs)) return false
             status.lastKickMs = nowMs
-            refreshNow(context)
+            refreshNow(context, RefreshTrigger.WATCHDOG)
             return true
         }
 
         // KEEP means a tap while one is already pending/running is silently absorbed instead of
         // stacking another full fetch-all-feeds run (BUG-011); the next tap after it finishes enqueues
         // normally again. CONNECTED: offline, the run waits for the network instead of failing.
-        fun refreshNow(context: Context) {
+        fun refreshNow(context: Context, trigger: RefreshTrigger = RefreshTrigger.MANUAL_TAP) {
             WorkManager.getInstance(context).enqueueUniqueWork(
-                REFRESH_NOW_WORK_NAME, ExistingWorkPolicy.KEEP, oneTimeRequest(),
+                REFRESH_NOW_WORK_NAME, ExistingWorkPolicy.KEEP, oneTimeRequest(trigger),
             )
         }
 

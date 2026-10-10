@@ -52,12 +52,17 @@ class NewsFeedRepository(private val context: Context) {
     // in its 50 most recent items at the moment it was first added.
     suspend fun getArticles(config: WidgetConfig, knownFeedIds: Set<String> = emptySet()): ArticleFetchResult = withContext(Dispatchers.IO) {
         val enabledFeeds = config.feeds.filter { it.enabled && it.feedUrl.isNotBlank() }
-        val results = enabledFeeds
+        val timed = enabledFeeds
             .map { feed ->
                 val maxItems = if (feed.feedId in knownFeedIds) MAX_ITEMS_PER_FETCH else FIRST_LOAD_MAX_ITEMS
-                async { runCatching { fetchFeedArticles(feed, maxItems) } }
+                async {
+                    val startMs = System.currentTimeMillis()
+                    val result = runCatching { fetchFeedArticles(feed, maxItems) }
+                    result to (System.currentTimeMillis() - startMs)
+                }
             }
             .awaitAll()
+        val results = timed.map { it.first }
         val all = results.flatMap { it.getOrDefault(emptyList()) }
         // Per-feed outcome (BUG-035): a non-2xx answer or an I/O failure is a FAILED feed (its stored
         // articles are kept by the merge), not an empty list that reads as "no new articles". "All
@@ -66,7 +71,18 @@ class NewsFeedRepository(private val context: Context) {
         val outcome = RefreshOutcome.of(results.map { r ->
             classifyFeedFetch(r.getOrNull()?.size ?: 0, r.exceptionOrNull())
         })
-        ArticleFetchResult(applyFiltersAndSort(all, config, knownFeedIds), outcome)
+        // The log keeps WHICH feed failed and WHY (RefreshLog.kt). Built from the same results; nothing here
+        // feeds back into the outcome above, so it cannot change what a refresh does.
+        val feedLog = enabledFeeds.mapIndexed { i, feed ->
+            val r = results[i]
+            val count = r.getOrNull()?.size ?: 0
+            val c = classifyFeedLog(count, r.exceptionOrNull())
+            FeedLogEntry(
+                label = feed.displayName, url = feed.feedUrl, status = c.status, httpCode = c.httpCode,
+                articleCount = count, elapsedMs = timed[i].second, detail = c.detail, widgetId = config.widgetId,
+            )
+        }
+        ArticleFetchResult(applyFiltersAndSort(all, config, knownFeedIds), outcome, feedLog)
     }
 
     suspend fun fetchFeedTitle(url: String): String? = withContext(Dispatchers.IO) {
