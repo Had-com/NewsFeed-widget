@@ -89,6 +89,7 @@ import com.newsfeed.widget.data.WidgetConfigStore
 import com.newsfeed.widget.data.TapMode
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.glance.NewsFeedWidget
+import com.newsfeed.widget.glance.NewsFeedWidgetReceiver
 import com.newsfeed.widget.glance.resetTapState
 import com.newsfeed.widget.glance.tapModeChanged
 import com.newsfeed.widget.glance.updateNewsFeedWidget
@@ -130,6 +131,8 @@ class WidgetConfigActivity : ComponentActivity() {
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
             setResult(RESULT_CANCELED); finish(); return
         }
+        // Opening Settings is a chance to heal a lost clock tick (BUG-036).
+        runCatching { NewsFeedWidgetReceiver.ensureClockTick(this) }
 
 
         val store = WidgetConfigStore(this)
@@ -532,6 +535,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                         // interval among them (effectiveRefreshIntervalMinutes), not at the
                                         // last one saved.
                                         WidgetWorker.rearm(this@WidgetConfigActivity)
+                                        runCatching { NewsFeedWidgetReceiver.ensureClockTick(this@WidgetConfigActivity) }
                                         runCatching {
                                             val glanceId = GlanceAppWidgetManager(this@WidgetConfigActivity).getGlanceIdBy(appWidgetId)
                                             updateAppWidgetState(this@WidgetConfigActivity, glanceId) { prefs ->

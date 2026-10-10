@@ -3,6 +3,7 @@ package com.newsfeed.widget.glance
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
@@ -771,22 +772,46 @@ class NewsFeedWidgetReceiver : GlanceAppWidgetReceiver() {
         runCatching { OrphanCleanupWorker.enqueue(context, appWidgetIds) }
     }
 
+    // Called by the system for a widget update broadcast (boot, package replace, a widget added or
+    // resized by some launchers). NO goAsync here: Glance's own onUpdate already takes the broadcast's
+    // PendingResult (BUG-021), everything below is synchronous and cheap.
+    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
+        // Self-heal (BUG-036): re-assert the periodic job (UPDATE keeps its phase), the tick alarm
+        // chain, and catch up a refresh that has not happened for more than two intervals.
+        runCatching {
+            WidgetWorker.ensureScheduled(context)
+            ensureClockTick(context)
+            WidgetWorker.kickIfStale(context)
+        }
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action == ACTION_CLOCK_TICK) {
             val pending = goAsync()
             MainScope().launch {
-                try { NewsFeedWidget().updateAll(context) }
-                finally { pending.finish() }
+                try {
+                    NewsFeedWidget().updateAll(context)
+                    // Watchdog: the tick runs every ~105 s whenever a widget exists, so it is the one place
+                    // that notices "no refresh for more than two intervals" without any other job being alive.
+                    runCatching { WidgetWorker.kickIfStale(context) }
+                } finally { pending.finish() }
             }
-            scheduleClockTick(context)
         }
+        // ANY broadcast that reaches this receiver (the tick itself, an update, enabled / deleted /
+        // options-changed ...) re-arms the tick chain, so one lost alarm heals itself the next time
+        // anything happens. It stops by itself once no widget is placed (onDisabled has cancelled it).
+        runCatching { ensureClockTick(context) }
     }
 
     companion object {
         const val ACTION_CLOCK_TICK = "com.newsfeed.widget.CLOCK_TICK"
         private const val RC_CLOCK  = 1001
 
+        // Idempotent: the PendingIntent is the same every time (same request code, action and component),
+        // so setting the alarm again REPLACES the pending one instead of adding another. Inexact, RTC (not
+        // RTC_WAKEUP) and allowed while idle: it never wakes the device by itself, no exact-alarm permission.
         fun scheduleClockTick(context: Context) {
             val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             am.setAndAllowWhileIdle(
@@ -794,6 +819,20 @@ class NewsFeedWidgetReceiver : GlanceAppWidgetReceiver() {
                 System.currentTimeMillis() + 60_000L,
                 clockPi(context),
             )
+        }
+
+        // Arms the tick only while at least one widget is placed, so a user with no widget does not keep an
+        // alarm chain alive forever. If the system's widget lookup fails, assume a widget exists (re-arming
+        // once too often costs one alarm; stopping wrongly would stop the clock and the watchdog).
+        // Returns whether the tick was armed.
+        fun ensureClockTick(context: Context): Boolean {
+            val placed = runCatching {
+                AppWidgetManager.getInstance(context)
+                    .getAppWidgetIds(ComponentName(context, NewsFeedWidgetReceiver::class.java)).isNotEmpty()
+            }.getOrDefault(true)
+            if (!placed) return false
+            scheduleClockTick(context)
+            return true
         }
 
         private fun cancelClockTick(context: Context) {

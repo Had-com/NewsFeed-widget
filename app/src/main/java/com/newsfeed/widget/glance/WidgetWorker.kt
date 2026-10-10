@@ -31,6 +31,7 @@ import com.newsfeed.widget.data.WorkerVerdict
 import com.newsfeed.widget.data.workerVerdict
 import com.newsfeed.widget.data.WORK_SCHEMA_VERSION
 import com.newsfeed.widget.data.effectiveRefreshIntervalMinutes
+import com.newsfeed.widget.data.shouldKickRefresh
 import com.newsfeed.widget.data.workNeedsMigration
 import com.newsfeed.widget.data.WidgetConfigStore
 import com.newsfeed.widget.data.WidgetStateKey
@@ -133,6 +134,9 @@ class WidgetWorker(
 
         NewsFeedWidget().updateAll(context)
         if (runOutcome.hasSuccess) RefreshStatusStore(context).lastOkRefreshMs = System.currentTimeMillis()
+        // Widgets exist (liveIds is not empty here): make sure the tick chain is alive. If it died, every
+        // periodic run used to be network-blocked until a reboot or a re-add (BUG-036).
+        runCatching { NewsFeedWidgetReceiver.scheduleClockTick(context) }
         // Every feed failed: WorkManager's exponential backoff retries, at most MAX_REFRESH_ATTEMPTS
         // runs per period (workerVerdict); after that this run ends as a success and the next period
         // handles it, so there is never an endless quick retry loop.
@@ -230,6 +234,20 @@ class WidgetWorker(
                 emptyList()
             }
             return systemIds + glanceIds
+        }
+
+        // Watchdog (BUG-036): called by every clock tick and widget update. Enqueues ONE catch-up run when no
+        // refresh has fetched anything for more than two intervals (shouldKickRefresh), at most one per
+        // interval. The one-time request is CONNECTED and shares the NewsFeedRefreshNow name (KEEP), so it
+        // collapses with a footer tap and costs nothing while offline. Returns whether it kicked.
+        fun kickIfStale(context: Context, nowMs: Long = System.currentTimeMillis()): Boolean {
+            val status = RefreshStatusStore(context)
+            val intervalMinutes = status.intervalMinutes.takeIf { it > 0 } ?: MIN_REFRESH_INTERVAL_MINUTES
+            val intervalMs = TimeUnit.MINUTES.toMillis(intervalMinutes.toLong())
+            if (!shouldKickRefresh(status.lastOkRefreshMs, nowMs, intervalMs, status.lastKickMs)) return false
+            status.lastKickMs = nowMs
+            refreshNow(context)
+            return true
         }
 
         // KEEP means a tap while one is already pending/running is silently absorbed instead of

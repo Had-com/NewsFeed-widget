@@ -30,3 +30,18 @@ fun effectiveRefreshIntervalMinutes(configs: Collection<WidgetConfig>): Int =
 /** True when the job stored by an older build must be re-enqueued with the current definition. */
 fun workNeedsMigration(storedVersion: Int, currentVersion: Int = WORK_SCHEMA_VERSION): Boolean =
     storedVersion < currentVersion
+
+/**
+ * Watchdog behind the clock tick (BUG-036). The periodic job can be missed for reasons the app cannot
+ * see (Doze, a force-stop that wiped it, a blocked network window). True when no refresh has fetched
+ * anything for more than TWO intervals and no catch-up was enqueued during the last interval, so a
+ * burst of ticks causes one catch-up and a permanently failing network causes at most one per interval.
+ * Clock changes: a "last" time in the future counts as overdue / as expired respectively.
+ */
+fun shouldKickRefresh(lastOkRefreshMs: Long, nowMs: Long, intervalMs: Long, lastKickMs: Long): Boolean {
+    if (intervalMs <= 0L) return false
+    val staleForMs = if (lastOkRefreshMs > nowMs) Long.MAX_VALUE else nowMs - lastOkRefreshMs
+    if (staleForMs <= 2 * intervalMs) return false
+    val kickedWithinInterval = lastKickMs in 1..nowMs && nowMs - lastKickMs < intervalMs
+    return !kickedWithinInterval
+}

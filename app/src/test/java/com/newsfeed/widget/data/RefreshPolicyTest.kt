@@ -65,4 +65,70 @@ class RefreshPolicyTest {
     fun `a stored version newer than this build never downgrades`() {
         assertFalse(workNeedsMigration(5, 1))
     }
+    // -- shouldKickRefresh: the watchdog behind the clock tick (BUG-036) --
+
+    private val min = 60_000L
+    private val interval = 60 * min      // job interval 1 h
+    private val now = 10_000_000_000_000L
+
+    @Test
+    fun `a refresh within two intervals is healthy, no kick`() {
+        assertFalse(shouldKickRefresh(now - 30 * min, now, interval, 0L))
+        assertFalse(shouldKickRefresh(now - 119 * min, now, interval, 0L))
+        assertFalse(shouldKickRefresh(now - 2 * interval, now, interval, 0L))   // exactly 2x is not older than 2x
+    }
+
+    @Test
+    fun `no good refresh for more than two intervals kicks one`() {
+        assertTrue(shouldKickRefresh(now - 2 * interval - 1, now, interval, 0L))
+        assertTrue(shouldKickRefresh(now - 10 * interval, now, interval, 0L))
+    }
+
+    @Test
+    fun `never refreshed kicks one`() {
+        assertTrue(shouldKickRefresh(0L, now, interval, 0L))
+    }
+
+    @Test
+    fun `a kick within the last interval is not repeated`() {
+        val stale = now - 5 * interval
+        assertFalse(shouldKickRefresh(stale, now, interval, now - 1))
+        assertFalse(shouldKickRefresh(stale, now, interval, now - interval + 1))
+    }
+
+    @Test
+    fun `the next kick is allowed one interval after the previous one`() {
+        val stale = now - 5 * interval
+        assertTrue(shouldKickRefresh(stale, now, interval, now - interval))
+        assertTrue(shouldKickRefresh(stale, now, interval, now - 3 * interval))
+    }
+
+    @Test
+    fun `a kick time in the future (clock moved back) does not block the watchdog forever`() {
+        assertTrue(shouldKickRefresh(now - 5 * interval, now, interval, now + 10 * interval))
+    }
+
+    @Test
+    fun `a last refresh time in the future (clock moved back) counts as overdue`() {
+        assertTrue(shouldKickRefresh(now + 50 * interval, now, interval, 0L))
+    }
+
+    @Test
+    fun `a bad interval never kicks`() {
+        assertFalse(shouldKickRefresh(0L, now, 0L, 0L))
+        assertFalse(shouldKickRefresh(0L, now, -1L, 0L))
+    }
+
+    @Test
+    fun `bursts collapse, many ticks in a row cause one kick`() {
+        // the receiver stores lastKick = now after a kick; the following ticks (every ~105 s) see it
+        var lastKick = 0L
+        var kicks = 0
+        var t = now
+        repeat(30) {   // 30 ticks span about 52 minutes, less than one 60 minute interval
+            if (shouldKickRefresh(now - 9 * interval, t, interval, lastKick)) { kicks++; lastKick = t }
+            t += 105_000L
+        }
+        assertEquals(1, kicks)
+    }
 }

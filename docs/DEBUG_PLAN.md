@@ -768,3 +768,5 @@ User report: "sometimes the widget does not refresh automatically". Read-only de
 | 3 | Interval 6 h survives reboot and update; two widgets use the smaller interval (I-17) | PENDING |
 | 4 | Feed answering 404 beside working feeds: `failed_feed_count` 1, `last_refresh_time` advances; every feed failing with the network on: `last_refresh_time` unchanged, at most 3 attempts then success (I-18) | PENDING |
 | 5 | Footer texts: fresh `↻ in Nmin`, overdue `Updated Nh ago` (muted), all failed amber, partial `⚠ N failed · ...`; no overflow of Share / gear at the narrowest width and font 3.0 (I-19) | PENDING |
+| 6 | Force-stop the app, restart the process: `CLOCK_TICK` pending again within ~1 min, ticks resume; last widget removed: no alarm (I-20) | PENDING |
+| 7 | Watchdog: `last_ok_refresh_ms` set old with run-as: exactly one `NewsFeedRefreshNow`, no repeat within one interval, no kick while healthy (I-21) | PENDING |
