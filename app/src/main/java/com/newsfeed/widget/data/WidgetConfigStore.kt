@@ -36,6 +36,18 @@ class WidgetConfigStore(private val context: Context) {
         context.dataStore.data.first().asMap().keys
             .mapNotNull { widgetIdFromConfigKey(it.name) }.toSet()
 
+    /**
+     * The saved configs (entries that really exist; a widget with no saved entry is skipped, not
+     * defaulted) of [onlyIds], or of every widget when [onlyIds] is null. Used to derive the one
+     * interval the shared periodic job runs at (effectiveRefreshIntervalMinutes).
+     */
+    suspend fun savedConfigs(onlyIds: Set<Int>? = null): List<WidgetConfig> =
+        context.dataStore.data.first().asMap().mapNotNull { (key, value) ->
+            val id = widgetIdFromConfigKey(key.name) ?: return@mapNotNull null
+            if (onlyIds != null && id !in onlyIds) return@mapNotNull null
+            (value as? String)?.let { runCatching { json.decodeFromString<WidgetConfig>(it) }.getOrNull() }
+        }
+
     suspend fun delete(widgetId: Int) {
         context.dataStore.edit { prefs ->
             prefs.remove(keyFor(widgetId))

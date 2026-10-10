@@ -27,7 +27,9 @@ class BootReceiver : BroadcastReceiver() {
                     // UpdateCheckWorker used to silently never resume its daily check after a
                     // device reboot until a widget was removed and re-added; reschedule both
                     // periodic jobs here.
-                    WidgetWorker.ensureScheduled(context)
+                    // rearm = UPDATE the periodic job with the saved interval and the current
+                    // definition (network constraint), so a reboot also repairs an old job.
+                    WidgetWorker.rearm(context)
                     UpdateCheckWorker.schedule(context)
                 }
             } finally {

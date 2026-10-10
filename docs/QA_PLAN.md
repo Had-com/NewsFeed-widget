@@ -246,7 +246,7 @@ listed was actually collected.
 6. New/changed user-facing behaviour has its cases added or updated in this plan **before** the run, and a
    release note (`docs/RELEASE_NOTES.md`, next `## Note n`) exists (`K-17`).
 7. **Known open issues** (currently BUG-002 system-locale mirroring, BUG-010 cleartext feeds, BUG-012 last-row
-   clip, BUG-013 residual entity decoding, BUG-014 environmental refresh failure, see Appendix A) do not block if
+   clip, BUG-013 residual entity decoding, see Appendix A; BUG-014 is no longer one: its real cause is fixed as BUG-034 to BUG-036, cases `I-15` to `I-22`) do not block if
    their behaviour is **unchanged** from the recorded baseline; the case is still run and the actual result
    recorded. A change (better or worse) is reported.
 
@@ -271,9 +271,9 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 
 ### Smoke subset — P0 cases in sections A–M
 
-43 rows = **38 distinct executions** (`M-01`, `M-02`, `M-10`, `M-40`, `M-41` are the same execution as `F-01/F-02`, `F-04`, `F-12`, `N-30`, `F-23`), ≈ 45–60 min for A–M (≈ 60–80 min with section N). `E-20` and `F-08` are the Focus-mode cases. Section N adds 12 more P0 cases (`N-01…N-07`, `N-09`, `N-14`, `N-18`, `N-27`, `N-30`) and section O adds 8 more (`O-01…O-07`, `O-28`), so the Smoke subset is 63 rows.
+45 rows = **39 distinct executions** (`M-01`, `M-02`, `M-10`, `M-40`, `M-41`, `M-52` are the same execution as `F-01/F-02`, `F-04`, `F-12`, `N-30`, `F-23`, `I-15`), ≈ 45–60 min for A–M (≈ 60–80 min with section N). `E-20` and `F-08` are the Focus-mode cases. Section N adds 12 more P0 cases (`N-01…N-07`, `N-09`, `N-14`, `N-18`, `N-27`, `N-30`) and section O adds 8 more (`O-01…O-07`, `O-28`), so the Smoke subset is 65 rows.
 
-`A-01`, `B-01`, `B-05`, `B-07`, `C-01`, `C-04`, `C-15`, `D-03`, `D-17`, `E-01`, `E-04`, `E-07`, `E-09`, `E-20`, `F-01`, `F-02`, `F-04`, `F-08`, `F-09`, `F-12`, `F-23`, `G-05`, `G-M05`, `H-01`, `I-02`, `I-07`, `J-05`, `J-06`, `K-01`, `K-03`, `K-12`, `L-01`, `L-12`, `M-01`, `M-02`, `M-09`, `M-10`, `M-11`, `M-38`, `M-40`, `M-41`, `M-44`, `M-48`
+`A-01`, `B-01`, `B-05`, `B-07`, `C-01`, `C-04`, `C-15`, `D-03`, `D-17`, `E-01`, `E-04`, `E-07`, `E-09`, `E-20`, `F-01`, `F-02`, `F-04`, `F-08`, `F-09`, `F-12`, `F-23`, `G-05`, `G-M05`, `H-01`, `I-02`, `I-07`, `I-15`, `J-05`, `J-06`, `K-01`, `K-03`, `K-12`, `L-01`, `L-12`, `M-01`, `M-02`, `M-09`, `M-10`, `M-11`, `M-38`, `M-40`, `M-41`, `M-44`, `M-48`, `M-52`
 
 **Case counts** (rows in the tables above; `G` includes the 12 matrix rows):
 
@@ -287,14 +287,14 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | F Read state & Unread-only grace / dissolve | 23 | 7 | 13 | 3 |
 | G Sort / filter (incl. matrix M1) | 22 | 2 | 20 | 0 |
 | H Appearance / theme / fonts | 26 | 1 | 24 | 1 |
-| I Refresh / worker / timers / boot | 14 | 2 | 11 | 1 |
+| I Refresh / worker / timers / boot | 17 | 3 | 13 | 1 |
 | J Settings persistence / backup / multi-widget | 14 | 2 | 10 | 2 |
 | K Self-update & release notes | 19 | 3 | 15 | 1 |
 | L Robustness | 21 | 2 | 14 | 5 |
-| M Regression cases for past bugs | 51 | 10 | 39 | 2 |
+| M Regression cases for past bugs | 52 | 11 | 39 | 2 |
 | N Focus as a setting & state cleanup | 31 | 12 | 19 | 0 |
 | O Story threads | 35 | 10 | 24 | 1 |
-| **Total** | **357** | **65** | **270** | **22** |
+| **Total** | **361** | **67** | **272** | **22** |
 
 Plus the two pairwise tables (50 configurations each, run through `H-24` and `N-22`).
 
@@ -398,7 +398,7 @@ Section 6 of Settings ("FEED ORDER & STYLE") plus ADD FEED and FIND FEEDS.
 | C-12 | P1 | Favicons ⇒ downloaded and shown as the feed circle; feeds without one show the accent-coloured circle with the initial | SS | none |
 | C-13 | P2 | Feed items with no `guid`/`id` **and** no `link` ⇒ record whether the same item gets a new id on every refresh (latent risk noted in BUG-007: duplicates accumulate) | DS | none |
 | C-14 | P1 | One blocked feed (HTTP 403) among working ones ⇒ that feed yields 0 articles, others unaffected, **no** "refresh failed" banner (that needs every feed to fail) | UI, LC | none |
-| C-15 | P0 | Airplane mode, tap the footer refresh ⇒ footer shows amber `⚠ refresh failed — tap to retry`; cached articles stay; restore network + tap ⇒ recovers, banner gone | SS, DS (`last_refresh_failed`) | none |
+| C-15 | P0 | Network **reachable but every feed failing** (e.g. Wi-Fi with no internet, or every feed set to an unresolvable host) and tap the footer refresh ⇒ footer shows amber `⚠ refresh failed — tap to retry`; cached articles stay; `last_refresh_time` is NOT advanced; restore network + tap ⇒ recovers, banner gone. **Airplane mode** + tap ⇒ since BUG-034 the refresh job requires a network: `NewsFeedRefreshNow` stays `ENQUEUED` (constraint unmet), nothing is fetched, the footer is unchanged (no false failure); turning the network on starts the run by itself within ~1 min and the footer updates (see I-16) | SS, DS (`last_refresh_failed`, `last_refresh_time`), JS | none |
 | C-16 | P1 | Accumulation: with many feeds ⇒ store ≤ 300 articles, every feed keeps its 10 newest even when high-frequency feeds dominate (per-feed floor), ids deduplicated | DS | none |
 | C-17 | P1 | **Keep articles for**: set 1 day, refresh ⇒ older articles pruned, cap still applies; set Forever ⇒ nothing pruned by age. Also 3 days / 1 week / 2 weeks / 1 month accepted and saved. The dropdown lists the options shortest to longest, **15 minutes** first and **Forever** last (see `C-21`) | DS (`retentionDays`, `retentionMinutes`, `publishedAt`) | UT:ArticleRetentionTest (cutoff, option list, config JSON); the per-feed floor `retainWithPerFeedGuarantee` still has no dedicated test of its own beyond the cases in that class |
 | C-18 | P1 | Merge keeps `readAt` and every fresh field ⇒ mark read, refresh, article still read with the same `readAt` | DS | UT:ArticleMergeTest |
@@ -591,20 +591,23 @@ Glamour ignores per-feed font and B/I/U (bitmap headlines).
 
 | ID | P | Do ⇒ Expect | Evid | Auto |
 |---|---|---|---|---|
-| I-01 | P1 | **Refresh every** — cycle all 7 options (15 m, 30 m, 1 h, 2 h, 4 h, 6 h, 12 h) and Save each ⇒ `NewsFeedRefresh` period changes each time (`dumpsys jobscheduler`); footer countdown uses the chosen interval | JS | none |
+| I-01 | P1 | **Refresh every** — cycle all 7 options (15 m, 30 m, 1 h, 2 h, 4 h, 6 h, 12 h) and Save each ⇒ `NewsFeedRefresh` period changes each time (`dumpsys jobscheduler`); footer countdown uses the chosen interval (single widget; with several widgets the shared job uses the smallest, see I-17) | JS | UT:RefreshPolicyTest |
 | I-02 | P0 | Tap the footer refresh control 5× within ~1 s ⇒ exactly **one** `WidgetWorker` run (unique work), both widgets updated; a later tap starts a new run | LC, DS (`last_refresh_time`) | none |
-| I-03 | P1 | **Save** in Settings triggers an immediate refresh of all placed widgets (both types) and reschedules the periodic job to the saved interval | JS, DS | none |
-| I-04 | P1 | After placing a widget ⇒ `NewsFeedRefresh` (periodic), `NewsFeedUpdateCheck` (24 h) and the `CLOCK_TICK` alarm are scheduled | JS | none |
-| I-05 | P1 | Enabling a second widget (either type) after the interval was set to e.g. 6 h ⇒ the interval is **not** reset to 15 min | JS | none |
+| I-03 | P1 | **Save** in Settings triggers an immediate refresh of all placed widgets (both types) and re-arms the periodic job at the smallest saved interval among the placed widgets (BUG-034, `effectiveRefreshIntervalMinutes`) | JS, DS | UT:RefreshPolicyTest |
+| I-04 | P1 | After placing a widget ⇒ `NewsFeedRefresh` (periodic, **requires a connected network**, see I-15), `NewsFeedUpdateCheck` (24 h) and the `CLOCK_TICK` alarm are scheduled | JS | UT:WidgetWorkerRequestTest |
+| I-05 | P1 | Enabling a second widget (either type) after the interval was set to e.g. 6 h ⇒ the interval is **not** reset to 15 min (BUG-034: `ensureScheduled` no longer hard-codes 15; it uses the cached saved interval) | JS | UT:RefreshPolicyTest |
 | I-06 | P1 | Two widgets placed, remove one ⇒ `NewsFeedRefresh`/`NewsFeedUpdateCheck` survive and the single `CLOCK_TICK` alarm stays pending; no `CLOCK_TICK_FOCUS` alarm exists at any time; remove the last widget ⇒ both jobs cancelled and `CLOCK_TICK` gone (see N-15, N-17) | JS | none |
 | I-07 | P0 | Reboot with a widget placed ⇒ refresh job, update-check job and the clock alarm(s) resume **without** opening the app; widget refreshes | JS, DS | none |
-| I-08 | P1 | Leave the phone idle ≥ 1 h (screen off) ⇒ `last_refresh_time` advances at about the chosen interval; if a whole cycle fails with "refresh failed" and logcat shows `isBlocked=true` DNS for several apps, classify as the environmental network flap (BUG-014), not an app defect | DS, LC | none |
+| I-08 | P1 | Leave the phone idle ≥ 1 h (screen off, on Wi-Fi) ⇒ `last_refresh_time` advances at about the chosen interval, with NO run starting in the `APP_BACKGROUND` state with blocked DNS (BUG-034: the job now waits for a network). Method: `adb logcat` for `WidgetWorker` / `DNS Requested by ... isBlocked=true` for the app uid across ≥ 4 periods. If a whole cycle still ends in `⚠ refresh failed`, it is a defect to investigate (feed hosts down, or the device really has no internet), not an "environmental flap" (the BUG-014 verdict was wrong); a `Result.retry()` backoff (at most 3 attempts per period, BUG-035) is expected in the log first. Footer after the idle hour: `↻ in Nmin` or, if a run was missed, `Updated Nh ago` in the muted colour, never a stuck `↻ <1min` (see I-19) | DS, LC | UT:RefreshOutcomeTest |
 | I-09 | P1 | Worker with an empty feed list (simulate by clearing the live config) ⇒ `ConfigBackup.restoreIfEmpty` restores feeds and order on the next refresh; no crash | DS, LC | none |
 | I-10 | P1 | Two widgets ⇒ a refresh updates **both** (each fetches with its own feed list) and keeps each widget's expanded/focused state | DS | none |
 | I-11 | P1 | Read-triggered re-renders ⇒ no polling: ≤ 4 updates per article marked read under Unread only; no updates after removal | LC | UT:GraceRefreshRegistryTest |
 | I-12 | P1 | Countdown alarm survives Doze (`setAndAllowWhileIdle`), may lag; card still updates after unlock | UI | none |
 | I-13 | P2 | 11 feeds on Wi-Fi ⇒ full refresh completes in a reasonable time (< 30 s) and thumbnails for the newest 30 are cached | LC | none |
 | I-14 | P1 | **Grace/dissolve refreshes only under Unread only** (perf; device finding 2026-09-21, see DEBUG_PLAN 14.y): tap-to-mark-read with Show = **All**, then **Read only**, in both Expand and Focus mode ⇒ at most **1** `updateAppWidget` per tap (the callback's own render) and `grace_check_tick` in the DS pull does **not** change; no +2.6/3.4/4.3/5.1 s re-renders. Same tap under Show = **Unread only** ⇒ 1 + up to 4 renders (dissolve stages, removal) exactly as F-09. Also: switch the filter from All to Unread only while an article is inside its 5 s window (readAt < 5 s old) ⇒ the config-save render resumes the dissolve/removal schedule (render-time SideEffect), article still dissolves and leaves. Method: LC/`dumpsys appwidget` or `adb logcat` count of `updateAppWidget` per tap plus DS `grace_check_tick` before/after, TS for the Unread-only run | LC, DS, TS | UT:GraceRefreshPolicyTest |
+| I-15 | P0 | **Periodic refresh requires a network, and an existing install is migrated** (BUG-034). On a fresh widget AND on a device that already had the widget from an older build (update with `adb install -r`, do not remove the widget) ⇒ `adb shell dumpsys jobscheduler` shows the `NewsFeedRefresh` periodic job with `Required constraints: CONNECTIVITY` (previously none) at the interval the user saved, no re-add needed (app start re-enqueues the job once with `ExistingPeriodicWorkPolicy.UPDATE`); `newsfeed_refresh_status.xml` has `work_schema_version` = 1 and `interval_minutes`; the footer-tap and Settings-Save jobs (`NewsFeedRefreshNow`) also show CONNECTIVITY | JS, DS | UT:WidgetWorkerRequestTest, RefreshPolicyTest |
+| I-16 | P1 | **Network off, then on** (BUG-034): airplane mode on for ≥ 1 refresh period with the screen off, then off ⇒ while off no `WidgetWorker` run starts (`dumpsys jobscheduler`: job pending, constraint unmet; logcat: no DNS lookups by the app), no `last_refresh_failed` appears and `last_refresh_time` is unchanged; within ~1 min of the network returning the overdue periodic job runs by itself and the widget updates, `last_refresh_time` advances (the watchdog of I-21 catches it if the job does not) | JS, LC, DS | none |
+| I-17 | P1 | **Saved interval survives job re-creation, shared job uses the smallest interval** (BUG-034): set Refresh every = 6 hours on the only widget, Save; reboot (or update the app) ⇒ job period still 6 h (21 600 000 ms in `dumpsys jobscheduler`), not 15 min. Two widgets at 1 h and 6 h ⇒ job period 1 h; change the 1 h widget to 12 h and Save ⇒ period becomes 6 h; a widget set to 15 min makes the job 15 min regardless of the other | JS, DS | UT:RefreshPolicyTest |
 
 ---
 
@@ -723,7 +726,7 @@ Ledger: [Appendix A](#appendix-a--cases-added-because-of-a-bug).
 | M-30 | P2 | **Focus last visible row clipped mid-glyph** (BUG-012, open) ⇒ record whether the last row's final line is sliced by the footer (Focus and standard) | SS | none |
 | M-31 | P1 | **Full-article Load more stalled short of the end / only one "Open in browser" link** (chunk ellipsis, missing `key()`) ⇒ every revealed chunk shows all its text and its own link ↔ E-06 | SS | none |
 | M-32 | P1 | **Thumbnail bitmap-budget crash** (d0de925) ⇒ IMG mode with many thumbnails and large fonts renders | LC | none |
-| M-33 | P1 | **Refresh failed for every feed at once** (BUG-014, environmental) ⇒ see I-08; recovers on the next attempt, banner truthful | LC | none |
+| M-33 | P1 | **Refresh failed for every feed at once** (BUG-014; first ruled "environmental", really BUG-034: the periodic job ran without a network) ⇒ see I-08, I-15, I-16; with the job constrained to CONNECTED no run starts while the app's network is blocked; recovers on the next attempt, banner truthful | LC | UT:WidgetWorkerRequestTest |
 | M-34 | P1 | **Black & White not fully monochrome / "white text not pure white"** (2026-09-07) ⇒ text pixel-checks to (255,255,255) in Dark; known colour gaps unchanged ↔ H-08 | SS | none |
 | M-35 | P1 | **Config required before placement** (0e8cea6) ⇒ widget is not placed without passing Settings ↔ A-08 | VIS | none |
 | M-36 | P1 | **Cleartext (HTTP) feeds silently yield nothing** (BUG-010, open) ⇒ record status ↔ B-06 | UI | none |
@@ -742,6 +745,7 @@ Ledger: [Appendix A](#appendix-a--cases-added-because-of-a-bug).
 | M-49 | P1 | **Opening a thread whose lead is the last row under the cap showed no members (BUG-031)**: the displayed slice is a plain cut, so the members of an expanded thread whose lead was the last row fell past the cap and only the badge changed to `−` ⇒ Simple theme, Group similar stories ON, **Show All**, ≥ 100 stored articles, press **Load more articles ↓** until the footer reads **Showing X of Y · the widget can't show more at once**; scroll to the LAST row and, if it is not a thread lead, find a day with one (or plant a thread there); tap its `+N` badge ⇒ the badge turns to `−` AND the members appear under the lead (the list grows past the cap by up to ~7 typical rows; a thread too big shows a partial list, the rest stays hidden), the lead stays, `adb logcat` shows no `TransactionTooLargeException` / `Can't show content`, the update parcel (estimate, or `dumpsys` if available) is < ~420 KB; collapse again ⇒ back to the cap; a thread in the middle of the list still pushes the trailing rows out as before; with a Focus widget and a focused row beyond the cut the focused row is still pinned (BUG-026); **Glamour** at its bitmap cap (`Showing X of Y · reduce font size to see more`) with the last row a thread lead ⇒ tapping the badge turns it to `−` and adds no member beyond the bitmap cap (record what is shown; footer wording unchanged); with a short list nothing changes ↔ M-48, O-10, O-34 | LC, DS, UI | UT:SerializedRowBudgetTest |
 | M-50 | P1 | **A Focus tap scrolled the list to the top (BUG-032)**: the header Row of a Focus widget gained / lost its clickable **− / +** views on the first and the clearing tap and the launcher re-created the list; a second finding: with nothing focused the Focus row cap was the focus-scale worst case (19 rows) against 26 with a focused row, so clearing focus made the rows past the 19th vanish ⇒ see E-30 (same execution): Simple and Glamour, last row and a middle row, focus and clear, the tapped row stays on screen and the list keeps its position; Glamour no-focus row count about 27 (Expand-mode value) ↔ E-30 | UI, SS | UT:TapRoutingTest, FocusRowBudgetTest |
 | M-51 | P2 | **Slow taps (BUG-033)**: three story groupings per tap of 0.6-0.7 s each (tokenising every headline three times, all-pairs compare) made taps take 2.0-3.0 s ⇒ see L-21 (same execution): median at most 1.0 s warm; results identical to the old grouping (the unit test compares both on the real fixtures) ↔ L-21 | TS, LC | UT:StoryThreadsPerfTest, ArticleListCacheTest |
+| M-52 | P0 | **Background refresh ran without a network and the job interval could reset** (BUG-034): the periodic job had no `CONNECTIVITY` constraint (13 of 27 observed runs had every DNS lookup blocked), `ensureScheduled` hard-coded 15 min and `schedule` used `REPLACE` ⇒ job requires a connected network, is enqueued with `UPDATE`, keeps the saved (smallest) interval across reboot / update / second widget ↔ I-15, I-16, I-17 | JS, DS | UT:WidgetWorkerRequestTest, RefreshPolicyTest |
 
 ---
 
@@ -869,7 +873,7 @@ status recorded in `docs/BUGS.md` / `DEBUG_PLAN.md` when this plan was written (
 | BUG-011 | Rapid refresh taps stacked work | Unique work KEEP | M-14, I-02 | Fixed |
 | BUG-012 | Focus last row clipped | Glance list height fit | M-30 | Open |
 | BUG-013 | Raw HTML entities in titles | `Html.fromHtml` on titles; residual cases | M-22, C-09 | Partial |
-| BUG-014 | Refresh failed for every feed at once | Device-wide network flap | M-33, I-08, C-15 | Environmental |
+| BUG-014 | Refresh failed for every feed at once | First ruled a device-wide network flap; the real cause is the periodic job running without a network (BUG-034) | M-33, I-08, C-15, I-15 | Superseded by BUG-034 |
 | BUG-016 | accentColor inconsistency | see above | M-07 | Fixed |
 | BUG-017 | Focus zoom only headline | Body text shadowed with focus scale | M-20, E-21 | Fixed |
 | BUG-018 | Canonical `t.me/s/…` add failed | `isTelegramFeed` check | M-16, C-04 | Fixed (http/`telegram.me/s` gap) |
@@ -899,6 +903,7 @@ status recorded in `docs/BUGS.md` / `DEBUG_PLAN.md` when this plan was written (
 | BUG-031 | Opening a story thread whose lead is the last row under the row cap (Simple, Group ON, cap reached) turned the badge to `−` but showed no members; the footer count stayed (14.ai BUG-1) | The slice is a plain cut of the flat rows, so the opened thread's members fell past it. Fix: `rowLimitCompletingThread` adds the members of an expanded thread cut by the limit, one by one, up to a hard serialized ceiling (420 000 bytes, used only for them) and never past the bitmap cap | M-49 (M-48, O-10, O-34 related) | Fixed (on-device verification pending) |
 | BUG-032 | A Focus tap (and the clearing tap) scrolled the list back to the top; the enlarged row was off screen (14.ag / 14.ai / 14.aj); second finding: clearing focus on a row past the no-focus cap made it vanish | The header Row added / removed its clickable −/+ views with focus, which made the launcher re-create the list (measured: same views in both states keeps the position, same size or count alone does not); fix: the header always has the same views, the buttons are transparent with a zero step when nothing is focused (`AdjustFocusScaleCallback.headerStep`); a Focus widget with nothing focused is budgeted at the 1x cap (`maxRowsAllowedFor`) | E-30, M-50 (E-29 tightened) | Fixed (device-verified on builds 930 and 931) |
 | BUG-033 | A tap took 1.3-3 s to render (2.3 s median on 31-50 rows, Simple, Unread only) | Three story groupings per tap (0.6-0.7 s each): headlines tokenised three times per grouping, all-pairs string-set compare, article list decoded twice. Fix: token memo, windowed int-id pair compare, one-map stats, `ArticleListCache`; results identical (oracle test) | L-21, M-51 | Fixed for warm taps (median 2.3 s to 0.67 s); cold process start about 5 s open |
+| BUG-034 | "Sometimes the widget does not refresh automatically": 13 of 27 background runs had every DNS lookup blocked and fetched nothing; a saved interval could fall back to 15 min | Periodic job had no network constraint (`required_network_type=NOT_REQUIRED`), `ensureScheduled` hard-coded 15 min, `schedule` used `REPLACE`; fix: one request builder with `CONNECTED`, `UPDATE` policy with app-start migration (`WORK_SCHEMA_VERSION`), `effectiveRefreshIntervalMinutes` | I-15, I-16, I-17, M-52 (C-15, I-04, I-05, I-08, M-33 tightened) | Fixed (device verification pending, DEBUG_PLAN 14.al) |
 
 ---
 

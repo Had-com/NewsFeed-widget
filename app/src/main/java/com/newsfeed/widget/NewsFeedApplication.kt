@@ -2,10 +2,14 @@ package com.newsfeed.widget
 
 import android.app.Application
 import com.newsfeed.widget.data.CrashLogStore
+import com.newsfeed.widget.glance.WidgetWorker
 
 class NewsFeedApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        // A periodic refresh job enqueued by an older build has no network constraint (BUG-034):
+        // re-enqueue it once, so an installed widget is fixed without being removed and re-added.
+        runCatching { WidgetWorker.migrateIfNeeded(this) }
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             // runCatching: logging itself must never be the reason a crash fails to reach

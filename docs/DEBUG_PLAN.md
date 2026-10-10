@@ -754,3 +754,15 @@ Device RFCR91J237W (Android 15, One UI Home). Code under test: HEAD b610825 (con
 No new bug found. Observations (not bugs): (a) Simple Focus at the cap, focusing the last row lowers the cap by one row (33 to 32 rows, header 38 to 37) because the enlarged row costs more, the known "cap changes by one row at a tap"; (b) Glamour at its cap, the opened thread shows `−` with no member and the header total drops by the thread's hidden members (31 to 28), as specified in M-49 / O-09; (c) first-tap-after-kill latency stays at about 2 s.
 
 Restore: temporary widget 25 removed through the launcher (long-press the widget header, Remove): `appWidget-25` and `appWidgetLayout-25` are gone (datastore folder lists only widget 15's files, `newsfeed_config`, `newsfeed_read_status`, `GlanceAppWidgetManager`, `release_notes`), appwidget ids 15, 3, 2 only, crash buffer 0 lines. Widget 15 md5s start to end: `newsfeed_config` 6d485c1f65bad26470de74fbbfb4874b to 6d485c1f65bad26470de74fbbfb4874b (same, shared file, restored by the removal), `appWidget-15` 253d4c2a... to 1cd38121... (background refreshes and the user's own use), `newsfeed_read_status` f10c04d0... to 5bb7431e... (shared read set, +31 synthetic `p23*://` ids from the taps, no real article was tapped). Widget 15's settings were not opened or saved. The installed build is 931 (HEAD code).
+
+### 14.al Background refresh reliability (BUG-034, BUG-035, BUG-036), code done, DEVICE VERIFICATION PENDING
+
+User report: "sometimes the widget does not refresh automatically". Read-only device study: 13 of 27 periodic runs had every DNS lookup blocked (`isBlocked=true`, `APP_BACKGROUND` firewall state), success only within about 51 s of a `CLOCK_TICK`; the worker still returned success and overwrote `last_refresh_time`; the tick alarm chain is armed in only a few places. This corrects the BUG-014 "environmental flap" verdict. Fixes, one commit per group (nothing pushed): network constraint + `UPDATE` migration + saved interval (BUG-034), honest outcomes (BUG-035), truthful footer (BUG-035), self-healing tick + watchdog (BUG-036), boot / package-replace re-arm (BUG-036). QA cases `I-15` to `I-22`, `M-52` to `M-54`.
+
+#### Pending device checks (nothing below was run; no adb was used for this change)
+
+| # | Check | Result |
+|---|---|---|
+| 1 | After `adb install -r` over the old build (widget NOT removed): `dumpsys jobscheduler` shows `NewsFeedRefresh` with `CONNECTIVITY`, same interval as before; `newsfeed_refresh_status.xml` `work_schema_version` 1 (I-15) | PENDING |
+| 2 | Airplane mode for more than one period, screen off, then network on: no run while off, no false "refresh failed", run within about 1 min of the network (I-16, I-21) | PENDING |
+| 3 | Interval 6 h survives reboot and update; two widgets use the smaller interval (I-17) | PENDING |

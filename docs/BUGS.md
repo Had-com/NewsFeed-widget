@@ -304,7 +304,17 @@ result — rather than a second guess-based patch.
 
 ## BUG-014 — Occasional "refresh failed" affecting every configured feed at once
 
-**Status:** Root cause confirmed. Not a code bug — an OS/device battery-management policy
+**Status: SUPERSEDED, the "environmental / not a code defect" verdict below was wrong (see BUG-034).**
+A read-only device study (October 2026) showed that the periodic `WidgetWorker` job declared no network
+constraint, so the OS ran it while the app was in the `APP_BACKGROUND` firewall state and every DNS lookup was
+blocked (`isBlocked=true`); 13 of 27 observed runs failed that way, and a run succeeded only when it happened
+within about 51 s of a `CLOCK_TICK` (the tick starts Glance's expedited session worker, which opens the network
+window). That is a defect in how the job is scheduled, fixed by BUG-034 (network constraint), BUG-035 (honest
+outcomes, a failed run is no longer a success) and BUG-036 (self-healing alarm chain and watchdog). The original
+analysis and the "flap" addendum below are kept as history only; neither "Samsung battery management" nor a
+"device-wide WiFi flap" is the root cause of the widget not refreshing by itself.
+
+*Original analysis (superseded):* Root cause confirmed. Not a code bug — an OS/device battery-management policy
 interaction. Needs a product decision on whether to add an in-app mitigation.
 
 Reported live three times in one session: the widget footer briefly shows "⚠ refresh failed
@@ -560,6 +570,8 @@ compensation logic. Needs a product decision: commit to the rewrite, or accept a
 limitation for now.
 
 ## BUG-014 addendum — revised root cause: device-wide network flap, not per-app throttling
+
+*(Superseded by BUG-034, see the status at the top of BUG-014: the periodic job had no network constraint.)*
 
 Seen live again. This time, caught the causing window directly in logcat (not cleared
 first) rather than just the retry: `isBlocked=true` DNS failures hit **`com.newsfeed.widget`,
@@ -1192,3 +1204,22 @@ Tests: `TelegramFeedParserTest` (self-link cases, URL moved out of the title, or
 **Fix (`StoryThreads.kt`, `ArticleListCache.kt`, `ThreadState.kt`, `TapRouting.kt`, `ReadOnMoveAway.kt`, `NewsFeedWidget.kt`; results identical, proven by `StoryThreadsPerfTest` against the original all-pairs algorithm on both real fixtures, several read-state mixes and orders):** (1) `storyTokens` is memoised per exact title (bounded LRU of 2048; 284 + 177 ms to 24 + 3 ms); (2) the pair loop visits each article only against the ones inside the 6 hour window (sorted by time), skips articles with fewer than 3 key words (they can never link) and compares sorted int-id arrays (`idsSimilar`) instead of string sets (92 ms to 9 ms); (3) `storyStats` keeps one map entry per word instead of three boxed maps (24 ms to 12 ms); (4) `ArticleListCache` keeps the last decoded article list by its exact JSON, so the callback and the render do not both decode it (about 40 ms) and a callback that marks articles read hands over the list it encoded. Not changed on purpose (numbers too small to justify the risk): the `serializedRowCap` binary search (4 to 7 ms for 33 rows), the grace-period scan (1 ms), a second grouping pass restricted to unread articles for the thread lookup (about 40 ms, would need a proof of equivalence per read class).
 
 **Not fixed:** the first tap after the process was killed (after Samsung's background cleaning or `kill -9`) still takes about 4 to 5.3 s: build 929 phases (median): process start and trampoline 220 ms, the callback state 1.8 s (cold DataStore and serialization classes, 500 ms of it the first grouping), composition 820 ms, RemoteViews build 1.04 s. It is class loading and JIT of the Glance / Compose / DataStore stack in a debug build; a baseline profile or a release build is the lever, not this code. The idle case (45 s between taps, process alive) improved from 1.7 to 3.5 s to 0.7 to 1.6 s.
+
+## BUG-034 — The widget did not always refresh by itself: the periodic job ran without a network, and its interval could be reset
+
+**Status:** Fixed in code (commit "Require a network for the background refresh and keep the saved interval"); device verification pending, DEBUG_PLAN 14.al; QA `I-15`, `I-16`, `I-17`, `M-52`. Corrects the BUG-014 verdict.
+
+**Symptom (user report):** "sometimes the widget does not refresh automatically". The footer countdown reached `<1min` and stayed there, or a refresh that looked normal brought no new articles.
+
+**Evidence (read-only device study, 27 `WidgetWorker` runs):** 13 runs had EVERY DNS lookup blocked (`isBlocked=true`, the app's uid in the `APP_BACKGROUND` firewall state) and fetched nothing; a run got data only when it started within about 51 s of a `CLOCK_TICK` alarm (the tick triggers Glance's expedited `SessionWorker`, which puts the app in a state with network access; ticks arrive about every 105 s). The worker still returned `Result.success()`.
+
+**Root cause:** `WidgetWorker`'s periodic request (`NewsFeedRefresh`, 15 min) declared no constraints (`required_network_type=NOT_REQUIRED`), so WorkManager started it at an arbitrary moment, often while the network was firewalled for the app. Secondary: `ensureScheduled()` hard-coded 15 minutes, so a recreated job (reboot path, a second widget being enabled) silently dropped a saved "Refresh every 6 hours" back to 15 minutes, and `schedule()` used `REPLACE` which restarts the period on every call.
+
+**Fix (`WidgetWorker.kt`, `RefreshPolicy.kt`, `RefreshStatusStore.kt`, `WidgetConfigStore.kt`, `BootReceiver.kt`, `NewsFeedApplication.kt`, `WidgetConfigActivity.kt`):**
+(1) ONE builder per request type (`WidgetWorker.periodicRequest(intervalMinutes)`, `oneTimeRequest()`), both with `Constraints(requiredNetworkType = CONNECTED)`; the footer tap, Settings Save and (later) the watchdog use the one-time request, work name `NewsFeedRefreshNow`, `KEEP`.
+(2) Every enqueue of the periodic job uses `ExistingPeriodicWorkPolicy.UPDATE` (WorkManager 2.9.0 in the Gradle file supports it): the definition is replaced in place and the schedule phase is kept, so existing installs pick up the constraint with no re-add. It runs at app start once per job definition (`WORK_SCHEMA_VERSION`, stored in `RefreshStatusStore`; `workNeedsMigration`), at boot / package replace and on Settings Save.
+(3) The interval is `effectiveRefreshIntervalMinutes(configs)`: the SMALLEST "Refresh every" among the placed widgets (the job is shared), never below 15; `rearm()` reads the saved configs, caches the value in `RefreshStatusStore` for the synchronous callers (`ensureScheduled`) and enqueues. `ensureScheduled` no longer contains a hard-coded 15.
+
+**Tests:** `RefreshPolicyTest` (interval, migration marker), `WidgetWorkerRequestTest` (constraint and interval of the built requests, minimum 15 min, one-time request constrained too).
+
+**Behaviour note:** with the constraint, a footer tap while offline no longer produces an immediate "refresh failed": the run waits for a network and executes when one is available.

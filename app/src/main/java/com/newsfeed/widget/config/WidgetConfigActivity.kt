@@ -528,7 +528,10 @@ class WidgetConfigActivity : ComponentActivity() {
                                     val loadedAtSave = loadedTapMode
                                     lifecycleScope.launch {
                                         store.save(final)
-                                        WidgetWorker.schedule(this@WidgetConfigActivity, final.refreshIntervalMinutes.toLong())
+                                        // The periodic job is shared by every widget: it runs at the SMALLEST
+                                        // interval among them (effectiveRefreshIntervalMinutes), not at the
+                                        // last one saved.
+                                        WidgetWorker.rearm(this@WidgetConfigActivity)
                                         runCatching {
                                             val glanceId = GlanceAppWidgetManager(this@WidgetConfigActivity).getGlanceIdBy(appWidgetId)
                                             updateAppWidgetState(this@WidgetConfigActivity, glanceId) { prefs ->
