@@ -54,6 +54,9 @@ import com.newsfeed.widget.data.ArticleItem
 import com.newsfeed.widget.data.FilterMode
 import com.newsfeed.widget.data.GraceRefreshRegistry
 import com.newsfeed.widget.data.OrphanCleanup
+import com.newsfeed.widget.data.RefreshStatusStore
+import com.newsfeed.widget.data.RefreshTone
+import com.newsfeed.widget.data.refreshStatusText
 import com.newsfeed.widget.data.TapMode
 import com.newsfeed.widget.data.Separator
 import com.newsfeed.widget.data.ThreadRowKind
@@ -123,6 +126,8 @@ private fun WidgetContent() {
     val articlesJson      = prefs[WidgetStateKey.articles]
     val lastRefreshTime   = prefs[WidgetStateKey.lastRefreshTime] ?: 0L
     val lastRefreshFailed = prefs[WidgetStateKey.lastRefreshFailed] ?: false
+    val lastAttemptTime   = prefs[WidgetStateKey.lastRefreshAttemptTime] ?: 0L
+    val failedFeedCount   = prefs[WidgetStateKey.failedFeedCount] ?: 0
     val expandedArticleId = prefs[WidgetStateKey.expandedArticleId] ?: ""
     val fullArticleId     = prefs[WidgetStateKey.fullArticleId]     ?: ""
     val fullArticleText   = prefs[WidgetStateKey.fullArticleText]   ?: ""
@@ -537,7 +542,7 @@ private fun WidgetContent() {
                 }
             }
 
-            WidgetFooter(lastRefreshTime, lastRefreshFailed, config.refreshIntervalMinutes, config.widgetId)
+            WidgetFooter(lastRefreshTime, lastAttemptTime, lastRefreshFailed, failedFeedCount, config.refreshIntervalMinutes, config.widgetId)
         }
     }
 }
@@ -644,21 +649,29 @@ private fun WidgetHeader(
 }
 
 @Composable
-private fun WidgetFooter(lastRefreshTime: Long, lastRefreshFailed: Boolean, intervalMinutes: Int, widgetId: Int) {
+private fun WidgetFooter(
+    lastRefreshTime: Long, lastAttemptTime: Long, lastRefreshFailed: Boolean, failedFeedCount: Int,
+    intervalMinutes: Int, widgetId: Int,
+) {
     Divider()
-    val now           = System.currentTimeMillis()
-    val nextMs        = lastRefreshTime + TimeUnit.MINUTES.toMillis(intervalMinutes.toLong())
-    val leftMs        = (nextMs - now).coerceAtLeast(0L)
-    val leftMin       = TimeUnit.MILLISECONDS.toMinutes(leftMs)
-    val countdownText = when {
-        lastRefreshFailed     -> "⚠ refresh failed — tap to retry"
-        lastRefreshTime == 0L -> "↻ now"
-        leftMs < 60_000L      -> "↻ <1min"
-        else                  -> "↻ in ${leftMin}min"
-    }
-    val countdownColor = if (lastRefreshFailed) ColorProvider(Color(0xFFE0A030)) else GlanceTheme.colors.primary
-
     val context = LocalContext.current
+    // The job is shared by every widget and runs at the smallest interval among them, so that (cached by
+    // WidgetWorker.rearm) is the interval to count down, not this widget's own setting (BUG-034).
+    val sharedMinutes = RefreshStatusStore(context).intervalMinutes.takeIf { it > 0 } ?: intervalMinutes
+    // Truth, not a bare countdown (BUG-035): "↻ in 7min" only while a refresh is really expected,
+    // "Updated 3h ago" (muted) when it is overdue, amber when the last attempt or some feeds failed.
+    val status = refreshStatusText(
+        lastOkMs = lastRefreshTime, lastAttemptMs = lastAttemptTime, failedAll = lastRefreshFailed,
+        partialCount = failedFeedCount, nowMs = System.currentTimeMillis(),
+        intervalMs = TimeUnit.MINUTES.toMillis(sharedMinutes.toLong()),
+    )
+    val countdownText = status.text
+    val countdownColor = when (status.tone) {
+        RefreshTone.WARNING -> ColorProvider(Color(0xFFE0A030))
+        RefreshTone.MUTED   -> GlanceTheme.colors.onSurfaceVariant
+        RefreshTone.NORMAL  -> GlanceTheme.colors.primary
+    }
+
     val settingsIntent = Intent(context, WidgetConfigActivity::class.java).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

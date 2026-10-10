@@ -767,3 +767,4 @@ User report: "sometimes the widget does not refresh automatically". Read-only de
 | 2 | Airplane mode for more than one period, screen off, then network on: no run while off, no false "refresh failed", run within about 1 min of the network (I-16, I-21) | PENDING |
 | 3 | Interval 6 h survives reboot and update; two widgets use the smaller interval (I-17) | PENDING |
 | 4 | Feed answering 404 beside working feeds: `failed_feed_count` 1, `last_refresh_time` advances; every feed failing with the network on: `last_refresh_time` unchanged, at most 3 attempts then success (I-18) | PENDING |
+| 5 | Footer texts: fresh `↻ in Nmin`, overdue `Updated Nh ago` (muted), all failed amber, partial `⚠ N failed · ...`; no overflow of Share / gear at the narrowest width and font 3.0 (I-19) | PENDING |
