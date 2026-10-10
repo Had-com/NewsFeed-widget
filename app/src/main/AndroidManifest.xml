@@ -34,6 +34,10 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- An app update cancels the alarm chain and may not re-create the widget (BUG-036). -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <!-- LOCKED_BOOT_COMPLETED is NOT listed on purpose: the receiver is not directBootAware and
+                     the saved configs are not readable before the first unlock; BOOT_COMPLETED follows it. -->
             </intent-filter>
         </receiver>
 

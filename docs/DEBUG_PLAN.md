@@ -770,3 +770,6 @@ User report: "sometimes the widget does not refresh automatically". Read-only de
 | 5 | Footer texts: fresh `↻ in Nmin`, overdue `Updated Nh ago` (muted), all failed amber, partial `⚠ N failed · ...`; no overflow of Share / gear at the narrowest width and font 3.0 (I-19) | PENDING |
 | 6 | Force-stop the app, restart the process: `CLOCK_TICK` pending again within ~1 min, ticks resume; last widget removed: no alarm (I-20) | PENDING |
 | 7 | Watchdog: `last_ok_refresh_ms` set old with run-as: exactly one `NewsFeedRefreshNow`, no repeat within one interval, no kick while healthy (I-21) | PENDING |
+| 8 | `adb install -r` over the installed build, then reboot: `CLOCK_TICK`, `NewsFeedRefresh` (CONNECTIVITY, same interval) and `NewsFeedUpdateCheck` back within ~1 min each time; manifest filters BOOT_COMPLETED + MY_PACKAGE_REPLACED, no LOCKED_BOOT_COMPLETED (I-22, I-07) | PENDING |
+| 9 | Screen off 30+ min after unlock: ticks continue, `last_refresh_time` advances, no blocked-DNS run (I-07e, I-08) | PENDING |
+| 10 | Unit tests at the end of this change: see the final report (504 run, the known `WidgetThemesTest colorProvidersFor custom ...` failure only); nothing was installed or pushed | DONE (JVM only) |

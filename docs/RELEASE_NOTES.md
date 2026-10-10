@@ -64,3 +64,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 ## Note 19
 - Fixed: tapping an article in Focus mode no longer jumps the list back to the top, so the enlarged article stays right where you tapped, also the last one; clearing focus keeps your place too.
 - Faster: tapping an article now updates the widget about three times sooner, especially with similar-story grouping on.
+
+## Note 20
+- Fixed: the widget now refreshes in the background more reliably, and the footer tells you when it last updated.

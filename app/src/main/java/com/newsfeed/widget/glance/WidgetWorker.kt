@@ -191,7 +191,10 @@ class WidgetWorker(
             val app = context.applicationContext
             val cached = RefreshStatusStore(app).intervalMinutes
             if (cached > 0) schedule(app, cached.toLong())
-            else appScope.launch { runCatchingNotCancelled { rearm(app) } }
+            else appScope.launch {
+                // Only while a widget is placed, so a job is never re-created behind onDisabled's back.
+                runCatchingNotCancelled { if (liveWidgetIds(app).isNotEmpty()) rearm(app) }
+            }
         }
 
         // Recomputes the shared interval from the saved configs of the placed widgets (all saved

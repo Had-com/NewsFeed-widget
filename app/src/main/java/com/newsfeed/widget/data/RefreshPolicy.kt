@@ -45,3 +45,16 @@ fun shouldKickRefresh(lastOkRefreshMs: Long, nowMs: Long, intervalMs: Long, last
     val kickedWithinInterval = lastKickMs in 1..nowMs && nowMs - lastKickMs < intervalMs
     return !kickedWithinInterval
 }
+
+const val ACTION_BOOT_COMPLETED = "android.intent.action.BOOT_COMPLETED"
+const val ACTION_MY_PACKAGE_REPLACED = "android.intent.action.MY_PACKAGE_REPLACED"
+
+/**
+ * Which system broadcasts make BootReceiver re-arm the refresh machinery (BUG-036). BOOT_COMPLETED (after
+ * a reboot the alarm chain is gone) and MY_PACKAGE_REPLACED (an app update cancels the alarms and the
+ * widget is not necessarily re-created). LOCKED_BOOT_COMPLETED is deliberately NOT handled: the receiver
+ * is not directBootAware, and the saved configs live in credential-protected storage (DataStore), which
+ * is not readable before the first unlock; BOOT_COMPLETED arrives after it.
+ */
+fun shouldRearmOnBroadcast(action: String?): Boolean =
+    action == ACTION_BOOT_COMPLETED || action == ACTION_MY_PACKAGE_REPLACED

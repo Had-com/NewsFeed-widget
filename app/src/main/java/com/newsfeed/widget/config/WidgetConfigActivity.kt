@@ -534,7 +534,8 @@ class WidgetConfigActivity : ComponentActivity() {
                                         // The periodic job is shared by every widget: it runs at the SMALLEST
                                         // interval among them (effectiveRefreshIntervalMinutes), not at the
                                         // last one saved.
-                                        WidgetWorker.rearm(this@WidgetConfigActivity)
+                                        // (a failure here must not keep Save from finishing)
+                                        runCatching { WidgetWorker.rearm(this@WidgetConfigActivity) }
                                         runCatching { NewsFeedWidgetReceiver.ensureClockTick(this@WidgetConfigActivity) }
                                         runCatching {
                                             val glanceId = GlanceAppWidgetManager(this@WidgetConfigActivity).getGlanceIdBy(appWidgetId)

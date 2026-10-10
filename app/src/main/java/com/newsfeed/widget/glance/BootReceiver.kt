@@ -1,36 +1,42 @@
 package com.newsfeed.widget.glance
 
-import android.appwidget.AppWidgetManager
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import androidx.glance.appwidget.GlanceAppWidgetManager
+import com.newsfeed.widget.data.shouldRearmOnBroadcast
 import com.newsfeed.widget.update.UpdateCheckWorker
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 
+/**
+ * Re-arms the refresh machinery after a reboot and after an app update (BUG-036): the periodic job
+ * (UPDATE policy, saved interval, network constraint), the clock-tick alarm chain, the daily update
+ * check, and a catch-up refresh if one is overdue.
+ *
+ * The periodic job and the tick are re-armed even when no widget id is reported yet: right after boot or
+ * an update the system's list can be momentarily empty, and nothing else would bring them back. A user who
+ * really has no widget is covered: the first tick stops its own chain when no widget is placed
+ * (NewsFeedWidgetReceiver.ensureClockTick), and the worker's run is a cheap no-op. The daily update check
+ * is still re-armed only when a widget exists, as before.
+ */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        if (!shouldRearmOnBroadcast(intent.action)) return
         val pending = goAsync()
         MainScope().launch {
             try {
-                val glanceIds = GlanceAppWidgetManager(context).getGlanceIds(NewsFeedWidget::class.java)
-                // Union with the system's own list so a Glance-side lookup miss can't skip re-arming.
-                val systemIds = runCatching {
-                    AppWidgetManager.getInstance(context)
-                        .getAppWidgetIds(ComponentName(context, NewsFeedWidgetReceiver::class.java))
-                }.getOrDefault(IntArray(0))
-                if (glanceIds.isNotEmpty() || systemIds.isNotEmpty()) {
-                    NewsFeedWidgetReceiver.scheduleClockTick(context)
-                    // UpdateCheckWorker used to silently never resume its daily check after a
-                    // device reboot until a widget was removed and re-added; reschedule both
-                    // periodic jobs here.
-                    // rearm = UPDATE the periodic job with the saved interval and the current
-                    // definition (network constraint), so a reboot also repairs an old job.
-                    WidgetWorker.rearm(context)
-                    UpdateCheckWorker.schedule(context)
+                // One step failing must not skip the others.
+                try { WidgetWorker.rearm(context) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+                runCatching { NewsFeedWidgetReceiver.scheduleClockTick(context) }
+                val hasWidgets = try {
+                    WidgetWorker.liveWidgetIds(context).isNotEmpty()
+                } catch (e: CancellationException) { throw e } catch (_: Exception) { false }
+                if (hasWidgets) {
+                    // UpdateCheckWorker used to silently never resume its daily check after a device
+                    // reboot until a widget was removed and re-added.
+                    runCatching { UpdateCheckWorker.schedule(context) }
+                    runCatching { WidgetWorker.kickIfStale(context) }
                 }
             } finally {
                 pending.finish()

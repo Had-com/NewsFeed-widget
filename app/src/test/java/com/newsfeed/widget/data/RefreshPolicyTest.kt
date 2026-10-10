@@ -131,4 +131,22 @@ class RefreshPolicyTest {
         }
         assertEquals(1, kicks)
     }
+
+    // -- shouldRearmOnBroadcast: reboot and app update re-arm the refresh machinery (BUG-036) --
+
+    @Test
+    fun `boot completed and package replaced re-arm`() {
+        assertTrue(shouldRearmOnBroadcast("android.intent.action.BOOT_COMPLETED"))
+        assertTrue(shouldRearmOnBroadcast("android.intent.action.MY_PACKAGE_REPLACED"))
+    }
+
+    @Test
+    fun `locked boot (storage not readable yet) and unrelated actions do not`() {
+        assertFalse(shouldRearmOnBroadcast("android.intent.action.LOCKED_BOOT_COMPLETED"))
+        assertFalse(shouldRearmOnBroadcast("android.intent.action.PACKAGE_REPLACED"))
+        assertFalse(shouldRearmOnBroadcast("android.appwidget.action.APPWIDGET_UPDATE"))
+        assertFalse(shouldRearmOnBroadcast("com.newsfeed.widget.CLOCK_TICK"))
+        assertFalse(shouldRearmOnBroadcast(""))
+        assertFalse(shouldRearmOnBroadcast(null))
+    }
 }
