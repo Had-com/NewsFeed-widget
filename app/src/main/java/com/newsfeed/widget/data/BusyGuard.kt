@@ -25,3 +25,33 @@ class BusyGuard {
         return true
     }
 }
+
+/**
+ * [BusyGuard] plus a hold-off: after [end] the guard keeps rejecting for [durationMs] more (BUG-041). Needed for
+ * the share sheet: `startActivity(chooser)` returns after tens of milliseconds but the chooser appears a few hundred
+ * milliseconds later, so a second tap right after the first one used to find the guard free and stack a second
+ * chooser. [now] is any monotonic clock in milliseconds (the caller passes SystemClock.elapsedRealtime()).
+ */
+class HoldOff(private val durationMs: Long) {
+    private var busy = false
+    private var holdUntil = Long.MIN_VALUE
+
+    val isBusy: Boolean @Synchronized get() = busy
+
+    /** True when the caller now owns the guard: nothing is running and the hold-off has elapsed. */
+    @Synchronized
+    fun tryBegin(now: Long): Boolean {
+        // A hold-off further away than its length means the clock moved back: do not stay locked.
+        if (holdUntil - now > durationMs) holdUntil = Long.MIN_VALUE
+        if (busy || now < holdUntil) return false
+        busy = true
+        return true
+    }
+
+    /** Releases the guard; with [hold] (default) new taps stay rejected for [durationMs] after [now]. */
+    @Synchronized
+    fun end(now: Long, hold: Boolean = true) {
+        busy = false
+        holdUntil = if (hold) now + durationMs else Long.MIN_VALUE
+    }
+}

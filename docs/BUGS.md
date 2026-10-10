@@ -1296,7 +1296,7 @@ Worker: `lastRefreshTime` is the last time at least ONE feed was fetched OK and 
 
 ## BUG-039 — A double tap on Share report (or Preview report) opened two sheets
 
-**Status:** Fixed in code (unit tested); device re-check pending, QA `P-17`.
+**Status:** Partially fixed in `321fbda` (the flag is taken before the launch), completed by BUG-041 (hold-off after the chooser starts). QA `P-17`.
 
 **Symptom:** two quick taps on **Share report** stacked two share sheets (the first Back left a chooser on top).
 
@@ -1311,3 +1311,15 @@ Worker: `lastRefreshTime` is the last time at least ONE feed was fetched OK and 
 **Status:** Open (cosmetic, probably older than the report feature). Not fixed on purpose: it needs a window-insets change of the whole Settings screen, which is out of scope for the report fixes. QA `P-12` (observe only).
 
 **Symptom (DEBUG_PLAN 14.am):** with the keyboard open on the note field, the sticky title row slides up under the status bar so the clock and battery icons overlap the title and **Save**; the supporting text under the recipient field is partly cut by the keyboard edge while it shows the invalid-address error. Save is still reachable after closing the keyboard.
+
+## BUG-041 — A double tap on Share report still stacked two choosers
+
+**Status:** Fixed in code (unit tested); device re-check pending, QA `P-17`.
+
+**Symptom (DEBUG_PLAN 14.an):** `input tap X Y; input tap X Y` on **Share report** opened two share sheets in 6 of 6 tries, although BUG-039 was fixed.
+
+**Root cause:** the BUG-039 guard was released in `finally` right after `startActivity(chooser)` returned, after tens of milliseconds, but the chooser takes a few hundred milliseconds to appear. A second tap in that gap found the guard free and started a second chooser.
+
+**Fix (`BusyGuard.kt` `HoldOff`, `ReportSection.kt`):** `HoldOff(durationMs)` is the guard plus a hold-off: `tryBegin(now)` rejects while something runs or until `now` reaches the hold-off end, and `end(now)` starts the hold-off. `shareReport` ends with `state.end(holdOff = true)` once the chooser was launched, so taps are rejected for another `SHARE_HOLD_OFF_MS` = 1500 ms; if the share failed before launching, there is no hold-off. Preview and Send open dialogs inside the app, which appear at once, so they release immediately as before. A clock that moved back cannot lock the guard for longer than the hold-off.
+
+**Tests:** `HoldOffTest` (second tap inside the hold-off rejected, accepted after, `end` before the hold-off still rejects until it elapses, no hold without the flag, rejected tap does not extend it, clock moved back, 8 concurrent taps give one winner).

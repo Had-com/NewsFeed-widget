@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.SystemClock
 import android.util.Patterns
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -54,7 +55,7 @@ import com.newsfeed.widget.BuildConfig
 import com.newsfeed.widget.data.BUG_REPORT_MAX_NOTE_CHARS
 import com.newsfeed.widget.data.BugReportInput
 import com.newsfeed.widget.data.BugReportRefreshStatus
-import com.newsfeed.widget.data.BusyGuard
+import com.newsfeed.widget.data.HoldOff
 import com.newsfeed.widget.data.LastSent
 import com.newsfeed.widget.data.CrashLogStore
 import com.newsfeed.widget.data.RefreshLogEntry
@@ -105,18 +106,22 @@ class ReportUiState(initialRecipient: String, initialLastSent: LastSent? = null)
     var recipient by mutableStateOf(initialRecipient)
     /** The report text shown in the preview dialog; null = dialog closed. */
     var previewText by mutableStateOf<String?>(null)
-    /** Mirrors [guard] for the UI (progress wheel). */
+    /** Mirrors [guard] for the UI (progress wheel); false during the hold-off after a share. */
     var busy by mutableStateOf(false)
         private set
-    private val guard = BusyGuard()
+    private val guard = HoldOff(SHARE_HOLD_OFF_MS)
 
     /**
      * Takes the one-at-a-time slot synchronously, BEFORE any coroutine is launched, so a double tap on Share /
      * Preview / Send cannot start two runs (BUG-039). Every true result must be paired with [end] in a finally.
      */
-    fun tryBegin(): Boolean = guard.tryAcquire().also { if (it) busy = true }
+    fun tryBegin(): Boolean = guard.tryBegin(SystemClock.elapsedRealtime()).also { if (it) busy = true }
 
-    fun end() { guard.release(); busy = false }
+    /**
+     * [holdOff] = true after an external activity (the share chooser) was started: the guard keeps rejecting
+     * taps for [SHARE_HOLD_OFF_MS] more, until the chooser is really on screen (BUG-041).
+     */
+    fun end(holdOff: Boolean = false) { guard.end(SystemClock.elapsedRealtime(), holdOff); busy = false }
     /** Newest first, at most [REPORT_UI_RUNS]. */
     var runs by mutableStateOf<List<RefreshLogEntry>>(emptyList())
     /** The confirmation dialog of "Send to developer" is open. */
@@ -132,6 +137,9 @@ class ReportUiState(initialRecipient: String, initialLastSent: LastSent? = null)
 }
 
 const val REPORT_UI_RUNS = 20
+
+/** How long Share keeps rejecting taps after it launched the chooser. */
+const val SHARE_HOLD_OFF_MS = 1500L
 
 /** App-level optional recipient, kept in its own tiny SharedPreferences file. Blank by default, never hardcoded. */
 object ReportSettings {
@@ -238,6 +246,7 @@ fun previewReport(activity: ComponentActivity, scope: CoroutineScope, state: Rep
 fun shareReport(activity: ComponentActivity, scope: CoroutineScope, state: ReportUiState, readyText: String? = null) {
     if (!state.tryBegin()) return
     scope.launch {
+        var chooserStarted = false
         try {
             val input = collectReportInput(activity, state.note, state.includeAddresses)
             val text = readyText ?: buildBugReport(input)
@@ -263,10 +272,14 @@ fun shareReport(activity: ComponentActivity, scope: CoroutineScope, state: Repor
                 if (recipientOk) putExtra(Intent.EXTRA_EMAIL, arrayOf(recipient))
             }
             activity.startActivity(Intent.createChooser(send, "Share problem report"))
+            chooserStarted = true
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             Toast.makeText(activity, "Could not share the report: ${e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
-        } finally { state.end() }
+        } finally {
+            // The chooser appears a few hundred ms after startActivity returns: keep rejecting taps until it has (BUG-041).
+            state.end(holdOff = chooserStarted)
+        }
     }
 }
 
