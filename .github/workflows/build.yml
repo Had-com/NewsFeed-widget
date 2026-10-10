@@ -41,6 +41,11 @@ jobs:
           yes | "$SDKM" --licenses > /dev/null || true
 
       - name: Build debug APK
+        # The report collector's address and app key come from repository secrets (never committed, never echoed).
+        # Without them (forks, secrets not set yet) the app is built without the "Send to developer" button.
+        env:
+          REPORT_BASE_URL: ${{ secrets.REPORT_BASE_URL }}
+          REPORT_APP_KEY: ${{ secrets.REPORT_APP_KEY }}
         run: gradle assembleDebug --stacktrace -PbuildVersionCode=${{ github.run_number }}
 
       - name: Rename APK

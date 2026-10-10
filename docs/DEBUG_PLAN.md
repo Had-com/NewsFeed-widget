@@ -173,7 +173,7 @@ Quick confirmations that specific, previously-reported-and-fixed bugs haven't re
 - [ ] Force a crash (e.g. temporarily throw from a callback, or use any reliable repro) → relaunch the app → open Settings → **BUG REPORTS** → confirm the crash is summarized (exception type/message, first/last seen) rather than showing a raw stack trace inline.
 - [ ] Tap **Share report** (Settings → REPORT A PROBLEM, always enabled, crash or not) → confirm Android's share sheet opens with a `newsfeed-report-*.txt` file attachment (not inline text) — this exists specifically to avoid a `TransactionTooLargeException` on large histories; the crash appears inside the report (QA_PLAN section P).
 - [ ] Trigger the same crash signature again on an older build, then update to a newer build without hitting it again → confirm it's shown as solved (hasn't recurred since the update) rather than perpetually "open."
-- [ ] Confirm this section's data is local-only — no network call happens when viewing or sharing it (there is no server component yet; this is Phase 1 only).
+- [ ] Confirm this section's data is local-only — no network call happens when viewing, previewing or sharing it. The only network call of this feature is **Send to developer** (QA_PLAN `P-18` to `P-26`, contract in `docs/REPORT_SERVER.md`): it exists only in a build given a server address and key, and only after the confirmation dialog; verify the key is never in logcat and the button is hidden in a build without the values.
 
 ---
 

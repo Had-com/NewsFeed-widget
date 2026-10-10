@@ -70,3 +70,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 21
 - New: Settings → Report a problem lets you share a diagnostic report any time, and the app now keeps a log of which feeds failed to refresh and why.
+
+## Note 22
+- New: Settings → Report a problem can now send your report directly to the developer when you tap Send, after showing you what will be sent.
