@@ -11,6 +11,12 @@ object WidgetStateKey {
     val configJson        = stringPreferencesKey("config_json")
     val lastRefreshTime   = longPreferencesKey("last_refresh_time")
     val lastRefreshFailed = booleanPreferencesKey("last_refresh_failed")
+    // BUG-035. lastRefreshTime is now "the last time at least one feed was fetched OK" (it is NOT moved
+    // by a run in which every feed failed). lastRefreshAttemptTime is the last run of any outcome;
+    // failedFeedCount how many enabled feeds failed in that run (0 = none; the footer shows it only for
+    // a partial failure). All three are absent on widgets last refreshed by an older build.
+    val lastRefreshAttemptTime = longPreferencesKey("last_refresh_attempt_time")
+    val failedFeedCount   = intPreferencesKey("failed_feed_count")
     val expandedArticleId = stringPreferencesKey("expanded_article_id")
     // Expand mode only: the article the user tapped most recently, whether or not it expands.
     // Read is flagged on it when a different article is tapped next (see markPreviousTappedRead).

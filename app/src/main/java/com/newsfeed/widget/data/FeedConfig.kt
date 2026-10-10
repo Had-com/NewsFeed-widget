@@ -86,8 +86,10 @@ data class FeedSearchResult(
 
 data class ArticleFetchResult(
     val articles: List<ArticleItem>,
-    val allFailed: Boolean,   // true only when every enabled feed's fetch threw
-)
+    val outcome: RefreshOutcome,   // per-feed counts of this fetch (ok / empty / http / network / timeout / blocked)
+) {
+    val allFailed: Boolean get() = outcome.allFailed   // true only when every enabled feed failed
+}
 
 enum class TapMode(val key: String, val label: String) {
     EXPAND("expand", "Expand in place"),

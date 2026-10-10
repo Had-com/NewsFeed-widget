@@ -1223,3 +1223,21 @@ Tests: `TelegramFeedParserTest` (self-link cases, URL moved out of the title, or
 **Tests:** `RefreshPolicyTest` (interval, migration marker), `WidgetWorkerRequestTest` (constraint and interval of the built requests, minimum 15 min, one-time request constrained too).
 
 **Behaviour note:** with the constraint, a footer tap while offline no longer produces an immediate "refresh failed": the run waits for a network and executes when one is available.
+
+## BUG-035 — A failed refresh looked like a successful one with no news, and the footer countdown could not tell
+
+**Status:** Outcome handling fixed in code (this commit); the footer part is the next commit (see below). Device verification pending, DEBUG_PLAN 14.al; QA `I-18`, `I-19`, `M-53`.
+
+**Symptom:** after a failed background run the widget showed nothing wrong: the footer counted down to the next refresh, no "refresh failed" was shown, and the articles just did not change.
+
+**Root cause (all in the refresh result handling):**
+(a) `NewsFeedRepository.fetchFeedArticles` returned an EMPTY LIST for a non-2xx answer, so a 403 / 429 / 5xx (a feed blocking the app) was counted as a successful fetch with "no new articles"; only a thrown exception counted as a failure, and only when EVERY feed threw.
+(b) `WidgetWorker.doWork` wrote `lastRefreshTime = now` after every run, even when nothing had been fetched, so the footer's `lastRefreshTime + interval` countdown restarted after a run that did nothing.
+(c) The worker returned `Result.success()` whatever happened, so WorkManager never retried (and its backoff never applied).
+(d) Partial failures (some feeds down) were invisible.
+(e) A 200 page that is not a feed (captive portal, challenge page) parsed to nothing and counted as success.
+
+**Fix (`RefreshOutcome.kt`, `NewsFeedRepository.kt`, `WidgetWorker.kt`, `WidgetStateKey.kt`, `FeedConfig.kt`):** `fetchFeedArticles` throws `FeedHttpException(code)` for a non-2xx answer, `NotAFeedException` for a 200 body that is empty of items and is not RSS / Atom / RDF (`looksLikeFeed`), and I/O errors propagate. `getArticles` classifies every feed (`classifyFeedFetch`: ok with articles, ok-empty, http error, network error, timeout, blocked = host not resolvable) into a `RefreshOutcome`. A valid feed with no items is ok-empty, NOT a failure. A failed feed keeps its previously stored articles (the merge is unchanged). Definitions: `allFailed` = every enabled feed failed (needs at least one feed); `partialFailure` = some failed; `hasSuccess` = at least one feed fetched, or no enabled feed at all.
+Worker: `lastRefreshTime` is the last time at least ONE feed was fetched OK and is not touched by an all-failed run (new `lastRefreshAttemptTime` records every run; new `failedFeedCount` the failed feeds of the last run); `lastRefreshFailed` = `allFailed`; an all-failed widget skips the thumbnail / favicon downloads (they would only wait for timeouts); all-failed across all widgets returns `Result.retry()` (WorkManager exponential backoff, starting at 30 s) for at most `MAX_REFRESH_ATTEMPTS` = 3 runs per period using `runAttemptCount` (`workerVerdict`), then `Result.success()` so the next period handles it; partial failure is a success with `lastRefreshTime` updated. The last real success is also kept in `RefreshStatusStore.lastOkRefreshMs` for the watchdog (BUG-036).
+
+**Tests:** `RefreshOutcomeTest` (19: every status class, all ok / all failed / partial / zero feeds / ok-empty vs failed / non-2xx / timeout, widget sums, retry bounds, `looksLikeFeed`).

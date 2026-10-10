@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.text.Html
 import android.util.Xml
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -58,10 +59,14 @@ class NewsFeedRepository(private val context: Context) {
             }
             .awaitAll()
         val all = results.flatMap { it.getOrDefault(emptyList()) }
-        // "Failed" means every enabled feed's fetch threw — a handful of unreachable
-        // feeds among many working ones is normal and shouldn't be flagged as an error.
-        val allFailed = enabledFeeds.isNotEmpty() && results.all { it.isFailure }
-        ArticleFetchResult(applyFiltersAndSort(all, config, knownFeedIds), allFailed)
+        // Per-feed outcome (BUG-035): a non-2xx answer or an I/O failure is a FAILED feed (its stored
+        // articles are kept by the merge), not an empty list that reads as "no new articles". "All
+        // failed" needs every enabled feed to fail; a few unreachable feeds among working ones is a
+        // partial failure, counted but not flagged as a failed refresh.
+        val outcome = RefreshOutcome.of(results.map { r ->
+            classifyFeedFetch(r.getOrNull()?.size ?: 0, r.exceptionOrNull())
+        })
+        ArticleFetchResult(applyFiltersAndSort(all, config, knownFeedIds), outcome)
     }
 
     suspend fun fetchFeedTitle(url: String): String? = withContext(Dispatchers.IO) {
@@ -212,15 +217,20 @@ class NewsFeedRepository(private val context: Context) {
         var req = Request.Builder().url(feed.feedUrl)
         browserHeaders(feed.feedUrl).forEach { (k, v) -> req = req.header(k, v) }
         return client.newCall(req.build()).execute().use { response ->
-            if (!response.isSuccessful) return emptyList()
+            // A failure is thrown, never returned as an empty list (BUG-035): getArticles classifies it.
+            if (!response.isSuccessful) throw FeedHttpException(response.code)
             // Use string() so OkHttp honours the charset in Content-Type (fixes Windows-1255 Hebrew feeds)
-            val text = response.body?.string() ?: return emptyList()
+            val text = response.body?.string() ?: throw IOException("empty response body")
             if (feed.feedUrl.startsWith("https://t.me/s/")) {
                 return TelegramFeedParser.parseArticles(feed.feedId, feed.displayName, text, maxItems)
             }
             val parser = Xml.newPullParser()
             parser.setInput(text.reader())
-            parseFeed(parser, feed, maxItems)
+            val items = parseFeed(parser, feed, maxItems)
+            // A 200 page that parsed to nothing and is not a feed (captive portal, challenge page) is a
+            // failure; a genuine feed that has no items right now is a valid empty result.
+            if (items.isEmpty() && !looksLikeFeed(text)) throw NotAFeedException()
+            items
         }
     }
 

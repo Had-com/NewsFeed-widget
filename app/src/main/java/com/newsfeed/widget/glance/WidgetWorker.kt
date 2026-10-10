@@ -25,7 +25,10 @@ import com.newsfeed.widget.data.ReadStatusStore
 import com.newsfeed.widget.data.NewsFeedRepository
 import com.newsfeed.widget.data.MIN_REFRESH_INTERVAL_MINUTES
 import com.newsfeed.widget.data.OrphanCleanup
+import com.newsfeed.widget.data.RefreshOutcome
 import com.newsfeed.widget.data.RefreshStatusStore
+import com.newsfeed.widget.data.WorkerVerdict
+import com.newsfeed.widget.data.workerVerdict
 import com.newsfeed.widget.data.WORK_SCHEMA_VERSION
 import com.newsfeed.widget.data.effectiveRefreshIntervalMinutes
 import com.newsfeed.widget.data.workNeedsMigration
@@ -73,6 +76,7 @@ class WidgetWorker(
         val liveIds = systemIds + widgetIds.map { manager.getAppWidgetId(it) }
         OrphanCleanup.sweep(context, liveIds)
         if (liveIds.isEmpty()) return Result.success()
+        var runOutcome = RefreshOutcome()
         // Self-heal: widgets exist, so make sure the daily update check is armed (KEEP = no-op if it is).
         runCatching { UpdateCheckWorker.schedule(context) }
 
@@ -92,6 +96,8 @@ class WidgetWorker(
                 ?: emptyList()
             val knownFeedIds  = priorArticles.map { it.feedId }.toSet()
             val fetchResult = repo.getArticles(config, knownFeedIds)
+            val outcome     = fetchResult.outcome
+            runOutcome += outcome
             val fresh       = fetchResult.articles.map { a ->
                 if (a.id in readIds) a.copy(isRead = true) else a
             }
@@ -110,16 +116,30 @@ class WidgetWorker(
                 merged = retainWithPerFeedGuarantee(candidates, cap = 300, minPerFeed = 10)
                 prefs[WidgetStateKey.articles]        = Json.encodeToString(merged)
                 prefs[WidgetStateKey.configJson]      = Json.encodeToString(config)
-                prefs[WidgetStateKey.lastRefreshTime] = now
-                prefs[WidgetStateKey.lastRefreshFailed] = fetchResult.allFailed
+                // lastRefreshTime moves only when at least one feed was really fetched (BUG-035):
+                // a run in which every feed failed must not look like a refresh.
+                if (outcome.hasSuccess) prefs[WidgetStateKey.lastRefreshTime] = now
+                prefs[WidgetStateKey.lastRefreshAttemptTime] = now
+                prefs[WidgetStateKey.lastRefreshFailed] = outcome.allFailed
+                prefs[WidgetStateKey.failedFeedCount] = outcome.failed
             }
-            // Download thumbnails for the merged set so accumulated articles are covered too
-            repo.downloadThumbnails(merged.take(30), config.feeds)
-            repo.downloadFavicons(config.feeds)
+            // Nothing was reachable: the image downloads would only wait for their own timeouts.
+            if (!outcome.allFailed) {
+                // Download thumbnails for the merged set so accumulated articles are covered too
+                repo.downloadThumbnails(merged.take(30), config.feeds)
+                repo.downloadFavicons(config.feeds)
+            }
         }
 
         NewsFeedWidget().updateAll(context)
-        return Result.success()
+        if (runOutcome.hasSuccess) RefreshStatusStore(context).lastOkRefreshMs = System.currentTimeMillis()
+        // Every feed failed: WorkManager's exponential backoff retries, at most MAX_REFRESH_ATTEMPTS
+        // runs per period (workerVerdict); after that this run ends as a success and the next period
+        // handles it, so there is never an endless quick retry loop.
+        return when (workerVerdict(runOutcome, runAttemptCount)) {
+            WorkerVerdict.RETRY   -> Result.retry()
+            WorkerVerdict.SUCCESS -> Result.success()
+        }
     }
 
     companion object {
