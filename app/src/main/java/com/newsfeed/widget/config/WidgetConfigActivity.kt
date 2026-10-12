@@ -1187,6 +1187,12 @@ class WidgetConfigActivity : ComponentActivity() {
                             }
                         }
 
+                        // ── Report a problem: ONE collapsible block, closed until the user opens it ──
+                        item {
+                            HorizontalDivider(thickness = 0.5.dp)
+                            ReportSectionHeader(reportState)
+                        }
+                        if (reportState.sectionOpen) {
                         // ── Bug reports ──
                         item {
                             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -1250,6 +1256,7 @@ class WidgetConfigActivity : ComponentActivity() {
                             HorizontalDivider(thickness = 0.5.dp)
                             LastRefreshesSection(reportState)
                         }
+                        } // sectionOpen
                     }
                 }
             }

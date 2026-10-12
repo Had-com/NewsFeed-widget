@@ -135,6 +135,11 @@ class ReportUiState(initialRecipient: String, initialLastSent: LastSent? = null)
     var lastSent by mutableStateOf(initialLastSent)
     var logOpen by mutableStateOf(false)
     var expandedRunTimestamps by mutableStateOf<Set<Long>>(emptySet())
+    /**
+     * The whole problem-report area (crash list, report form, refresh log) is collapsed until the user opens it.
+     * Always starts closed: it is only needed when something went wrong, so it stays out of the way.
+     */
+    var sectionOpen by mutableStateOf(false)
 }
 
 const val REPORT_UI_RUNS = 20
@@ -339,6 +344,30 @@ fun sendReport(activity: ComponentActivity, scope: CoroutineScope, state: Report
 
 // ── UI ─────────────────────────────────────────────────────────────────────
 
+/** The one always-visible row of the problem-report area: tap to open or close everything below it. */
+@Composable
+fun ReportSectionHeader(state: ReportUiState) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(
+        Modifier.fillMaxWidth()
+            .clickable { state.sectionOpen = !state.sectionOpen }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text("REPORT A PROBLEM", fontSize = 10.sp, color = muted, letterSpacing = 0.05.sp)
+            Text(if (state.sectionOpen) "Hide" else "Show", fontSize = 11.sp, color = muted)
+        }
+        if (!state.sectionOpen) {
+            Spacer(Modifier.height(4.dp))
+            Text("Something not working? Tap to make a report.", fontSize = 12.sp, color = muted)
+        }
+    }
+}
+
 @Composable
 fun ReportProblemSection(
     state: ReportUiState,
@@ -350,9 +379,7 @@ fun ReportProblemSection(
     // Hidden (not disabled) in a build without a server address and key: local builds, forks.
     val canSend = ReportUploader.isConfigured
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text("REPORT A PROBLEM", fontSize = 10.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.05.sp)
-        Spacer(Modifier.height(8.dp))
+        // The "REPORT A PROBLEM" title now lives in ReportSectionHeader (the collapsible header above this block).
         Text(
             if (canSend) "Something not working? Make a report, share it wherever you like, or send it straight to the developer. Nothing is sent unless you tap Share or Send."
             else "Something not working? Make a report and share it wherever you like. Nothing is sent automatically.",
