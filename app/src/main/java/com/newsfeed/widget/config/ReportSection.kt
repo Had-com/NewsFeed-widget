@@ -62,10 +62,10 @@ import com.newsfeed.widget.data.BUG_REPORT_MAX_NOTE_CHARS
 import com.newsfeed.widget.data.BugReportDefaultFeed
 import com.newsfeed.widget.data.BugReportInput
 import com.newsfeed.widget.data.BugReportRefreshStatus
-import com.newsfeed.widget.data.PICTURE_ERR_BUSY
 import com.newsfeed.widget.data.PICTURE_ERR_SAVE
 import com.newsfeed.widget.data.PICTURE_IDLE_HINT
 import com.newsfeed.widget.data.PICTURE_PRIVACY_HINT
+import com.newsfeed.widget.data.launchOnlyIfFree
 import com.newsfeed.widget.data.pictureAttachedText
 import com.newsfeed.widget.data.HoldOff
 import com.newsfeed.widget.data.LastSent
@@ -348,15 +348,12 @@ fun shareReport(activity: ComponentActivity, scope: CoroutineScope, state: Repor
 // ── attaching a picture ────────────────────────────────────────────────────
 
 /**
- * The photo picker returned [uri]: decode and re-save it on a background thread (see prepareReportPicture). Takes the
- * same one-at-a-time slot as Preview / Share / Send, so none of them can start while the picture is being prepared.
- * A failure keeps the previous picture; success replaces it and deletes the old file.
+ * The photo picker returned [uri]: decode and re-save it on a background thread (see prepareReportPicture). The caller
+ * ([rememberReportPicturePicker]) already holds the one-at-a-time slot, taken when the button was tapped, so Preview /
+ * Share / Send cannot start while the picture is being prepared; this releases it when done. A failure keeps the
+ * previous picture; success replaces it and deletes the old file.
  */
-fun attachPicture(activity: ComponentActivity, scope: CoroutineScope, state: ReportUiState, uri: Uri) {
-    if (!state.tryBegin()) {
-        state.attachError = PICTURE_ERR_BUSY
-        return
-    }
+private fun attachPicture(activity: ComponentActivity, scope: CoroutineScope, state: ReportUiState, uri: Uri) {
     state.attachBusy = true
     state.attachError = null
     scope.launch {
@@ -383,16 +380,27 @@ fun attachPicture(activity: ComponentActivity, scope: CoroutineScope, state: Rep
  * The "Attach a picture" action: the system photo picker (no storage permission; on a device without it the
  * library falls back to the document picker), images only. Registered outside the LazyColumn so the result still
  * arrives if the row scrolled away while the picker was open.
+ *
+ * The one-at-a-time slot is taken synchronously on the tap, BEFORE the picker is launched (a second tap while the
+ * picker is still opening is a no-op, BUG-045), and stays held while the picker is in front. The result callback
+ * releases it: a cancel (no uri) with the 1.5 s hold-off, like Share, so a late second tap cannot reopen the picker; a
+ * chosen picture keeps it for the processing in [attachPicture].
  */
 @Composable
 fun rememberReportPicturePicker(activity: ComponentActivity, scope: CoroutineScope, state: ReportUiState): () -> Unit {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) attachPicture(activity, scope, state, uri)
+        if (uri != null) attachPicture(activity, scope, state, uri) else state.end(holdOff = true)
     }
     return {
-        if (!state.busy) {
+        launchOnlyIfFree(tryBegin = { state.tryBegin() }) {
             state.attachError = null
-            launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            try {
+                launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            } catch (e: Exception) {
+                // No picker could be started: give the slot back, nothing is open.
+                state.end()
+                state.attachError = PICTURE_ERR_SAVE
+            }
         }
     }
 }

@@ -226,6 +226,41 @@ class ReportAttachmentTest {
         )
     }
 
+    // -- the picker opens once per tap (BUG-045) --
+
+    @Test fun `the picker is launched only when the slot was taken`() {
+        val guard = HoldOff(1500)
+        var launches = 0
+        var now = 0L
+        fun tap() = launchOnlyIfFree({ guard.tryBegin(now) }) { launches++ }
+        assertTrue(tap())
+        assertFalse("a second tap while the picker is open", tap())
+        now = 100
+        assertFalse("100 ms later", tap())
+        assertEquals(1, launches)
+        // picker cancelled: slot released with the hold-off, a late tap still does nothing
+        guard.end(now, hold = true)
+        now = 1000
+        assertFalse(tap())
+        now = 1700
+        assertTrue(tap())
+        assertEquals(2, launches)
+    }
+
+    @Test fun `a launch that failed hands the slot back so the next tap works`() {
+        val guard = HoldOff(1500)
+        assertTrue(launchOnlyIfFree({ guard.tryBegin(0) }) { guard.end(0, hold = false) })
+        assertTrue(launchOnlyIfFree({ guard.tryBegin(1) }) { })
+    }
+
+    @Test fun `the launch block never runs when something else holds the guard`() {
+        val guard = HoldOff(1500)
+        assertTrue(guard.tryBegin(0))
+        var ran = false
+        assertFalse(launchOnlyIfFree({ guard.tryBegin(1) }) { ran = true })
+        assertFalse(ran)
+    }
+
     @Test fun `limits`() {
         assertEquals(1600, PICTURE_MAX_EDGE)
         assertEquals(900_000, PICTURE_TARGET_BYTES)

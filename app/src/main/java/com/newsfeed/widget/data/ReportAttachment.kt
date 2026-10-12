@@ -170,4 +170,13 @@ const val PICTURE_ERR_UNREADABLE = "This picture could not be read. Try another 
 const val PICTURE_ERR_TOO_LARGE = "This picture is too large even after shrinking it. Try a smaller one."
 const val PICTURE_ERR_MEMORY = "This picture is too big for this phone to process. Try a smaller one."
 const val PICTURE_ERR_SAVE = "The picture could not be saved. Try again."
-const val PICTURE_ERR_BUSY = "Please wait a moment, then pick the picture again."
+
+/**
+ * The photo picker is opened only when the one-at-a-time slot was taken: [tryBegin] runs synchronously on the tap, BEFORE
+ * [launch], so a double tap cannot start two pickers (BUG-045). Returns whether [launch] ran.
+ */
+inline fun launchOnlyIfFree(tryBegin: () -> Boolean, launch: () -> Unit): Boolean {
+    if (!tryBegin()) return false
+    launch()
+    return true
+}

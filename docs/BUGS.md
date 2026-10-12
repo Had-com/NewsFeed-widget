@@ -1371,3 +1371,15 @@ Worker: `lastRefreshTime` is the last time at least ONE feed was fetched OK and 
 - **Re-encoding is lossy and always JPEG.** Transparent PNG areas become white, animated images keep only the first frame, a picture larger than 1600 px is shrunk, a picture that cannot get under 1.4 MB (even at 800 px and quality 40) or cannot be decoded is refused with a message.
 - **HEIC / unusual formats** depend on the phone's own decoder; if it cannot decode the file the message is `This picture could not be read. Try another one.`
 - **No retry, no resume.** A picture upload that fails is not repeated by the app; sending the report again would store a second report (and the 60 s cooldown applies), so the message points to **Share report** instead.
+
+## BUG-045 — A double tap on Attach a picture opened two stacked photo pickers
+
+**Status:** Fixed in code (unit tested); device re-check pending, QA `P-38`. Found by device QA 14.ap (2 of 2 double taps, taps 100 ms apart and simultaneous both created two picker activities). Severity Low.
+
+**Root cause:** the one-at-a-time slot (`ReportUiState.tryBegin`) was taken only AFTER a picture was chosen (when the processing started), so the button was not guarded while the picker was opening.
+
+**Fix (`ReportSection.kt`, `ReportAttachment.kt`):** `rememberReportPicturePicker` takes the slot synchronously on the tap through `launchOnlyIfFree` (take the slot, then launch) and keeps it while the picker is in front; a second tap meanwhile does nothing. The result callback releases it: a cancel ends the slot with the same 1.5 s hold-off as Share (a late second tap cannot reopen the picker), a chosen picture keeps the slot for the processing and releases it when done. If the picker cannot be started the slot is given back at once. The red `Please wait a moment ...` text is gone (a tap while busy is simply ignored).
+
+**Tests:** `ReportAttachmentTest` (`the picker is launched only when the slot was taken`, a failed launch hands the slot back, the launch block never runs while another action holds the slot).
+
+**Not an app bug (server side):** during the same QA run a `413` came back for a picture below the app's own limit (about 0.9 MB). The app never sends more than 1,400,000 bytes, and a 413 is mapped to `too large`; this limit sits in the server's reverse proxy (its request-body size), not in the app. The report stays sent and the message is the normal `Report #N was sent, but the picture could not be uploaded (too large). ...`. The proxy needs a body limit of at least 1,500,000 bytes for `POST /api/v1/reports/{id}/image` (see `docs/REPORT_SERVER.md`).
