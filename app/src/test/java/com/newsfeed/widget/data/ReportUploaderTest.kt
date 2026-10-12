@@ -254,6 +254,8 @@ class ReportUploaderTest {
             failure?.let { throw it }
             return response!!
         }
+        override suspend fun postImage(url: String, headers: Map<String, String>, bytes: ByteArray): TransportResponse =
+            throw AssertionError("the report tests never post a picture")
     }
 
     private val key = "SECRET-KEY-VALUE-123"

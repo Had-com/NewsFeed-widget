@@ -78,7 +78,7 @@ import com.newsfeed.widget.data.REPORT_PREFS_NAME
 import com.newsfeed.widget.data.ReportFileInfo
 import com.newsfeed.widget.data.ReportUploader
 import com.newsfeed.widget.data.SharedPrefsReportStore
-import com.newsfeed.widget.data.UploadResult
+import com.newsfeed.widget.data.ImageUploadResult
 import com.newsfeed.widget.data.WidgetConfigStore
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.data.buildBugReport
@@ -93,7 +93,7 @@ import com.newsfeed.widget.data.sendConfirmationParagraphs
 import com.newsfeed.widget.data.staleReportFiles
 import com.newsfeed.widget.data.summarizeRun
 import com.newsfeed.widget.data.toBugReportWidget
-import com.newsfeed.widget.data.uploadMessage
+import com.newsfeed.widget.data.sendOutcomeMessage
 import com.newsfeed.widget.glance.NewsFeedWidget
 import com.newsfeed.widget.glance.WidgetWorker
 import kotlinx.coroutines.CoroutineScope
@@ -416,7 +416,9 @@ fun requestSend(state: ReportUiState, readyText: String? = null) {
 /**
  * Sends the report once, after the user confirmed. [readyText] is the text shown in the preview dialog (so what was
  * read is exactly what is sent); without it a fresh report is built from the current note and checkbox. The result is
- * shown under the buttons and in a Toast. No automatic retry.
+ * shown under the buttons and in a Toast. No automatic retry. With an attached picture it is uploaded after the report is
+ * stored (same client id); a picture that fails never marks the report as failed, and the file is deleted only after both
+ * went through (otherwise Share can still use it).
  */
 fun sendReport(activity: ComponentActivity, scope: CoroutineScope, state: ReportUiState, readyText: String? = null) {
     if (!ReportUploader.isConfigured) return
@@ -431,14 +433,25 @@ fun sendReport(activity: ComponentActivity, scope: CoroutineScope, state: Report
                 state.sendMessage = cooldownMessage(wait)
                 return@launch
             }
+            val pictureFile = state.attachment?.let { File(it.path) }
+            if (pictureFile != null && !pictureFile.isFile) {
+                // The cache was cleared under us: nothing has been sent yet, so let the user decide again.
+                state.discardAttachment()
+                state.attachError = "The attached picture is gone. Attach it again, or send without it."
+                state.sendFailed = true
+                state.sendMessage = "Nothing was sent."
+                return@launch
+            }
             val text = readyText ?: withContext(Dispatchers.IO) {
                 buildBugReport(collectReportInput(activity, state.note, state.includeAddresses, state.attachment?.bytes ?: 0))
             }
-            val result = ReportUploader.send(activity, text)
-            val message = uploadMessage(result)
-            state.sendFailed = result !is UploadResult.Sent
+            val outcome = ReportUploader.send(activity, text, pictureFile)
+            val message = sendOutcomeMessage(outcome)
+            // The picture failing never makes the report look failed: only the report's own result decides this.
+            state.sendFailed = !outcome.reportStored
             state.sendMessage = message
-            if (result is UploadResult.Sent) state.lastSent = ReportSettings.lastSent(activity)
+            if (outcome.reportStored) state.lastSent = ReportSettings.lastSent(activity)
+            if (outcome.image is ImageUploadResult.Stored) state.discardAttachment()
             Toast.makeText(activity, message, Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) { state.sendMessage = null; throw e }

@@ -12,9 +12,11 @@ import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONObject
+import java.io.File
 import java.io.IOException
 import java.net.URI
 import java.time.Instant
@@ -32,6 +34,10 @@ import kotlin.coroutines.resumeWithException
  * Everything here except [ReportUploader.send] and [OkHttpReportTransport] is pure and unit tested through the
  * [ReportTransport] interface, so no test needs a network.
  *
+ * After the report is stored, the ONE optional picture of the report (data/ReportAttachment.kt) is uploaded to
+ * `POST {base}/api/v1/reports/{id}/image` with the same client id; a failing picture never turns a stored report into
+ * a failed one ([SendOutcome]). Picture bytes are never logged.
+ *
  * The server address and the app key are NOT in the repository: the build injects them
  * (`BuildConfig.REPORT_BASE_URL` / `REPORT_APP_KEY`, see app/build.gradle.kts). Neither the key nor the report text is
  * ever logged or put into an error message: [describeResult] and [describeFailure] are the only things that reach
@@ -46,6 +52,9 @@ const val UPLOAD_RESPONSE_MAX_BYTES = 4_096L
 const val UPLOAD_MAX_RETRY_AFTER_SECONDS = 7L * 24 * 3600
 const val UPLOAD_TRUNCATION_MARKER = "(... part of the report left out to fit the upload size limit ...)"
 const val REPORT_API_PATH = "/api/v1/reports"
+/** The server accepts at most 1,500,000 bytes; the app never sends more than this (see PICTURE_HARD_MAX_BYTES). */
+const val UPLOAD_IMAGE_MAX_BYTES = PICTURE_HARD_MAX_BYTES
+const val IMAGE_CONTENT_TYPE = "image/jpeg"
 
 // ── payload ────────────────────────────────────────────────────────────────
 
@@ -259,6 +268,9 @@ data class TransportResponse(val code: Int, val body: String, val retryAfter: St
 /** The HTTP layer, replaceable by a fake in tests. Throws an exception (normally [IOException]) when there is no answer. */
 interface ReportTransport {
     suspend fun post(url: String, headers: Map<String, String>, body: String): TransportResponse
+
+    /** Posts raw JPEG [bytes] (Content-Type image/jpeg). Same contract as [post]. */
+    suspend fun postImage(url: String, headers: Map<String, String>, bytes: ByteArray): TransportResponse
 }
 
 /**
@@ -283,13 +295,20 @@ suspend fun uploadReport(transport: ReportTransport, baseUrl: String, appKey: St
 class OkHttpReportTransport(
     private val client: OkHttpClient = defaultClient,
 ) : ReportTransport {
-    override suspend fun post(url: String, headers: Map<String, String>, body: String): TransportResponse =
+    override suspend fun post(url: String, headers: Map<String, String>, body: String): TransportResponse {
+        val contentType = headers["Content-Type"]?.toMediaType()
+        // Raw bytes: OkHttp then sends exactly the Content-Type given, without adding a charset.
+        return execute(url, headers, body.toByteArray(Charsets.UTF_8).toRequestBody(contentType))
+    }
+
+    override suspend fun postImage(url: String, headers: Map<String, String>, bytes: ByteArray): TransportResponse =
+        execute(url, headers, bytes.toRequestBody(IMAGE_CONTENT_TYPE.toMediaType()))
+
+    private suspend fun execute(url: String, headers: Map<String, String>, requestBody: RequestBody): TransportResponse =
         withContext(Dispatchers.IO) {
-            val contentType = headers["Content-Type"]?.toMediaType()
-            // Raw bytes: OkHttp then sends exactly the Content-Type given, without adding a charset.
             val request = Request.Builder().url(url).apply {
                 headers.forEach { (k, v) -> header(k, v) }
-            }.post(body.toByteArray(Charsets.UTF_8).toRequestBody(contentType)).build()
+            }.post(requestBody).build()
             val call = client.newCall(request)
             suspendCancellableCoroutine { cont ->
                 cont.invokeOnCancellation { call.cancel() }
@@ -327,6 +346,178 @@ class OkHttpReportTransport(
     }
 }
 
+// ── the attached picture ───────────────────────────────────────────────────
+
+sealed interface ImageUploadResult {
+    /** Stored; [bytes] is what the server reports (`imageBytes`), null when the answer had no readable number. */
+    data class Stored(val bytes: Long?) : ImageUploadResult
+    object TooLarge : ImageUploadResult
+    data class RateLimited(val retryAfterSeconds: Long?) : ImageUploadResult
+    /** 404: unknown report id, a different client id, or (an older server) no such endpoint. */
+    object ReportNotFound : ImageUploadResult
+    /** 409: the server already holds the one picture of this report. */
+    object AlreadyHasImage : ImageUploadResult
+    /** 400, 405, 415 or any other unexpected answer. */
+    data class Rejected(val code: Int) : ImageUploadResult
+    object Unauthorized : ImageUploadResult
+    data class ServerError(val code: Int) : ImageUploadResult
+    /** No answer at all. Holds the exception CLASS name only. */
+    data class Offline(val errorClass: String) : ImageUploadResult
+    /** The picture file could not be read back (cache cleared). Nothing was sent. */
+    object Unreadable : ImageUploadResult
+    /** No usable https address, key, report number or client id; nothing was sent. */
+    object Misconfigured : ImageUploadResult
+}
+
+/** The request for one picture, or why there is none. Pure. */
+sealed interface ImageRequest {
+    data class Ready(val url: String, val headers: Map<String, String>) : ImageRequest
+    object Empty : ImageRequest
+    object TooLarge : ImageRequest
+    object Misconfigured : ImageRequest
+}
+
+/**
+ * `POST {base}/api/v1/reports/{id}/image`, https only, trailing-slash safe (a path prefix is kept). Headers:
+ * `X-App-Key`, `X-Client-Id` (the SAME id the report was sent with, must be a UUID so it cannot carry a line break) and
+ * `Content-Type: image/jpeg`. [byteCount] is the size of the JPEG: over [UPLOAD_IMAGE_MAX_BYTES] -> [ImageRequest.TooLarge],
+ * nothing is sent.
+ */
+fun buildImageRequestSpec(base: String, appKey: String, reportId: Long, clientId: String, byteCount: Int): ImageRequest {
+    val endpoint = checkReportBase(base) as? EndpointCheck.Ok ?: return ImageRequest.Misconfigured
+    if (appKey.isBlank() || reportId < 0 || !isValidClientId(clientId)) return ImageRequest.Misconfigured
+    if (byteCount <= 0) return ImageRequest.Empty
+    if (byteCount > UPLOAD_IMAGE_MAX_BYTES) return ImageRequest.TooLarge
+    return ImageRequest.Ready(
+        url = endpoint.url + "/" + reportId + "/image",
+        headers = mapOf("Content-Type" to IMAGE_CONTENT_TYPE, "X-App-Key" to appKey, "X-Client-Id" to clientId),
+    )
+}
+
+/** Maps the server's answer to the picture request. Never throws. */
+fun mapImageResponse(code: Int, body: String?, retryAfterHeader: String?, nowMs: Long = System.currentTimeMillis()): ImageUploadResult =
+    when {
+        code == 201 -> ImageUploadResult.Stored(parseImageBytes(body))
+        code == 429 -> ImageUploadResult.RateLimited(parseRetryAfterSeconds(retryAfterHeader, nowMs))
+        code == 413 -> ImageUploadResult.TooLarge
+        code == 404 -> ImageUploadResult.ReportNotFound
+        code == 409 -> ImageUploadResult.AlreadyHasImage
+        code == 401 || code == 403 -> ImageUploadResult.Unauthorized
+        code in 500..599 -> ImageUploadResult.ServerError(code)
+        else -> ImageUploadResult.Rejected(code)
+    }
+
+/** `{"id":42,"imageBytes":812345}` -> 812345; anything else -> null. */
+fun parseImageBytes(body: String?): Long? {
+    if (body.isNullOrBlank()) return null
+    return try {
+        when (val v = JSONObject(body.trim()).opt("imageBytes")) {
+            is Int -> v.toLong().takeIf { it >= 0 }
+            is Long -> v.takeIf { it >= 0 }
+            is Number -> v.toDouble().takeIf { it >= 0 && it == Math.floor(it) && it < 9.0e15 }?.toLong()
+            else -> null
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/** Posts the picture once; no retry. A missing answer becomes [ImageUploadResult.Offline] (class name only); cancellation is rethrown. */
+suspend fun uploadImage(
+    transport: ReportTransport, baseUrl: String, appKey: String, reportId: Long, clientId: String, bytes: ByteArray,
+): ImageUploadResult {
+    val spec = when (val r = buildImageRequestSpec(baseUrl, appKey, reportId, clientId, bytes.size)) {
+        is ImageRequest.Ready -> r
+        ImageRequest.TooLarge -> return ImageUploadResult.TooLarge
+        ImageRequest.Empty -> return ImageUploadResult.Rejected(400)
+        ImageRequest.Misconfigured -> return ImageUploadResult.Misconfigured
+    }
+    val response = try {
+        transport.postImage(spec.url, spec.headers, bytes)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        return ImageUploadResult.Offline(describeFailure(e))
+    }
+    return mapImageResponse(response.code, response.body, response.retryAfter)
+}
+
+/** What happened to the report and, when a picture was attached and the report was stored, to the picture ([image] is null otherwise). */
+data class SendOutcome(val report: UploadResult, val image: ImageUploadResult?) {
+    /** The report is stored on the server (whatever happened to the picture). */
+    val reportStored: Boolean get() = report is UploadResult.Sent
+    /** Both the report and the picture are stored (or there was no picture and the report is stored). */
+    val fullySent: Boolean get() = reportStored && (image == null || image is ImageUploadResult.Stored)
+}
+
+/**
+ * The two-step send: the report first; only when the server answers 201 with a report number is the picture (if
+ * [loadPicture] is not null) uploaded, with the SAME [clientId]. [onReportStored] runs right after the report is stored
+ * (the app records "Last sent" there, so it is recorded even if the picture upload is interrupted). A picture that
+ * fails never changes the report's result. If the report fails, [loadPicture] is never called.
+ */
+suspend fun uploadReportWithPicture(
+    transport: ReportTransport,
+    baseUrl: String,
+    appKey: String,
+    payload: String,
+    clientId: String,
+    loadPicture: (suspend () -> ByteArray?)?,
+    onReportStored: (UploadResult.Sent) -> Unit = {},
+): SendOutcome {
+    val report = uploadReport(transport, baseUrl, appKey, payload)
+    if (report !is UploadResult.Sent) return SendOutcome(report, null)
+    onReportStored(report)
+    if (loadPicture == null) return SendOutcome(report, null)
+    val id = report.id ?: return SendOutcome(report, ImageUploadResult.Rejected(0))
+    val bytes = loadPicture() ?: return SendOutcome(report, ImageUploadResult.Unreadable)
+    return SendOutcome(report, uploadImage(transport, baseUrl, appKey, id, clientId, bytes))
+}
+
+/** Why the picture did not arrive, in a few words for the sentence in [sendOutcomeMessage]. */
+fun imageFailureReason(result: ImageUploadResult): String = when (result) {
+    is ImageUploadResult.Stored -> ""
+    ImageUploadResult.TooLarge -> "too large"
+    is ImageUploadResult.RateLimited -> "too many pictures today, try later"
+    ImageUploadResult.ReportNotFound -> "the server does not accept pictures yet (404/405)"
+    is ImageUploadResult.Rejected -> if (result.code == 405) "the server does not accept pictures yet (404/405)" else "the server did not accept it"
+    ImageUploadResult.AlreadyHasImage -> "the server already has a picture for this report"
+    ImageUploadResult.Unauthorized -> "the server did not accept this version of the app"
+    is ImageUploadResult.ServerError -> "the server had a problem"
+    is ImageUploadResult.Offline -> "offline"
+    ImageUploadResult.Unreadable -> "the picture file could not be read"
+    ImageUploadResult.Misconfigured -> "sending pictures is not available in this build"
+}
+
+/** What the user reads after a send (report alone, or report with picture). */
+fun sendOutcomeMessage(outcome: SendOutcome): String {
+    val report = outcome.report
+    val image = outcome.image
+    if (report !is UploadResult.Sent || image == null) return uploadMessage(report)
+    val number = report.id?.let { "#$it" }
+    return if (image is ImageUploadResult.Stored) {
+        if (number != null) "Sent. Report $number with your picture — quote this number if you contact the developer." else "Sent, with your picture."
+    } else {
+        (if (number != null) "Report $number was sent" else "The report was sent") +
+            ", but the picture could not be uploaded (${imageFailureReason(image)}). You can use Share report to send the picture yourself."
+    }
+}
+
+/** The only text about a picture result that may reach logcat: no bytes, key, address or exception message. */
+fun describeImageResult(result: ImageUploadResult): String = when (result) {
+    is ImageUploadResult.Stored -> "image stored bytes=${result.bytes}"
+    is ImageUploadResult.RateLimited -> "image rate_limited retry_after=${result.retryAfterSeconds}"
+    is ImageUploadResult.Offline -> "image network_error ${result.errorClass}"
+    is ImageUploadResult.Rejected -> "image rejected code=${result.code}"
+    is ImageUploadResult.ServerError -> "image server_error code=${result.code}"
+    ImageUploadResult.TooLarge -> "image too_large"
+    ImageUploadResult.ReportNotFound -> "image not_found"
+    ImageUploadResult.AlreadyHasImage -> "image already_exists"
+    ImageUploadResult.Unauthorized -> "image unauthorized"
+    ImageUploadResult.Unreadable -> "image unreadable"
+    ImageUploadResult.Misconfigured -> "image misconfigured"
+}
+
 // ── the app-facing entry point ─────────────────────────────────────────────
 
 object ReportUploader {
@@ -341,23 +532,39 @@ object ReportUploader {
         get() = reportServerHost(BuildConfig.REPORT_BASE_URL)
 
     /**
-     * Sends [reportText] once (the user has just confirmed). On success the time and report number are remembered
-     * for the "Last sent" line. Only the outcome is logged, never the key, the address or the text.
+     * Sends [reportText] once (the user has just confirmed) and, when [pictureFile] is given, uploads that picture
+     * after the report is stored, with the same client id. On success the time and report number are remembered for the
+     * "Last sent" line (before the picture goes out). Only the outcome is logged, never the key, the address, the text
+     * or the picture. The file is read here (off the main thread) and is NOT deleted: the caller does that after a
+     * fully successful send.
      */
-    suspend fun send(context: Context, reportText: String, transport: ReportTransport = OkHttpReportTransport()): UploadResult {
+    suspend fun send(
+        context: Context, reportText: String, pictureFile: File? = null, transport: ReportTransport = OkHttpReportTransport(),
+    ): SendOutcome {
         val app = context.applicationContext
         val store = SharedPrefsReportStore(app)
         val now = System.currentTimeMillis()
+        val clientId = resolveClientId(store)
         val payload = buildUploadPayload(
             report = reportText,
-            clientId = resolveClientId(store),
+            clientId = clientId,
             versionCode = BuildConfig.VERSION_CODE,
             versionName = BuildConfig.VERSION_NAME,
             now = now,
         )
-        val result = uploadReport(transport, BuildConfig.REPORT_BASE_URL, BuildConfig.REPORT_APP_KEY, payload)
-        runCatching { Log.i(TAG, describeResult(result)) }
-        if (result is UploadResult.Sent) recordLastSent(store, now, result.id)
-        return result
+        val outcome = uploadReportWithPicture(
+            transport = transport,
+            baseUrl = BuildConfig.REPORT_BASE_URL,
+            appKey = BuildConfig.REPORT_APP_KEY,
+            payload = payload,
+            clientId = clientId,
+            loadPicture = pictureFile?.let { file -> suspend { withContext(Dispatchers.IO) { runCatching { file.readBytes() }.getOrNull() } } },
+            onReportStored = { recordLastSent(store, now, it.id) },
+        )
+        runCatching {
+            Log.i(TAG, describeResult(outcome.report))
+            outcome.image?.let { Log.i(TAG, describeImageResult(it)) }
+        }
+        return outcome
     }
 }
