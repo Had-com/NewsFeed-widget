@@ -256,6 +256,11 @@ class WidgetConfigActivity : ComponentActivity() {
                         runCatching { loadRefreshRuns(this@WidgetConfigActivity) }.getOrDefault(emptyList())
                     }
                 }
+                // Leaving Settings forgets the attached picture and deletes its cache file.
+                androidx.compose.runtime.DisposableEffect(Unit) {
+                    onDispose { reportState.discardAttachment() }
+                }
+                val pickReportPicture = rememberReportPicturePicker(this@WidgetConfigActivity, scope, reportState)
                 ReportPreviewDialog(
                     reportState,
                     onShare = { readyText -> shareReport(this@WidgetConfigActivity, scope, reportState, readyText) },
@@ -1261,6 +1266,8 @@ class WidgetConfigActivity : ComponentActivity() {
                                 onPreview = { previewReport(this@WidgetConfigActivity, scope, reportState) },
                                 onShare = { shareReport(this@WidgetConfigActivity, scope, reportState) },
                                 onSend = { requestSend(reportState) },
+                                onPickPicture = pickReportPicture,
+                                onRemovePicture = { if (!reportState.busy) { reportState.discardAttachment(); reportState.attachError = null } },
                             )
                         }
 

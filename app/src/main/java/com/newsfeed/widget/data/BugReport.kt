@@ -90,6 +90,8 @@ data class BugReportInput(
     val crashes: List<CrashLogStore.CrashRecord>,
     /** The bundled default feeds. A feed is "default" when its [normalizeFeedUrl] equals one of these (http and https alike). */
     val defaultFeeds: List<BugReportDefaultFeed> = emptyList(),
+    /** Size of the one picture the user attached (0 = none). Only the fact and the size go into the text, never the picture. */
+    val attachmentBytes: Int = 0,
 )
 
 // ── building ───────────────────────────────────────────────────────────────
@@ -124,6 +126,7 @@ fun buildBugReport(input: BugReportInput): String {
     header += "NewsFeed problem report (schema $BUG_REPORT_SCHEMA_VERSION)"
     header += "Created: ${at(input.timestampMs)} (${zone.id})"
     header += "Your own feeds: " + if (input.includeOwnFeeds) "included (passwords and tokens removed)" else "not included (named feed #1, #2 …)"
+    if (input.attachmentBytes > 0) header += "Attached picture: yes (${pictureSizeText(input.attachmentBytes)})"
     header += ""
     header += "[App]"
     header += "Version: ${input.appVersionName} (build ${input.appVersionCode})"

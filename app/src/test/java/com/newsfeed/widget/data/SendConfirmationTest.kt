@@ -64,4 +64,43 @@ class SendConfirmationTest {
         val first = all(previewed = false, addresses = false)[0].text
         assertFalse(first.contains("address", ignoreCase = true))
     }
+
+    // -- attached picture --
+
+    private val pictureWarning = "A picture is attached and will be sent too. Check it first: it may show private information."
+
+    @Test fun `without a picture there is no picture paragraph`() {
+        for (previewed in listOf(false, true)) for (addresses in listOf(false, true)) {
+            assertFalse(all(previewed, addresses).any { it.text.contains("picture", ignoreCase = true) })
+            assertEquals(all(previewed, addresses), sendConfirmationParagraphs(previewed, addresses, hasPicture = false))
+        }
+    }
+
+    @Test fun `with a picture a warning paragraph is added after the contents and before nothing is sent automatically`() {
+        for (previewed in listOf(false, true)) for (addresses in listOf(false, true)) {
+            val p = sendConfirmationParagraphs(previewed, addresses, hasPicture = true)
+            val idx = p.indexOfFirst { it.text == pictureWarning }
+            assertTrue("picture paragraph present", idx > 0)
+            assertTrue(p[idx].isWarning)
+            assertTrue(p[0].text.startsWith("What is sent:"))
+            assertTrue(idx > 0)
+            assertEquals(p.size - 2, idx)
+            assertTrue(p.last().text.contains("Nothing is sent automatically"))
+            assertFalse(p.last().isWarning)
+        }
+    }
+
+    @Test fun `the picture warning comes after the feed address warning when both apply`() {
+        val p = sendConfirmationParagraphs(previewedAlready = false, includeAddresses = true, hasPicture = true)
+        assertEquals(4, p.size)
+        assertTrue(p[1].text.startsWith("Warning: your own feed names"))
+        assertEquals(pictureWarning, p[2].text)
+        assertEquals(2, p.count { it.isWarning })
+    }
+
+    @Test fun `the picture paragraph does not tell where the report goes`() {
+        val text = sendConfirmationParagraphs(previewedAlready = true, includeAddresses = false, hasPicture = true).joinToString(" ") { it.text }.lowercase()
+        assertFalse(text.contains("https"))
+        assertFalse(text.contains("where it goes"))
+    }
 }

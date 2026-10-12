@@ -8,10 +8,12 @@ data class ConfirmParagraph(val text: String, val isWarning: Boolean = false)
  *  - It says what is sent and that nothing is sent automatically.
  *  - It does NOT say where the report goes (no host name, no address): the user asked for the server
  *    address to stay out of the UI.
+ *  - When a picture is attached ([hasPicture]) a warning paragraph says it is sent too and may show private
+ *    information; it comes after the contents paragraph (and the feed warning) and before "Nothing is sent automatically".
  *  - The warning about the user's own feeds is shown only when the "Include my own feeds (names and addresses)"
  *    checkbox is on; with the checkbox off the dialog only says the app's own feeds are named.
  */
-fun sendConfirmationParagraphs(previewedAlready: Boolean, includeAddresses: Boolean): List<ConfirmParagraph> {
+fun sendConfirmationParagraphs(previewedAlready: Boolean, includeAddresses: Boolean, hasPicture: Boolean = false): List<ConfirmParagraph> {
     val which = if (previewedAlready) "the report you just previewed. " else "the report you can read with Preview report. "
     val paragraphs = mutableListOf(
         ConfirmParagraph(
@@ -24,6 +26,12 @@ fun sendConfirmationParagraphs(previewedAlready: Boolean, includeAddresses: Bool
         paragraphs += ConfirmParagraph(
             "Warning: your own feed names and addresses are included in this report (passwords and tokens are removed). " +
                 "Check the preview first if any of your feeds is private.",
+            isWarning = true,
+        )
+    }
+    if (hasPicture) {
+        paragraphs += ConfirmParagraph(
+            "A picture is attached and will be sent too. Check it first: it may show private information.",
             isWarning = true,
         )
     }

@@ -3,10 +3,16 @@ package com.newsfeed.widget.config
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +45,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.LayoutDirection
@@ -53,6 +62,11 @@ import com.newsfeed.widget.data.BUG_REPORT_MAX_NOTE_CHARS
 import com.newsfeed.widget.data.BugReportDefaultFeed
 import com.newsfeed.widget.data.BugReportInput
 import com.newsfeed.widget.data.BugReportRefreshStatus
+import com.newsfeed.widget.data.PICTURE_ERR_BUSY
+import com.newsfeed.widget.data.PICTURE_ERR_SAVE
+import com.newsfeed.widget.data.PICTURE_IDLE_HINT
+import com.newsfeed.widget.data.PICTURE_PRIVACY_HINT
+import com.newsfeed.widget.data.pictureAttachedText
 import com.newsfeed.widget.data.HoldOff
 import com.newsfeed.widget.data.LastSent
 import com.newsfeed.widget.data.OpmlManager
@@ -138,6 +152,19 @@ class ReportUiState(initialLastSent: LastSent? = null) {
      * Always starts closed: it is only needed when something went wrong, so it stays out of the way.
      */
     var sectionOpen by mutableStateOf(false)
+
+    /** The one attached picture (re-saved JPEG in the cache + a small thumbnail), null = none. Forgotten when Settings is left. */
+    var attachment by mutableStateOf<ReportAttachment?>(null)
+    /** The picked image is being decoded and re-saved (on a background thread). */
+    var attachBusy by mutableStateOf(false)
+    /** Why the last pick failed, shown in red under the button; cleared by the next pick or Remove. */
+    var attachError by mutableStateOf<String?>(null)
+
+    /** Forgets the picture and deletes its file. Safe to call twice, and from onDispose. */
+    fun discardAttachment() {
+        attachment?.let { runCatching { File(it.path).delete() } }
+        attachment = null
+    }
 }
 
 const val REPORT_UI_RUNS = 20
@@ -188,7 +215,7 @@ fun loadDefaultFeedsForReport(context: Context): List<BugReportDefaultFeed> = ru
 }.getOrDefault(emptyList())
 
 /** Gathers the report inputs from the stores. Off the main thread. */
-private suspend fun collectReportInput(context: Context, note: String, includeAddresses: Boolean): BugReportInput =
+private suspend fun collectReportInput(context: Context, note: String, includeAddresses: Boolean, attachmentBytes: Int = 0): BugReportInput =
     withContext(Dispatchers.IO) {
         val app = context.applicationContext
         val ids = WidgetWorker.liveWidgetIds(app)
@@ -234,6 +261,7 @@ private suspend fun collectReportInput(context: Context, note: String, includeAd
             ),
             refreshLog = RefreshLogStore.readAll(app),
             crashes = CrashLogStore.readAll(app),
+            attachmentBytes = attachmentBytes,
         )
     }
 
@@ -243,7 +271,7 @@ fun previewReport(activity: ComponentActivity, scope: CoroutineScope, state: Rep
     scope.launch {
         try {
             state.previewText = withContext(Dispatchers.IO) {
-                buildBugReport(collectReportInput(activity, state.note, state.includeAddresses))
+                buildBugReport(collectReportInput(activity, state.note, state.includeAddresses, state.attachment?.bytes ?: 0))
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -255,29 +283,55 @@ fun previewReport(activity: ComponentActivity, scope: CoroutineScope, state: Rep
 /**
  * Writes the report to cacheDir/reports/newsfeed-report-<yyyyMMdd-HHmmss>.txt and opens the share sheet with it
  * attached (FileProvider + EXTRA_STREAM, like the OPML export). [readyText] is the text already shown in the
- * preview dialog, so what the user read is exactly what is shared.
+ * preview dialog, so what the user read is exactly what is shared. With an attached picture the chooser gets BOTH
+ * files (ACTION_SEND_MULTIPLE: the report text and the JPEG, both from cacheDir/reports, which file_paths.xml covers);
+ * without one it is the plain ACTION_SEND of the text file. The picture leaves the phone only through this chooser,
+ * i.e. only after the user picks a target.
  */
 fun shareReport(activity: ComponentActivity, scope: CoroutineScope, state: ReportUiState, readyText: String? = null) {
     if (!state.tryBegin()) return
     scope.launch {
         var chooserStarted = false
         try {
-            val input = collectReportInput(activity, state.note, state.includeAddresses)
+            val attachment = state.attachment
+            val pictureFile = attachment?.let { File(it.path) }
+            if (pictureFile != null && !pictureFile.isFile) {
+                // The cache was cleared under us: the report text may already say "Attached picture", so start over.
+                state.discardAttachment()
+                state.attachError = "The attached picture is gone. Attach it again, or share without it."
+                Toast.makeText(activity, "The attached picture is gone.", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            val input = collectReportInput(activity, state.note, state.includeAddresses, attachment?.bytes ?: 0)
             val text = readyText ?: buildBugReport(input)
             val file = withContext(Dispatchers.IO) {
                 cleanOldReports(activity)
                 val dir = reportsDir(activity).also { it.mkdirs() }
                 File(dir, reportFileName(System.currentTimeMillis(), ZoneId.systemDefault())).also { it.writeText(text) }
             }
-            val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", file)
-            val send = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_SUBJECT, "NewsFeed problem report (build ${input.appVersionCode})")
-                putExtra(Intent.EXTRA_TEXT, reportShareSummary(input))
-                putExtra(Intent.EXTRA_STREAM, uri)
-                // ClipData + the grant flag: the receiving app may read exactly this file, nothing else.
-                clipData = ClipData.newRawUri("NewsFeed problem report", uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            val authority = "${activity.packageName}.fileprovider"
+            val uri = FileProvider.getUriForFile(activity, authority, file)
+            val send = if (pictureFile == null) {
+                Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, "NewsFeed problem report (build ${input.appVersionCode})")
+                    putExtra(Intent.EXTRA_TEXT, reportShareSummary(input))
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    // ClipData + the grant flag: the receiving app may read exactly this file, nothing else.
+                    clipData = ClipData.newRawUri("NewsFeed problem report", uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            } else {
+                val pictureUri = FileProvider.getUriForFile(activity, authority, pictureFile)
+                Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                    type = "*/*"
+                    putExtra(Intent.EXTRA_SUBJECT, "NewsFeed problem report (build ${input.appVersionCode})")
+                    putExtra(Intent.EXTRA_TEXT, reportShareSummary(input))
+                    putParcelableArrayListExtra(Intent.EXTRA_STREAM, arrayListOf(uri, pictureUri))
+                    // Both files are granted explicitly; nothing else in the cache is readable by the target.
+                    clipData = ClipData.newRawUri("NewsFeed problem report", uri).apply { addItem(ClipData.Item(pictureUri)) }
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
             }
             activity.startActivity(Intent.createChooser(send, "Share problem report"))
             chooserStarted = true
@@ -287,6 +341,58 @@ fun shareReport(activity: ComponentActivity, scope: CoroutineScope, state: Repor
         } finally {
             // The chooser appears a few hundred ms after startActivity returns: keep rejecting taps until it has (BUG-041).
             state.end(holdOff = chooserStarted)
+        }
+    }
+}
+
+// ── attaching a picture ────────────────────────────────────────────────────
+
+/**
+ * The photo picker returned [uri]: decode and re-save it on a background thread (see prepareReportPicture). Takes the
+ * same one-at-a-time slot as Preview / Share / Send, so none of them can start while the picture is being prepared.
+ * A failure keeps the previous picture; success replaces it and deletes the old file.
+ */
+fun attachPicture(activity: ComponentActivity, scope: CoroutineScope, state: ReportUiState, uri: Uri) {
+    if (!state.tryBegin()) {
+        state.attachError = PICTURE_ERR_BUSY
+        return
+    }
+    state.attachBusy = true
+    state.attachError = null
+    scope.launch {
+        try {
+            when (val result = prepareReportPicture(activity, uri)) {
+                is PictureResult.Ok -> {
+                    val old = state.attachment
+                    state.attachment = result.attachment
+                    if (old != null && old.path != result.attachment.path) runCatching { File(old.path).delete() }
+                }
+                is PictureResult.Error -> state.attachError = result.message
+            }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            state.attachError = PICTURE_ERR_SAVE
+        } finally {
+            state.attachBusy = false
+            state.end()
+        }
+    }
+}
+
+/**
+ * The "Attach a picture" action: the system photo picker (no storage permission; on a device without it the
+ * library falls back to the document picker), images only. Registered outside the LazyColumn so the result still
+ * arrives if the row scrolled away while the picker was open.
+ */
+@Composable
+fun rememberReportPicturePicker(activity: ComponentActivity, scope: CoroutineScope, state: ReportUiState): () -> Unit {
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) attachPicture(activity, scope, state, uri)
+    }
+    return {
+        if (!state.busy) {
+            state.attachError = null
+            launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         }
     }
 }
@@ -326,7 +432,7 @@ fun sendReport(activity: ComponentActivity, scope: CoroutineScope, state: Report
                 return@launch
             }
             val text = readyText ?: withContext(Dispatchers.IO) {
-                buildBugReport(collectReportInput(activity, state.note, state.includeAddresses))
+                buildBugReport(collectReportInput(activity, state.note, state.includeAddresses, state.attachment?.bytes ?: 0))
             }
             val result = ReportUploader.send(activity, text)
             val message = uploadMessage(result)
@@ -376,6 +482,8 @@ fun ReportProblemSection(
     onPreview: () -> Unit,
     onShare: () -> Unit,
     onSend: () -> Unit,
+    onPickPicture: () -> Unit,
+    onRemovePicture: () -> Unit,
 ) {
     // Hidden (not disabled) in a build without a server address and key: local builds, forks.
     val canSend = ReportUploader.isConfigured
@@ -394,6 +502,8 @@ fun ReportProblemSection(
             minLines = 3, maxLines = 6,
             modifier = Modifier.fillMaxWidth(),
         )
+        Spacer(Modifier.height(8.dp))
+        ReportPictureRow(state, onPickPicture, onRemovePicture)
         Spacer(Modifier.height(4.dp))
         Row(
             Modifier.fillMaxWidth().clickable { state.includeAddresses = !state.includeAddresses },
@@ -442,6 +552,39 @@ fun ReportProblemSection(
     }
 }
 
+/** "Attach a picture" button, the progress / error line, and (once attached) the 96 dp thumbnail row with Remove and the privacy hint. */
+@Composable
+private fun ReportPictureRow(state: ReportUiState, onPick: () -> Unit, onRemove: () -> Unit) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = onPick, enabled = !state.busy) { Text("Attach a picture") }
+        if (state.attachBusy) {
+            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            Text("Preparing the picture…", fontSize = 12.sp, color = muted)
+        }
+    }
+    state.attachError?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.error) }
+    val attachment = state.attachment
+    if (attachment == null) {
+        if (!state.attachBusy) Text(PICTURE_IDLE_HINT, fontSize = 10.sp, color = muted)
+    } else {
+        Spacer(Modifier.height(4.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val thumb = attachment.thumbnail
+            Box(Modifier.size(96.dp).clip(RoundedCornerShape(6.dp)), contentAlignment = Alignment.Center) {
+                if (thumb != null) {
+                    Image(thumb, contentDescription = "Preview of the attached picture", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth())
+                }
+            }
+            Column(Modifier.weight(1f)) {
+                Text(pictureAttachedText(attachment.bytes), style = MaterialTheme.typography.bodyMedium)
+                TextButton(onClick = onRemove, enabled = !state.busy) { Text("Remove") }
+                Text(PICTURE_PRIVACY_HINT, fontSize = 10.sp, color = muted)
+            }
+        }
+    }
+}
+
 @Composable
 fun ReportPreviewDialog(state: ReportUiState, onShare: (String) -> Unit, onSend: (String) -> Unit) {
     val text = state.previewText ?: return
@@ -483,7 +626,11 @@ fun ReportSendConfirmDialog(state: ReportUiState, onPreviewFirst: () -> Unit, on
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 // Text lives in data/SendConfirmation.kt (unit tested): no server address is shown, and the
                 // feed-address warning appears only when "Include my feed addresses" is ticked.
-                sendConfirmationParagraphs(previewedAlready = previewed != null, includeAddresses = state.includeAddresses)
+                sendConfirmationParagraphs(
+                    previewedAlready = previewed != null,
+                    includeAddresses = state.includeAddresses,
+                    hasPicture = state.attachment != null,
+                )
                     .forEach { p ->
                         Text(
                             p.text,
@@ -491,6 +638,13 @@ fun ReportSendConfirmDialog(state: ReportUiState, onPreviewFirst: () -> Unit, on
                             color = if (p.isWarning) warningColor else Color.Unspecified,
                         )
                     }
+                state.attachment?.thumbnail?.let {
+                    Image(
+                        it, contentDescription = "The attached picture",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.size(72.dp).clip(RoundedCornerShape(6.dp)),
+                    )
+                }
                 if (previewed == null) {
                     TextButton(onClick = { state.confirmSendOpen = false; onPreviewFirst() }) { Text("Preview first") }
                 }

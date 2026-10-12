@@ -23,14 +23,11 @@ fun reportFileName(nowMs: Long, zone: ZoneId): String =
 data class ReportFileInfo(val name: String, val lastModifiedMs: Long)
 
 /**
- * Which report files to delete: only `newsfeed-report-*.txt` files older than [maxAgeMs]. A file dated in the
- * future (clock change) is kept. Anything else in the folder is never touched.
+ * Which files to delete: only `newsfeed-report-*.txt` and `attachment-*.jpg` ([isReportCacheFileName]) older than
+ * [maxAgeMs]. A file dated in the future (clock change) is kept. Anything else in the folder is never touched.
  */
 fun staleReportFiles(files: List<ReportFileInfo>, nowMs: Long, maxAgeMs: Long = REPORT_FILE_MAX_AGE_MS): List<String> =
-    files.filter {
-        it.name.startsWith("newsfeed-report-") && it.name.endsWith(".txt") &&
-            nowMs - it.lastModifiedMs > maxAgeMs
-    }.map { it.name }
+    files.filter { isReportCacheFileName(it.name) && nowMs - it.lastModifiedMs > maxAgeMs }.map { it.name }
 
 /** The three-line text that accompanies the attached report (the share sheet's message body). */
 fun reportShareSummary(input: BugReportInput): String {

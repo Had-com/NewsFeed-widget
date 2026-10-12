@@ -196,6 +196,32 @@ class BugReportTest {
     }
 
     @Test
+    fun `an attached picture is stated with its size right after the own feeds line`() {
+        val r = buildBugReport(input().copy(attachmentBytes = 812_345))
+        val lines = r.lines()
+        val own = lines.indexOfFirst { it.startsWith("Your own feeds:") }
+        assertEquals("Attached picture: yes (812 KB)", lines[own + 1])
+        assertEquals("", lines[own + 2])
+        assertEquals(1, lines.count { it.startsWith("Attached picture:") })
+    }
+
+    @Test
+    fun `without a picture the report has no picture line and is unchanged`() {
+        val without = buildBugReport(input())
+        assertFalse(without.contains("Attached picture"))
+        assertEquals(without, buildBugReport(input().copy(attachmentBytes = 0)))
+        assertEquals(without.lines().size + 1, buildBugReport(input().copy(attachmentBytes = 1)).lines().size)
+    }
+
+    @Test
+    fun `the picture line holds only the size and no file name or path`() {
+        val line = buildBugReport(input().copy(attachmentBytes = 1_234_567)).lines().first { it.startsWith("Attached picture:") }
+        assertEquals("Attached picture: yes (1235 KB)", line)
+        assertFalse(line.contains("attachment-"))
+        assertFalse(line.contains("/"))
+    }
+
+    @Test
     fun `empty log and no crashes are stated`() {
         val r = buildBugReport(input(log = emptyList()))
         assertTrue(r.contains("[Recent refreshes] (newest first, 0 of 0 recorded)"))
