@@ -18,7 +18,7 @@ Status legend: ✅ Shipped · 🚧 In progress · 📋 Planned (spec approved, n
 
 | Feature | Status | Requirement |
 |---|---|---|
-| RSS/Atom feed fetching | ✅ | Fetch and display articles from any user-added RSS/Atom URL, on-device, no server. |
+| RSS/Atom feed fetching | ✅ | Fetch and display articles from any user-added RSS/Atom URL, on-device, no server. Cleartext is blocked, so an `http://` address is fetched (and stored when added) as `https://`. |
 | Telegram channels as a feed source | ✅ | A public Telegram channel can be added the same way as an RSS URL, converted to the same article shape. |
 | Feed search by topic | ✅ | Find feeds without knowing a URL up front. |
 | OPML import/export | ✅ | Move a feed list in or out of another reader without retyping URLs. |

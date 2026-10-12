@@ -246,7 +246,7 @@ listed was actually collected.
    `version.json` published (`M-12`). Security review done before the push (project rule, `DEBUG_PLAN.md` §14).
 6. New/changed user-facing behaviour has its cases added or updated in this plan **before** the run, and a
    release note (`docs/RELEASE_NOTES.md`, next `## Note n`) exists (`K-17`).
-7. **Known open issues** (currently BUG-002 system-locale mirroring, BUG-010 cleartext feeds, BUG-012 last-row
+7. **Known open issues** (currently BUG-002 system-locale mirroring, BUG-012 last-row
    clip, BUG-013 residual entity decoding, see Appendix A; BUG-014 is no longer one: its real cause is fixed as BUG-034 to BUG-036, cases `I-15` to `I-22`) do not block if
    their behaviour is **unchanged** from the recorded baseline; the case is still run and the actual result
    recorded. A change (better or worse) is reported.
@@ -280,7 +280,7 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 
 | Section | Cases | P0 | P1 | P2 |
 |---|---|---|---|---|
-| A Install / first run & default feeds | 12 | 1 | 10 | 1 |
+| A Install / first run & default feeds | 13 | 1 | 11 | 1 |
 | B Feeds management | 24 | 3 | 19 | 2 |
 | C Fetching & sources (incl. Telegram) | 21 | 3 | 16 | 2 |
 | D Display & layout | 20 | 2 | 17 | 1 |
@@ -296,7 +296,7 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | N Focus as a setting & state cleanup | 31 | 12 | 19 | 0 |
 | O Story threads | 35 | 10 | 24 | 1 |
 | P Problem report & refresh log | 26 | 8 | 17 | 1 |
-| **Total** | **394** | **76** | **295** | **23** |
+| **Total** | **395** | **76** | **296** | **23** |
 
 Plus the two pairwise tables (50 configurations each, run through `H-24` and `N-22`).
 
@@ -334,18 +334,19 @@ Excluded from pairwise on purpose (covered elsewhere): sort and filter (matrix),
 
 | ID | P | Do ⇒ Expect | Evid | Auto |
 |---|---|---|---|---|
-| A-01 | P0 | On a device with no data (or a spare install ID) install the APK, long-press home → Widgets → NewsFeed, drop it ⇒ the Settings screen opens by itself **before** the widget is placed; the feed list is pre-filled with the 11 bundled feeds; **Save** places the widget and it fills with articles within ~1 min | UI, DS (`newsfeed_config` has 11 feeds for the new id), LC | none |
+| A-01 | P0 | On a device with no data (or a spare install ID) install the APK, long-press home → Widgets → NewsFeed, drop it ⇒ the Settings screen opens by itself **before** the widget is placed; the feed list is pre-filled with the 11 bundled feeds (including `MIT Technology Review - AI` and `The Hindu - Tech`); **Save** places the widget and it fills with articles within ~1 min | UI, DS (`newsfeed_config` has 11 feeds for the new id), LC | none |
 | A-02 | P1 | Open Settings on that brand-new widget without touching anything ⇒ documented code defaults: Sort **By feed**, Show **All**, Refresh **15 minutes**, Keep articles **Forever**, Open in **Browser**, Font size 1.0 (Medium), Article font size 1.0, Expanded article **First paragraph**, theme **Glamour**, variant **Light**, Use theme accent colors **on**, opacity **100%** | UI, DS (`config_json`) | none |
 | A-03 | P1 | Save the fresh widget and view it ⇒ Glamour Light look (cream/beige, Playpen Sans Hebrew handwriting headlines), header "NewsFeed" + `unread(total)` badge, footer `↻ …`/Share/⚙ | SS | none |
 | A-04 | P1 | Open the "Add widget" picker (long-press → Widgets → NewsFeed) ⇒ exactly **one** entry "NewsFeed" with the correct label, no duplicates and no "NewsFeed Focus" (see N-01) | VIS/SS | none |
 | A-05 | P1 | **Add default feeds** on a list that lacks some defaults ⇒ only missing ones appended in defaults order, none duplicated; status + Toast "Added N default feeds (M already present)"; tapping again ⇒ "Added 0 … (11 already present)"; nothing persisted until Save (Back without Save keeps the old list) | UI, DS | UT:DefaultFeedsMergeTest |
 | A-06 | P1 | **Reset to defaults** ⇒ confirmation dialog "Remove all your feeds and load the defaults?"; **Cancel** changes nothing; **Reset** replaces the whole list with the 11 bundled feeds, status "Feeds reset to defaults (tap Save to apply)"; Back without Save keeps the old list; Save persists | UI, DS | none |
-| A-07 | P1 | Add default feeds when the list already contains the same feed typed differently (`HTTPS://WWW.YNET.CO.IL/…/`, trailing slash, `@N12_News` vs `t.me/s/N12_News`) ⇒ treated as already present (skipped); `http://` vs `https://` of the same host is **not** equated (both kept) | UI | UT:DefaultFeedsMergeTest |
+| A-07 | P1 | Add default feeds when the list already contains the same feed typed differently (`HTTPS://WWW.YNET.CO.IL/…/`, trailing slash, `@N12_News` vs `t.me/s/N12_News`) ⇒ treated as already present (skipped); `http://` vs `https://` of the same feed **is** equated (e.g. an old stored `http://www.thehindu.com/sci-tech/technology/internet/?service=rss` entry and the `https://` default are one feed: skipped, not added twice) | UI | UT:DefaultFeedsMergeTest |
 | A-08 | P1 | Drop a widget, then press **Back** on its first Settings screen ⇒ the widget is **not** placed (Android cancels the placement) and nothing crashes; drop again ⇒ Settings opens again | VIS, LC | none |
 | A-09 | P1 | Place a second standard widget while the first exists ⇒ it opens with **defaults**, not a copy of the first widget's settings; both keep their own settings afterwards (`J-06`) | UI, DS | none |
 | A-10 | P1 | First render before any fetch completes ⇒ footer shows `↻ now`; after the first refresh it shows `↻ in Nmin`/`↻ <1min` and the header badge counts | SS/UI | none |
 | A-11 | P2 | Verify the shipped asset: `unzip -l app-debug.apk \| grep default_feeds.opml` and count `<outline` (11) with **one** walla feed | ADB | none |
 | A-12 | P1 | `adb install -r` a new build over the running one ⇒ widgets stay placed and keep feeds, config, read state; a one-off "No session available" placeholder is tolerated only if a single tap recovers it (else S2) | UI, DS, LC | none |
+| A-13 | P1 | **Every default feed loads (BUG-042).** Brand-new widget with the 11 defaults, Save, wait for the refresh ⇒ LAST REFRESHES shows `11/11 feeds OK` (Wi-Fi), the footer has no `⚠ N failed`, and `MIT Technology Review - AI` and `The Hindu - Tech` each contributed articles; the feed list shows exactly those two names (no `AI News`, no 120-character Hindu title). On an existing widget that still has the old `http://` Hindu feed: **Add default feeds** adds only `MIT Technology Review - AI` (Hindu skipped as already present) and the old Hindu feed now loads too | UI, DS, LC | UT:DefaultFeedsMergeTest, UT:FeedUrlTest |
 
 ---
 
@@ -360,7 +361,7 @@ Section 6 of Settings ("FEED ORDER & STYLE") plus ADD FEED and FIND FEEDS.
 | B-03 | P1 | Add an unreachable / invalid / HTML-page URL ⇒ inline error "Could not load feed — check the URL", nothing added, no crash | UI, LC | none |
 | B-04 | P1 | Add `example.com/feed` without a scheme ⇒ `https://` is prefixed; blank input ⇒ Add disabled | UI | none |
 | B-05 | P0 | Add the same feed twice; and the same Telegram channel as `@ch`, `t.me/ch`, `telegram.me/ch`, `https://t.me/s/ch` in turn ⇒ "This feed is already added" each time (no duplicate feedId → no LazyColumn key crash) | UI, LC | UT:TelegramFeedParserTest (canonicalize) |
-| B-06 | P1 | Add an `http://` (cleartext) feed ⇒ **record actual**: either rejected at add-time or added but yields 0 articles (BUG-010 open — Android blocks cleartext). Check whether default feed "The Hindu" (`http://…`) yields articles | UI, DS, LC | none |
+| B-06 | P1 | Add `http://www.thehindu.com/sci-tech/technology/internet/?service=rss` (cleartext) ⇒ it is added and stored as the `https://` address (Edit shows `https://…`), articles load (BUG-010 / BUG-042: every `http://` feed is fetched as `https://`); the same address typed again as `http://` or `https://` ⇒ "This feed is already added". Import an OPML with an `http://` feed ⇒ stored as `https://`. An `http://` site that has no https twin ⇒ the feed fails and LAST REFRESHES says `https upgrade of http feed: …` | UI, DS, LC | UT:FeedUrlTest, UT:DefaultFeedsMergeTest |
 | B-07 | P0 | Tap × on a feed row ⇒ the row is removed (the **Edit** dialog must not open); after Save its articles are gone from the widget, remaining feeds unchanged | UI, SS | none |
 | B-08 | P1 | Tap a feed name → Edit; change only the name ⇒ saved without re-fetch; new name shown in Settings and in the row's meta line after Save | UI | none |
 | B-09 | P1 | Edit a feed's URL to another valid feed ⇒ spinner, feed re-validated, `feedId` and `feedOrder` entry become the new URL, name kept (or fetched name if blank) | UI, DS | none |
@@ -736,7 +737,7 @@ Ledger: [Appendix A](#appendix-a--cases-added-because-of-a-bug).
 | M-33 | P1 | **Refresh failed for every feed at once** (BUG-014; first ruled "environmental", really BUG-034: the periodic job ran without a network) ⇒ see I-08, I-15, I-16; with the job constrained to CONNECTED no run starts while the app's network is blocked; recovers on the next attempt, banner truthful | LC | UT:WidgetWorkerRequestTest |
 | M-34 | P1 | **Black & White not fully monochrome / "white text not pure white"** (2026-09-07) ⇒ text pixel-checks to (255,255,255) in Dark; known colour gaps unchanged ↔ H-08 | SS | none |
 | M-35 | P1 | **Config required before placement** (0e8cea6) ⇒ widget is not placed without passing Settings ↔ A-08 | VIS | none |
-| M-36 | P1 | **Cleartext (HTTP) feeds silently yield nothing** (BUG-010, open) ⇒ record status ↔ B-06 | UI | none |
+| M-36 | P1 | **Cleartext (HTTP) feeds silently yielded nothing** (BUG-010, fixed by BUG-042) ⇒ an `http://` feed now loads over https ↔ B-06 | UI | UT:FeedUrlTest |
 | M-37 | P1 | **Time reported wrong / new articles "not on time"** (BUG-004/005/007, not reproduced) ⇒ one article's time matches the feed's `pubDate`; a manual refresh inserts new articles within seconds ↔ C-01 | DS | none |
 | M-38 | P0 | **Unit tests not run by CI**: `testDebugUnitTest` passes locally for the build under test (all `app/src/test` classes) | UT | all test files |
 | M-39 | P1 | **Telegram "Load full article" replaced the post with page chrome** (BUG-020): a `t.me/<ch>/<id>` page is a JS shell ⇒ Telegram posts never offer or run a page fetch; the headline (first two lines, cut at 200 chars on a word boundary with `…` and the overflow moved to the description) plus a description of the rest of the post only (up to 4096 chars, one 1200-char chunk in Glamour), no duplicated text; older stored Telegram articles keep their stored text until they leave the t.me preview window; a fetch on any feed never replaces the shown text with blank/error/much-shorter text ↔ E-04, C-05 | SS, UI | UT:TelegramFeedParserTest, FullArticleTextTest |
@@ -913,7 +914,8 @@ status recorded in `docs/BUGS.md` / `DEBUG_PLAN.md` when this plan was written (
 | BUG-006 | Refresh tap target too small | Padding added | M-13, D-03 | Fixed |
 | BUG-008/015 | Low-frequency feeds crowded out | Per-feed floor 10, By-feed default, validated search | M-23, C-16, G-10, B-17 | Fixed |
 | BUG-009 | × opens Edit | Suspected hit-target overlap | M-29, B-07 | Open (per BUGS.md) |
-| BUG-010 | HTTP feeds never fetch | Cleartext blocked | M-36, B-06 | Open |
+| BUG-010 | HTTP feeds never fetch | Cleartext blocked | M-36, B-06 | Fixed (BUG-042: fetched as https) |
+| BUG-042 | Two default feeds never loaded (cleartext Hindu, blocked AI News) | Defaults replaced; every `http://` feed upgraded to `https://` | A-13, B-06, M-36 | Fixed |
 | BUG-011 | Rapid refresh taps stacked work | Unique work KEEP | M-14, I-02 | Fixed |
 | BUG-012 | Focus last row clipped | Glance list height fit | M-30 | Open |
 | BUG-013 | Raw HTML entities in titles | `Html.fromHtml` on titles; residual cases | M-22, C-09 | Partial |
@@ -1091,8 +1093,8 @@ value, recompute with any all-pairs tool (e.g. `allpairspy`) and replace the tab
 
 * **Default feed set (11)** — from `app/src/main/assets/default_feeds.opml`: ynet מבזקים, ynet חדשות, וואלה מבזקים,
   גלובס כל הכתבות, גלובס בארץ, N12 צ'אט הכתבים (`t.me/s/N12chat`), חדשות N12 (`t.me/s/N12_News`), כאן חדשות
-  (Newsflash API), AI News (artificialintelligence-news.com — may return 403), AI Newsletter (substack),
-  The Hindu AI News (**`http://`** — cleartext, see B-06).
+  (Newsflash API), MIT Technology Review - AI (technologyreview.com), AI Newsletter (substack),
+  The Hindu - Tech (`https://`; the old default was `http://`, see B-06).
 * **Article shapes to have on the widget:** with description and image; with description and no image; **no
   description** (rotter.net, ynet flash); Hebrew RTL headline; mixed Hebrew/English; headline starting with a
   digit or quote; very long headline; Telegram post (two-line headline); Telegram photo-only.
@@ -1136,5 +1138,4 @@ records the actual behaviour. None has been "fixed" here (this file is docs-only
     new tests.
 12. **Settings screen rotation:** edit state lives in `remember`, not `rememberSaveable`, so unsaved edits are probably
     lost on rotation/recreation. → `L-06`.
-13. **Default feed over cleartext:** the bundled The Hindu feed is `http://`; combined with BUG-010 it likely never
-    yields articles. → `B-06`.
+13. **Default feed over cleartext (resolved):** the bundled The Hindu feed used to be `http://` and never yielded articles; it is now `https://` and every `http://` feed is fetched as `https://` (BUG-042). → `B-06`.

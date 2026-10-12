@@ -100,6 +100,10 @@ When several feeds report the same news story within a few hours (for example yn
 ### Default feeds
 Under **Add Feed** in Settings, **Add default feeds** merges the bundled starter feeds into your list without duplicating any you already have, and **Reset to defaults** (with a confirmation) replaces your whole list with them; both apply when you tap Save.
 
+The bundled list (11 feeds): ynet - מבזקים, ynet - חדשות, וואלה - מבזקים, גלובס - כל הכתבות, גלובס - בארץ, N12 צ'אט הכתבים and חדשות N12 (Telegram channels), כאן חדשות - חדשות, MIT Technology Review - AI, AI Newsletter and The Hindu - Tech.
+
+**Plain `http://` feed addresses.** The app does not allow unencrypted (cleartext) connections, so every `http://` feed address is fetched as `https://` instead (only the scheme changes; the address you typed stays in your list). The same happens when you add, edit or import a feed: it is stored as `https://`, and an `http://` and an `https://` address of the same feed count as one feed (so "Add default feeds" does not duplicate The Hindu if your list has its old `http://` address). If a site cannot be reached over https, the refresh log says `https upgrade of http feed: ...`.
+
 ### Find feeds by topic
 A search box in Settings looks up feeds by topic, site name, or keyword (via Feedly's public feed-search index) and lists title, description, and subscriber count for each result — tap **+ Add** to add one directly, no need to already know its URL.
 

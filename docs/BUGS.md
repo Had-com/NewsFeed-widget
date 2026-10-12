@@ -206,7 +206,7 @@ overlaps/intercepts the small "×" hit target (same general class of issue as BU
 
 ## BUG-010 — HTTP (non-HTTPS) feed URLs silently never fetch
 
-**Status:** Found incidentally while verifying BUG-008, not yet fixed.
+**Status:** Fixed in code by BUG-042 (every `http://` feed address is requested as `https://`); device re-check pending, QA `B-06`, `M-36`. Original finding below.
 
 `http://aiweekly.co/issues.rss` is a live, valid feed (confirmed via direct `curl` with the
 app's own headers — HTTP 200, valid RSS) but produces zero stored articles in the app.
@@ -1323,3 +1323,17 @@ Worker: `lastRefreshTime` is the last time at least ONE feed was fetched OK and 
 **Fix (`BusyGuard.kt` `HoldOff`, `ReportSection.kt`):** `HoldOff(durationMs)` is the guard plus a hold-off: `tryBegin(now)` rejects while something runs or until `now` reaches the hold-off end, and `end(now)` starts the hold-off. `shareReport` ends with `state.end(holdOff = true)` once the chooser was launched, so taps are rejected for another `SHARE_HOLD_OFF_MS` = 1500 ms; if the share failed before launching, there is no hold-off. Preview and Send open dialogs inside the app, which appear at once, so they release immediately as before. A clock that moved back cannot lock the guard for longer than the hold-off.
 
 **Tests:** `HoldOffTest` (second tap inside the hold-off rejected, accepted after, `end` before the hold-off still rejects until it elapses, no hold without the flag, rejected tap does not extend it, clock moved back, 8 concurrent taps give one winner).
+
+## BUG-042 — Two default feeds could never load, and every `http://` feed failed on the cleartext block
+
+**Status:** Fixed in code (unit tested); device re-check pending, QA `A-13`, `B-06`, `M-36`.
+
+**Symptom (problem report #17, Samsung Fold, build 151):** the footer showed `⚠ 2 failed` permanently. Both failing feeds were bundled defaults. (1) The Hindu (`http://www.thehindu.com/...?service=rss`) failed with `UnknownServiceException: CLEARTEXT communication ... not permitted by network security policy`; its `https` twin answers 200 with RSS (and `http` 301-redirects to it). (2) `https://www.artificialintelligence-news.com/feed/` answered HTTP 403 to the app's browser-like User-Agent and a 301 to the home page HTML to any other request: the site blocks feed access, so it cannot work in any form.
+
+**Root cause:** (1) BUG-010 had never been fixed and a default feed relied on cleartext; the default title was also a 120-character page-title blob. (2) A default feed that the site itself blocks.
+
+**Fix:** (a) `default_feeds.opml`: `AI News` is replaced by `MIT Technology Review - AI` (`https://www.technologyreview.com/topic/artificial-intelligence/feed`, 200 `application/rss+xml`) and the Hindu entry becomes `The Hindu - Tech` over `https`. (b) `FeedUrl.kt`: pure `upgradeToHttps` (only the scheme of an `http://` address, any letter case; everything else, malformed input included, unchanged, never throws), `requestUrlFor` (trim + upgrade; the address the request is sent to), `describeUpgradeFailure`. `NewsFeedRepository` requests `requestUrlFor(feedUrl)` for fetching articles, titles, Telegram titles and search validation; the stored `feedUrl` / `feedId` stay as the user typed them, so stored articles and read flags are untouched. When an upgraded feed fails with a TLS / connect error (not an HTTP status, DNS failure, timeout or non-feed body) the refresh log detail reads `https upgrade of http feed: <exception>`. Settings stores the https form when a feed is added, edited (an unchanged address keeps its stored form so the feed id never changes by a mere Save) or imported from OPML. `normalizeFeedUrl` (`DefaultFeedsMerge.kt`) now equates `http://` and `https://`, so an old stored `http://` Hindu feed and the new `https://` default are one feed (no duplicate on **Add default feeds**, no duplicate on import or Add).
+
+**Existing widgets:** keep their stored `http://` Hindu feed, which now loads. The dead AI News feed stays in their lists until the user removes it (the "Not working" line in the feed list, see the follow-up below, makes that visible). **Add default feeds** adds `MIT Technology Review - AI`.
+
+**Tests:** `FeedUrlTest` (http to https, https untouched, mixed-case scheme, port / query / fragment, `http` inside the query, ftp / file / other schemes, empty, malformed, request address selection, the upgrade-failure detail and its limits), `DefaultFeedsMergeTest` (http equals https, old Hindu entry equals the new default).

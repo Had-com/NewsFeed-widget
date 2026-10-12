@@ -76,7 +76,8 @@ class NewsFeedRepository(private val context: Context) {
         val feedLog = enabledFeeds.mapIndexed { i, feed ->
             val r = results[i]
             val count = r.getOrNull()?.size ?: 0
-            val c = classifyFeedLog(count, r.exceptionOrNull())
+            // An http:// feed is requested as https:// (FeedUrl.kt): say so when that is what failed.
+            val c = describeUpgradeFailure(feed.feedUrl, classifyFeedLog(count, r.exceptionOrNull()))
             FeedLogEntry(
                 label = feed.displayName, url = feed.feedUrl, status = c.status, httpCode = c.httpCode,
                 articleCount = count, elapsedMs = timed[i].second, detail = c.detail, widgetId = config.widgetId,
@@ -87,7 +88,7 @@ class NewsFeedRepository(private val context: Context) {
 
     suspend fun fetchFeedTitle(url: String): String? = withContext(Dispatchers.IO) {
         try {
-            var req = Request.Builder().url(url)
+            var req = Request.Builder().url(requestUrlFor(url))
             browserHeaders(url).forEach { (k, v) -> req = req.header(k, v) }
             client.newCall(req.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext null
@@ -104,7 +105,7 @@ class NewsFeedRepository(private val context: Context) {
     // instead of an RSS <title> - used when a channel is first added in Settings.
     suspend fun fetchTelegramChannelTitle(canonicalUrl: String): String? = withContext(Dispatchers.IO) {
         try {
-            var req = Request.Builder().url(canonicalUrl)
+            var req = Request.Builder().url(requestUrlFor(canonicalUrl))
             browserHeaders(canonicalUrl).forEach { (k, v) -> req = req.header(k, v) }
             client.newCall(req.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext null
@@ -155,7 +156,7 @@ class NewsFeedRepository(private val context: Context) {
     }
 
     private fun isFeedReachable(url: String): Boolean = try {
-        var req = Request.Builder().url(url)
+        var req = Request.Builder().url(requestUrlFor(url))
         browserHeaders(url).forEach { (k, v) -> req = req.header(k, v) }
         client.newCall(req.build()).execute().use { response ->
             if (!response.isSuccessful) return@use false
@@ -230,8 +231,10 @@ class NewsFeedRepository(private val context: Context) {
     // ── private ───────────────────────────────────────────────────────────────
 
     private fun fetchFeedArticles(feed: FeedConfig, maxItems: Int = MAX_ITEMS_PER_FETCH): List<ArticleItem> {
-        var req = Request.Builder().url(feed.feedUrl)
-        browserHeaders(feed.feedUrl).forEach { (k, v) -> req = req.header(k, v) }
+        // The stored feedUrl stays as the user typed it; only the request goes to the https form.
+        val requestUrl = requestUrlFor(feed.feedUrl)
+        var req = Request.Builder().url(requestUrl)
+        browserHeaders(requestUrl).forEach { (k, v) -> req = req.header(k, v) }
         return client.newCall(req.build()).execute().use { response ->
             // A failure is thrown, never returned as an empty list (BUG-035): getArticles classifies it.
             if (!response.isSuccessful) throw FeedHttpException(response.code)

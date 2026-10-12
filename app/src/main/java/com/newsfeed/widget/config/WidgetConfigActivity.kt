@@ -78,6 +78,7 @@ import com.newsfeed.widget.data.CrashLogStore
 import com.newsfeed.widget.data.FeedConfig
 import com.newsfeed.widget.data.FilterMode
 import com.newsfeed.widget.data.OpmlManager
+import com.newsfeed.widget.data.upgradeToHttps
 import com.newsfeed.widget.data.NewsFeedRepository
 import com.newsfeed.widget.data.SortOrder
 import com.newsfeed.widget.data.RETENTION_OPTIONS
@@ -301,7 +302,10 @@ class WidgetConfigActivity : ComponentActivity() {
                                 enabled = !isEditLoading,
                                 onClick = {
                                     val original = editingFeed ?: return@TextButton
+                                    // http:// is stored as https:// (cleartext is blocked), but an unchanged address keeps
+                                    // its stored form: the feed id (and its stored articles) must not change by a mere Save.
                                     val newUrl   = editUrl.trim().let { if (it.startsWith("http")) it else "https://$it" }
+                                        .let { typed -> if (upgradeToHttps(typed) == upgradeToHttps(original.feedUrl)) original.feedUrl else upgradeToHttps(typed) }
                                     scope.launch {
                                         var updatedName = editName.trim()
                                         if (newUrl != original.feedUrl) {
@@ -372,11 +376,15 @@ class WidgetConfigActivity : ComponentActivity() {
                             runCatching { contentResolver.openInputStream(uri)?.bufferedReader()?.readText() }.getOrNull()
                         } ?: run { statusMessage = "Could not read file"; return@launch }
                         val parsed   = OpmlManager.parse(xml)
-                        val existing = config.feeds.map { it.feedId }.toSet()
+                        // The app blocks cleartext: an imported http:// feed is stored as its https:// form,
+                        // and counts as already present when the list holds either form.
+                        val existing = config.feeds.map { normalizeFeedUrl(it.feedId) }.toSet()
                         val palette  = feedAccentColors(config.widgetTheme)
                         val baseIdx  = config.feeds.size
                         val toAdd    = parsed
-                            .filter { (_, url) -> url !in existing }
+                            .map { (title, url) -> title to upgradeToHttps(url.trim()) }
+                            .filter { (_, url) -> normalizeFeedUrl(url) !in existing }
+                            .distinctBy { (_, url) -> normalizeFeedUrl(url) }
                             .mapIndexed { i, (title, url) ->
                                 FeedConfig(feedId = url, displayName = title, feedUrl = url,
                                     accentColor = palette[(baseIdx + i) % palette.size])
@@ -445,7 +453,7 @@ class WidgetConfigActivity : ComponentActivity() {
                     // bare "@channel" into "https://@channel" or misread "t.me/channel" as
                     // a literal (wrong) RSS-fetch target.
                     val telegramUrl = TelegramFeedParser.canonicalize(raw)
-                    val url = telegramUrl ?: if (raw.startsWith("http")) raw else "https://$raw"
+                    val url = telegramUrl ?: upgradeToHttps(if (raw.startsWith("http")) raw else "https://$raw")
                     // canonicalize() deliberately returns null for an already-canonical
                     // https://t.me/s/<channel> URL (it's a preview URL, not a channel
                     // reference to re-canonicalize) - but a user can still paste that exact
@@ -456,7 +464,9 @@ class WidgetConfigActivity : ComponentActivity() {
                     // and telegram.me/channel, so the same channel typed differently would
                     // otherwise slip in as a second feed with the same feedId — crashing the
                     // feed list below, which keys its LazyColumn items on feedId.
-                    if (config.feeds.any { it.feedId == url }) {
+                    // http:// addresses are stored as https:// (the app blocks cleartext), so the same feed typed
+                    // either way is a duplicate.
+                    if (config.feeds.any { normalizeFeedUrl(it.feedId) == normalizeFeedUrl(url) }) {
                         addFeedError = "This feed is already added"; return
                     }
                     scope.launch {

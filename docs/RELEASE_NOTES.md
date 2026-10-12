@@ -73,3 +73,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 22
 - New: Settings → Report a problem can now send your report directly to the developer when you tap Send, after showing you what will be sent.
+
+## Note 23
+- Fixed: two default feeds that could never load were replaced

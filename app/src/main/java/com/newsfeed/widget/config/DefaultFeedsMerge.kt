@@ -2,6 +2,7 @@ package com.newsfeed.widget.config
 
 import com.newsfeed.widget.data.FeedConfig
 import com.newsfeed.widget.data.TelegramFeedParser
+import com.newsfeed.widget.data.upgradeToHttps
 
 data class MergeResult(val merged: List<FeedConfig>, val addedCount: Int, val skippedCount: Int)
 
@@ -11,15 +12,16 @@ private val URL_PARTS_REGEX = Regex("""^([A-Za-z][A-Za-z0-9+.-]*)://([^/?#]*)(.*
 /**
  * Canonical form used only to decide whether two feed URLs are the same feed.
  * Telegram references (@x, t.me/x, t.me/s/x, ...) collapse to one lowercase preview URL.
- * Otherwise: trim, lowercase scheme and host, strip trailing slashes from the end.
- * http and https are deliberately NOT equated (the Add Feed duplicate check doesn't either).
+ * Otherwise: trim, lowercase scheme and host, upgrade `http://` to `https://`, strip trailing slashes from the end.
+ * http and https ARE equated: the app can only fetch https (cleartext is blocked and every `http://` feed is
+ * requested as `https://`), so an old stored `http://` feed and its `https://` default are the same feed.
  */
 fun normalizeFeedUrl(raw: String): String {
     val s = raw.trim()
     val tg = TelegramFeedParser.canonicalize(s) ?: TG_PREVIEW_REGEX.matchEntire(s)?.let { "https://t.me/s/${it.groupValues[1]}" }
     if (tg != null) return tg.lowercase().trimEnd('/')
     val m = URL_PARTS_REGEX.matchEntire(s) ?: return s.trimEnd('/')
-    return (m.groupValues[1].lowercase() + "://" + m.groupValues[2].lowercase() + m.groupValues[3]).trimEnd('/')
+    return upgradeToHttps(m.groupValues[1].lowercase() + "://" + m.groupValues[2].lowercase() + m.groupValues[3]).trimEnd('/')
 }
 
 private fun FeedConfig.identity() = normalizeFeedUrl(feedUrl.ifBlank { feedId })

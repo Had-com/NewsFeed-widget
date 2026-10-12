@@ -41,9 +41,38 @@ class DefaultFeedsMergeTest {
     }
 
     @Test
-    fun `http and https are treated as different feeds`() {
+    fun `http and https are treated as the same feed`() {
         val r = mergeDefaultFeeds(listOf(feed("http://a.com/rss")), listOf(feed("https://a.com/rss")))
-        assertEquals(1, r.addedCount)
+        assertEquals(0, r.addedCount)
+        assertEquals(1, r.skippedCount)
+        assertEquals(listOf(feed("http://a.com/rss")), r.merged)
+    }
+
+    @Test
+    fun `an old http Hindu entry and the new https default are one feed`() {
+        val old = feed("http://www.thehindu.com/sci-tech/technology/internet/?service=rss", "AI News - The Hindu")
+        val default = feed("https://www.thehindu.com/sci-tech/technology/internet/?service=rss", "The Hindu - Tech")
+        val r = mergeDefaultFeeds(listOf(old), listOf(default))
+        assertEquals(listOf(old), r.merged)
+        assertEquals(0, r.addedCount)
+        assertEquals(
+            normalizeFeedUrl("HTTP://WWW.TheHindu.com/sci-tech/technology/internet/?service=rss"),
+            normalizeFeedUrl("https://www.thehindu.com/sci-tech/technology/internet/?service=rss"),
+        )
+    }
+
+    @Test
+    fun `a default http twin inside the defaults collapses with its https form`() {
+        val r = mergeDefaultFeeds(emptyList(), listOf(feed("http://a.com/rss"), feed("https://a.com/rss/")))
+        assertEquals(1, r.merged.size)
+        assertEquals(1, r.skippedCount)
+    }
+
+    @Test
+    fun `normalize leaves other schemes and different hosts apart`() {
+        assertEquals(false, normalizeFeedUrl("ftp://a.com/rss") == normalizeFeedUrl("https://a.com/rss"))
+        assertEquals(false, normalizeFeedUrl("http://a.com/rss") == normalizeFeedUrl("https://b.com/rss"))
+        assertEquals("https://a.com:8080/x?y=1", normalizeFeedUrl("http://A.com:8080/x?y=1"))
     }
 
     @Test
