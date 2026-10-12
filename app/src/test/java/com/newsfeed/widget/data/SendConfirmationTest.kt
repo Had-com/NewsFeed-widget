@@ -27,8 +27,11 @@ class SendConfirmationTest {
         val on = all(previewed = false, addresses = true)
         val warnings = on.filter { it.isWarning }
         assertEquals(1, warnings.size)
-        assertTrue(warnings[0].text.contains("feed addresses", ignoreCase = true))
-        assertTrue(warnings[0].text.contains("included", ignoreCase = true))
+        assertEquals(
+            "Warning: your own feed names and addresses are included in this report (passwords and tokens are removed). " +
+                "Check the preview first if any of your feeds is private.",
+            warnings[0].text,
+        )
     }
 
     @Test fun `the warning says passwords and tokens are removed`() {
@@ -39,6 +42,12 @@ class SendConfirmationTest {
     @Test fun `the first paragraph depends on whether the report was already previewed`() {
         assertTrue(all(previewed = true, addresses = false)[0].text.contains("you just previewed"))
         assertTrue(all(previewed = false, addresses = false)[0].text.contains("Preview report"))
+    }
+
+    @Test fun `the first paragraph says only the app's own feeds are named`() {
+        for (previewed in listOf(false, true)) for (addresses in listOf(false, true)) {
+            assertTrue(all(previewed, addresses)[0].text.contains("the names of the app's own feeds (not yours)"))
+        }
     }
 
     @Test fun `the report contents are always described and nothing is sent automatically`() {

@@ -43,7 +43,7 @@ class ReportFilesTest {
         val input = BugReportInput(
             appVersionName = "1.0", appVersionCode = 149, packageName = "p", manufacturer = "Google", model = "Pixel 7",
             androidSdk = 34, androidRelease = "14", locale = "he-IL", timeZone = "UTC", timestampMs = 0L, userNote = "",
-            includeFeedAddresses = false, widgets = emptyList(),
+            includeOwnFeeds = false, widgets = emptyList(),
             status = BugReportRefreshStatus(0, 0, 2, false, 15),
             refreshLog = emptyList(), crashes = emptyList(),
         )

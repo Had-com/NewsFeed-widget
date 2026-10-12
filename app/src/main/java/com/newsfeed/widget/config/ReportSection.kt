@@ -53,10 +53,12 @@ import androidx.glance.appwidget.state.getAppWidgetState
 import androidx.glance.state.PreferencesGlanceStateDefinition
 import com.newsfeed.widget.BuildConfig
 import com.newsfeed.widget.data.BUG_REPORT_MAX_NOTE_CHARS
+import com.newsfeed.widget.data.BugReportDefaultFeed
 import com.newsfeed.widget.data.BugReportInput
 import com.newsfeed.widget.data.BugReportRefreshStatus
 import com.newsfeed.widget.data.HoldOff
 import com.newsfeed.widget.data.LastSent
+import com.newsfeed.widget.data.OpmlManager
 import com.newsfeed.widget.data.CrashLogStore
 import com.newsfeed.widget.data.RefreshLogEntry
 import com.newsfeed.widget.data.RefreshLogStore
@@ -180,6 +182,16 @@ fun cleanOldReports(context: Context) {
 fun loadRefreshRuns(context: Context): List<RefreshLogEntry> =
     RefreshLogStore.readAll(context).takeLast(REPORT_UI_RUNS).reversed()
 
+/**
+ * The app's bundled default feeds (the same asset the Settings screen loads), so the report may name them even when
+ * the user's own feeds are left out. Empty if the asset cannot be read: then every feed counts as the user's own,
+ * which only ever hides more.
+ */
+fun loadDefaultFeedsForReport(context: Context): List<BugReportDefaultFeed> = runCatching {
+    val xml = context.assets.open("default_feeds.opml").bufferedReader().use { it.readText() }
+    OpmlManager.parse(xml).map { (name, url) -> BugReportDefaultFeed(name, url) }
+}.getOrDefault(emptyList())
+
 /** Gathers the report inputs from the stores. Off the main thread. */
 private suspend fun collectReportInput(context: Context, note: String, includeAddresses: Boolean): BugReportInput =
     withContext(Dispatchers.IO) {
@@ -213,7 +225,8 @@ private suspend fun collectReportInput(context: Context, note: String, includeAd
             timeZone = TimeZone.getDefault().id,
             timestampMs = System.currentTimeMillis(),
             userNote = note,
-            includeFeedAddresses = includeAddresses,
+            includeOwnFeeds = includeAddresses,
+            defaultFeeds = loadDefaultFeedsForReport(app),
             widgets = configs.map { it.toBugReportWidget() },
             status = BugReportRefreshStatus(
                 lastOkMs = statusStore.lastOkRefreshMs,
@@ -400,9 +413,10 @@ fun ReportProblemSection(
         ) {
             Checkbox(checked = state.includeAddresses, onCheckedChange = { state.includeAddresses = it })
             Column(Modifier.weight(1f)) {
-                Text("Include my feed addresses", style = MaterialTheme.typography.bodyMedium)
+                Text("Include my own feeds (names and addresses)", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    "Off by default. When on, passwords and tokens in the addresses are removed.",
+                    "Off by default. When off, only the app's own default feeds are named; yours appear as feed #1, #2 … " +
+                        "When on, passwords and tokens in addresses are removed.",
                     fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

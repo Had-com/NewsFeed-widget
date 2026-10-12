@@ -14,7 +14,7 @@ key](#how-the-build-gets-the-address-and-the-key).
   `https://`. In any other build (local builds, forks, CI without the secrets) the button is **hidden**, not
   greyed out, and everything else works as before.
 - Tapping it first shows a confirmation: what is sent (the report text, with **Preview first** to read it), that nothing is sent automatically, a
-  warning that feed addresses are included (only when "Include my feed addresses" is ticked), and **Send** / **Cancel**. The
+  warning that the user's own feed names and addresses are included (only when "Include my own feeds (names and addresses)" is ticked), and **Send** / **Cancel**. The
   server address is not shown. Nothing
   leaves the phone before the tap on **Send**.
 - Result texts: `Sent. Report #42 — quote this number if you contact the developer.`, a "too many reports" text
@@ -93,12 +93,19 @@ Clearing the app's data creates a new one. Its only purpose is the per-install d
 
 What a report contains (the same text the user can read with **Preview report** before anything is sent): the app
 build, the phone model and Android version, language and time zone, the user's own note, the settings of each
-widget, the feed **names**, the refresh status, the last 20 refreshes with the reason each failed feed failed, and
+widget, the names of the app's own default feeds, the refresh status, the last 20 refreshes with the reason each failed feed failed, and
 recorded crashes with their stack traces.
 
-- Feed **addresses** (URLs) are left out unless the user ticks **Include my feed addresses**; then passwords and
-  token-style parameters are replaced by `REDACTED`. The same rule applies to the user's note (any address typed
-  there is replaced by `<address>`, or redacted when the box is ticked).
+- The user's **own feeds** (names and addresses) are left out unless the user ticks **Include my own feeds (names
+  and addresses)** (off by default). While it is off, only the app's bundled default feeds are named (a feed is a
+  default when its address equals one in the bundled list, `http` and `https` alike); every other feed is `feed #1`,
+  `feed #2` ... (numbered in order of first appearance, the same number everywhere in the report, including the
+  failure lines of the refresh log); no custom name, address or host name is printed, also not inside error
+  messages. A widget line shows the counts, for example `feeds: 13 (13 enabled; 10 default, 3 yours)`. When the box
+  is ticked, names and addresses are included and passwords and token-style parameters are replaced by `REDACTED`.
+  The same rule applies to the user's note (any address typed there is replaced by `<address>`, or redacted when the
+  box is ticked). The report header says which: `Your own feeds: not included (named feed #1, #2 ...)` or
+  `Your own feeds: included (passwords and tokens removed)`.
 - Nothing is sent automatically, in the background, on a schedule or on a crash. Only the user's tap on **Send** in
   the confirmation sends one report.
 

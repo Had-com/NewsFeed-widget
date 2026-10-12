@@ -123,7 +123,7 @@ class BugReportTest {
         appVersionName = "1.0", appVersionCode = 149, packageName = "com.newsfeed.widget",
         manufacturer = "Google", model = "Pixel 7", androidSdk = 34, androidRelease = "14",
         locale = "he-IL", timeZone = "Asia/Jerusalem", timestampMs = 1_700_001_000_000L,
-        userNote = note, includeFeedAddresses = includeAddresses,
+        userNote = note, includeOwnFeeds = includeAddresses,
         widgets = listOf(
             BugReportWidget(
                 id = 5, tapMode = "expand", filter = "all", sortOrder = "by_feed", theme = "glamer", themeVariant = "light",
@@ -151,10 +151,10 @@ class BugReportTest {
         assertTrue(r.contains("Locale: he-IL, time zone: Asia/Jerusalem"))
         assertTrue(r.contains("The widget shows 2 failed"))
         assertTrue(r.contains("Widget 5: tap=expand, filter=all, sort=by_feed, theme=glamer/light, refresh every 15 min"))
-        assertTrue(r.contains("feeds: 3 (2 enabled)"))
+        assertTrue(r.contains("feeds: 3 (2 enabled; 0 default, 3 yours)"))
         assertTrue(r.contains("Periodic job: ENQUEUED"))
-        assertTrue(r.contains("! Broken feed [NETWORK_ERROR, 90 ms]"))
-        assertTrue(r.contains("! Gone feed [HTTP_ERROR 404, 310 ms] | HTTP 404"))
+        assertTrue(r.contains("! feed #2 [NETWORK_ERROR, 90 ms]"))
+        assertTrue(r.contains("! feed #4 [HTTP_ERROR 404, 310 ms] | HTTP 404"))
         assertTrue(r.contains("1/3 feeds OK"))
         assertTrue(r.trimEnd().endsWith("-- end of report (schema $BUG_REPORT_SCHEMA_VERSION) --"))
     }
@@ -178,8 +178,11 @@ class BugReportTest {
         for (needle in listOf("http://", "https://", "example.org", "example.net", "example.com", "TOPSECRET", "token=", "/private/rss")) {
             assertFalse("report leaks '$needle':\n$r", r.contains(needle, ignoreCase = true))
         }
-        assertTrue(r.contains("Feed addresses: not included"))
-        assertTrue(r.contains("Broken feed"))
+        assertTrue(r.contains("Your own feeds: not included (named feed #1, #2 …)"))
+        // no default list in this fixture: every feed is the user's own and is numbered, never named
+        assertFalse(r.contains("Broken feed"))
+        assertTrue(r.contains("  - feed #2"))
+        assertTrue(r.contains("  ! feed #2 [NETWORK_ERROR, 90 ms]"))
     }
 
     @Test
@@ -188,7 +191,8 @@ class BugReportTest {
         assertTrue(r.contains("https://plain.example.net/feed"))
         assertTrue(r.contains("https://secret-host.example.org/private/rss?token=REDACTED&q=news"))
         assertFalse(r.contains("TOPSECRET"))
-        assertTrue(r.contains("Feed addresses: included"))
+        assertTrue(r.contains("Your own feeds: included (passwords and tokens removed)"))
+        assertTrue(r.contains("  - Broken feed https://secret-host.example.org/private/rss?token=REDACTED&q=news"))
     }
 
     @Test

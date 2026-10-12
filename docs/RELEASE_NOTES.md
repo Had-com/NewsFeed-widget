@@ -79,3 +79,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 24
 - Fixed: the widget no longer runs two refreshes at the same time
+
+## Note 25
+- The report now names only the app's own feeds unless you choose to include yours.

@@ -1,5 +1,6 @@
 package com.newsfeed.widget.data
 
+import com.newsfeed.widget.config.normalizeFeedUrl
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -12,9 +13,11 @@ import java.util.Locale
  * so any transport can carry the same file later.
  *
  * Privacy rules enforced here (and asserted by tests):
- *  - feed addresses (URLs) appear ONLY when [BugReportInput.includeFeedAddresses] is true, and then secrets
- *    are removed by [redactUrl]; with the switch off no URL, and no host of a feed, appears anywhere, not even
- *    inside exception messages or stack traces ([scrubAddresses]);
+ *  - the user's OWN feeds (names and addresses) appear ONLY when [BugReportInput.includeOwnFeeds] is true, and
+ *    then secrets are removed by [redactUrl]; with the switch off only the app's own default feeds
+ *    ([BugReportInput.defaultFeeds]) are named, every other feed is `feed #1`, `feed #2` ... (numbered in order
+ *    of first appearance, the same number everywhere in the report), and no custom name, no URL and no host of
+ *    a feed appears anywhere, not even inside exception messages or stack traces ([scrubAddresses]);
  *  - the user's own note is included (at most [BUG_REPORT_MAX_NOTE_CHARS] chars) and goes through the same
  *    scrubbing / redaction as every other free text, so a pasted address cannot slip past the switch.
  */
@@ -26,6 +29,9 @@ const val BUG_REPORT_MAX_LOG_RUNS = 20
 const val BUG_REPORT_MAX_STACK_TRACES = 3
 
 data class BugReportFeed(val name: String, val url: String, val enabled: Boolean)
+
+/** One feed of the app's bundled list (`default_feeds.opml`): public, so it may be named even when own feeds are left out. */
+data class BugReportDefaultFeed(val name: String, val url: String)
 
 data class BugReportWidget(
     val id: Int,
@@ -74,13 +80,16 @@ data class BugReportInput(
     val timeZone: String,
     val timestampMs: Long,
     val userNote: String,
-    val includeFeedAddresses: Boolean,
+    /** The checkbox: true = the user's own feeds are named and their (redacted) addresses shown; false = `feed #N`. */
+    val includeOwnFeeds: Boolean,
     val widgets: List<BugReportWidget>,
     val status: BugReportRefreshStatus,
     /** Oldest first, as stored. */
     val refreshLog: List<RefreshLogEntry>,
     /** Oldest first, as stored. */
     val crashes: List<CrashLogStore.CrashRecord>,
+    /** The bundled default feeds. A feed is "default" when its [normalizeFeedUrl] equals one of these (http and https alike). */
+    val defaultFeeds: List<BugReportDefaultFeed> = emptyList(),
 )
 
 // ── building ───────────────────────────────────────────────────────────────
@@ -96,13 +105,25 @@ fun buildBugReport(input: BugReportInput): String {
     val knownUrls = (input.widgets.flatMap { w -> w.feeds.map { it.url } } +
         input.refreshLog.flatMap { r -> r.feeds.map { it.url } }).filter { it.isNotBlank() }.distinct()
     fun text(s: String): String =
-        if (input.includeFeedAddresses) redactUrlsInText(s) else scrubAddresses(s, knownUrls)
-    fun address(url: String): String = if (input.includeFeedAddresses && url.isNotBlank()) " " + redactUrl(url) else ""
+        if (input.includeOwnFeeds) redactUrlsInText(s) else scrubAddresses(s, knownUrls)
+    fun address(url: String): String = if (input.includeOwnFeeds && url.isNotBlank()) " " + redactUrl(url) else ""
+
+    // Default feeds by their canonical address; an own feed gets the next number the first time it appears.
+    val defaultNames = LinkedHashMap<String, String>()
+    input.defaultFeeds.filter { it.url.isNotBlank() }.forEach { defaultNames.putIfAbsent(normalizeFeedUrl(it.url), oneLine(it.name)) }
+    val ownNumbers = LinkedHashMap<String, Int>()
+    fun defaultName(url: String): String? = if (url.isBlank()) null else defaultNames[normalizeFeedUrl(url)]
+    fun feedLabel(name: String, url: String): String {
+        if (input.includeOwnFeeds) return oneLine(name)
+        defaultName(url)?.let { return it }
+        val key = if (url.isBlank()) "name:" + oneLine(name) else normalizeFeedUrl(url)
+        return "feed #" + ownNumbers.getOrPut(key) { ownNumbers.size + 1 }
+    }
 
     val header = mutableListOf<String>()
     header += "NewsFeed problem report (schema $BUG_REPORT_SCHEMA_VERSION)"
     header += "Created: ${at(input.timestampMs)} (${zone.id})"
-    header += "Feed addresses: " + if (input.includeFeedAddresses) "included (passwords and tokens removed)" else "not included"
+    header += "Your own feeds: " + if (input.includeOwnFeeds) "included (passwords and tokens removed)" else "not included (named feed #1, #2 …)"
     header += ""
     header += "[App]"
     header += "Version: ${input.appVersionName} (build ${input.appVersionCode})"
@@ -135,12 +156,16 @@ fun buildBugReport(input: BugReportInput): String {
             else -> "unlimited"
         }
         val enabled = w.feeds.count { it.enabled }
+        val feedCounts = if (input.includeOwnFeeds) "$enabled enabled" else {
+            val own = w.feeds.count { defaultName(it.url) == null }
+            "$enabled enabled; ${w.feeds.size - own} default, $own yours"
+        }
         widgets.lines += "Widget ${w.id}: tap=${w.tapMode}, filter=${w.filter}, sort=${w.sortOrder}, " +
             "theme=${w.theme}/${w.themeVariant}, refresh every ${w.refreshIntervalMinutes} min, keep $keep, " +
             "group stories=${if (w.groupStories) "on" else "off"}, article length=${w.articleLength}, " +
-            "font ${num(w.fontSize)} / article font ${num(w.articleFontSize)}, feeds: ${w.feeds.size} ($enabled enabled)"
+            "font ${num(w.fontSize)} / article font ${num(w.articleFontSize)}, feeds: ${w.feeds.size} ($feedCounts)"
         w.feeds.forEach { f ->
-            widgets.lines += "  - ${oneLine(f.name)}${if (f.enabled) "" else " (off)"}${address(f.url)}"
+            widgets.lines += "  - ${feedLabel(f.name, f.url)}${if (f.enabled) "" else " (off)"}${address(f.url)}"
         }
     }
 
@@ -153,7 +178,7 @@ fun buildBugReport(input: BugReportInput): String {
         r.feeds.filter { it.status.isFailure }.forEach { f ->
             val code = f.httpCode?.let { " $it" } ?: ""
             val detail = text(f.detail).let { if (it.isBlank()) "" else " | $it" }
-            log.lines += "  ! ${oneLine(f.label)}${address(f.url)} [${f.status.name}$code, ${f.elapsedMs} ms]$detail"
+            log.lines += "  ! ${feedLabel(f.label, f.url)}${address(f.url)} [${f.status.name}$code, ${f.elapsedMs} ms]$detail"
         }
     }
 
