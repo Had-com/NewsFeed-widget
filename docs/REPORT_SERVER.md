@@ -13,8 +13,9 @@ key](#how-the-build-gets-the-address-and-the-key).
 - The button exists only in a build that was given **both** a server address and a key, and the address must be
   `https://`. In any other build (local builds, forks, CI without the secrets) the button is **hidden**, not
   greyed out, and everything else works as before.
-- Tapping it first shows a confirmation: what is sent (the report text, with **Preview first** to read it), which
-  server it goes to (the host name only), that nothing is sent automatically, and **Send** / **Cancel**. Nothing
+- Tapping it first shows a confirmation: what is sent (the report text, with **Preview first** to read it), that nothing is sent automatically, a
+  warning that feed addresses are included (only when "Include my feed addresses" is ticked), and **Send** / **Cancel**. The
+  server address is not shown. Nothing
   leaves the phone before the tap on **Send**.
 - Result texts: `Sent. Report #42 — quote this number if you contact the developer.`, a "too many reports" text
   with the wait, a "couldn't reach the server" text, and for any other failure a short reason followed by

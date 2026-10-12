@@ -76,6 +76,7 @@ import com.newsfeed.widget.data.lastSentText
 import com.newsfeed.widget.data.readLastSent
 import com.newsfeed.widget.data.reportFileName
 import com.newsfeed.widget.data.reportShareSummary
+import com.newsfeed.widget.data.sendConfirmationParagraphs
 import com.newsfeed.widget.data.staleReportFiles
 import com.newsfeed.widget.data.summarizeRun
 import com.newsfeed.widget.data.toBugReportWidget
@@ -457,21 +458,22 @@ fun ReportPreviewDialog(state: ReportUiState, onShare: (String) -> Unit, onSend:
 fun ReportSendConfirmDialog(state: ReportUiState, onPreviewFirst: () -> Unit, onSend: (String?) -> Unit) {
     if (!state.confirmSendOpen) return
     val previewed = state.pendingSendText
-    val host = ReportUploader.serverHost.orEmpty()
+    val warningColor = if (isSystemInDarkTheme()) Color(0xFFFFB300) else Color(0xFFB26A00)
     AlertDialog(
         onDismissRequest = { state.confirmSendOpen = false },
         title = { Text("Send this report to the developer?") },
         text = {
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "What is sent: " + (if (previewed != null) "the report you just previewed. " else "the report you can read with Preview report. ") +
-                        "It holds the app version, your phone model and Android version, your widget settings, the feed names, " +
-                        "the refresh results, any recorded crashes and your note. Feed addresses are " +
-                        (if (state.includeAddresses) "included, with passwords and tokens removed." else "not included."),
-                    fontSize = 13.sp,
-                )
-                Text("Where it goes: $host, over HTTPS.", fontSize = 13.sp)
-                Text("Nothing is sent automatically. This report is sent only because you tap Send.", fontSize = 13.sp)
+                // Text lives in data/SendConfirmation.kt (unit tested): no server address is shown, and the
+                // feed-address warning appears only when "Include my feed addresses" is ticked.
+                sendConfirmationParagraphs(previewedAlready = previewed != null, includeAddresses = state.includeAddresses)
+                    .forEach { p ->
+                        Text(
+                            p.text,
+                            fontSize = 13.sp,
+                            color = if (p.isWarning) warningColor else Color.Unspecified,
+                        )
+                    }
                 if (previewed == null) {
                     TextButton(onClick = { state.confirmSendOpen = false; onPreviewFirst() }) { Text("Preview first") }
                 }
