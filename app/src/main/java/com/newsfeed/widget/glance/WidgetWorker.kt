@@ -3,6 +3,7 @@
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
+import android.util.Log
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.getAppWidgetState
 import androidx.glance.appwidget.state.updateAppWidgetState
@@ -32,6 +33,7 @@ import com.newsfeed.widget.data.RefreshLogStore
 import com.newsfeed.widget.data.RefreshOutcome
 import com.newsfeed.widget.data.RefreshTrigger
 import com.newsfeed.widget.data.RefreshStatusStore
+import com.newsfeed.widget.data.RunGuard
 import com.newsfeed.widget.data.WorkerVerdict
 import com.newsfeed.widget.data.workerVerdict
 import com.newsfeed.widget.data.WORK_SCHEMA_VERSION
@@ -63,6 +65,27 @@ class WidgetWorker(
     override suspend fun doWork(): Result {
         val startedAtMs = System.currentTimeMillis()
         val trigger = RefreshTrigger.fromName(inputData.getString(KEY_TRIGGER))
+        // Cross-run guard (BUG-043, RunGuard.kt): the periodic job, the watchdog's run and a tap are separate
+        // WorkManager jobs, so without this they could fetch every feed at the same moment. A skipped run
+        // returns at once: no state, no refresh log entry, no feed data in the log line. A retry attempt
+        // (runAttemptCount > 0) is only refused while another run is active, never for the run that just failed.
+        val guard = RunGuard(RefreshStatusStore(context))
+        if (!guard.tryBegin(trigger, startedAtMs, ignoreRecentFinish = runAttemptCount > 0)) {
+            Log.d(TAG, "refresh skipped (trigger=${trigger.name}, attempt=$runAttemptCount): another run is active or just finished")
+            return Result.success()
+        }
+        var completed = false
+        try {
+            val result = refresh(trigger, startedAtMs)
+            completed = true
+            return result
+        } finally {
+            // Always released, cancellation included; only a run that reached its end starts the quiet period.
+            guard.end(System.currentTimeMillis(), completed)
+        }
+    }
+
+    private suspend fun refresh(trigger: RefreshTrigger, startedAtMs: Long): Result {
         val feedLog = mutableListOf<FeedLogEntry>()
         val store     = WidgetConfigStore(context)
         val repo      = NewsFeedRepository(context)
@@ -168,6 +191,7 @@ class WidgetWorker(
     }
 
     companion object {
+        private const val TAG = "WidgetWorker"
         private const val WORK_NAME = "NewsFeedRefresh"
         // One name for the tap on the footer, the Settings Save and the watchdog's catch-up
         // (BUG-036): with KEEP a burst of them collapses into a single run.
@@ -275,6 +299,8 @@ class WidgetWorker(
             val intervalMinutes = status.intervalMinutes.takeIf { it > 0 } ?: MIN_REFRESH_INTERVAL_MINUTES
             val intervalMs = TimeUnit.MINUTES.toMillis(intervalMinutes.toLong())
             if (!shouldKickRefresh(status.lastOkRefreshMs, nowMs, intervalMs, status.lastKickMs)) return false
+            // Never queue a catch-up behind a run that is in progress or has just finished (BUG-043).
+            if (RunGuard(status).blocksKick(nowMs, intervalMs)) return false
             status.lastKickMs = nowMs
             refreshNow(context, RefreshTrigger.WATCHDOG)
             return true

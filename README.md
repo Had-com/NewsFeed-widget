@@ -331,7 +331,7 @@ One row per feed, in your chosen display order:
 
 ## Background refresh
 
-The widget polls feeds automatically using WorkManager, on the interval set in Settings (see the manual above). The countdown to the next refresh is shown in the widget footer and updates every minute automatically. A separate daily background check looks for app updates on its own schedule, independent of the feed-refresh interval.
+The widget polls feeds automatically using WorkManager, on the interval set in Settings (see the manual above). The countdown to the next refresh is shown in the widget footer and updates every minute automatically. Only one refresh runs at a time: the periodic job, the catch-up run the app starts when a refresh was missed, and a tap on the footer or a Save in Settings are separate jobs, so each one first checks that no other refresh is running and that none finished a moment ago (90 seconds for the automatic ones, 15 seconds for a tap), and otherwise ends without fetching. A Save in Settings is only held back while a refresh is actually running. A separate daily background check looks for app updates on its own schedule, independent of the feed-refresh interval.
 
 ---
 
@@ -451,6 +451,7 @@ app/src/main/
 │   │   ├── CrashLogStore.kt          # Local-only crash log (JSON file) + Solved/Unsolved summarization
 │   │   ├── RefreshLog.kt             # Pure model/JSON/ring buffer of the local refresh log, per-feed status mapping
 │   │   ├── RefreshLogStore.kt        # refresh_log.json in filesDir (last 50 runs, atomic writes)
+│   │   ├── RunGuard.kt               # Pure cross-run guard: one refresh at a time (shouldSkipRun, atomic mark)
 │   │   ├── BugReport.kt              # Pure plain-text problem report builder + URL redaction
 │   │   ├── ReportFiles.kt            # Pure helpers: report file name, 7-day cleanup rule, share summary
 │   │   ├── ThumbnailHelper.kt        # Shared cache file path helper for thumbnails

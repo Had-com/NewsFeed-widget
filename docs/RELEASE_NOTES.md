@@ -76,3 +76,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 23
 - Fixed: two default feeds that could never load were replaced
+
+## Note 24
+- Fixed: the widget no longer runs two refreshes at the same time

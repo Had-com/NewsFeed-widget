@@ -11,7 +11,7 @@ import android.content.Context
  * Every value is a hint: if this file is lost, the worst case is one extra refresh or one extra
  * re-enqueue of the periodic job, never wrong data.
  */
-class RefreshStatusStore(context: Context) {
+class RefreshStatusStore(context: Context) : RunMarks {
     private val prefs = context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
     /** Effective interval of the shared periodic job, minutes. 0 = not known yet. */
@@ -34,6 +34,16 @@ class RefreshStatusStore(context: Context) {
         get() = prefs.getLong(K_LAST_KICK, 0L)
         set(v) { prefs.edit().putLong(K_LAST_KICK, v).apply() }
 
+    /** Start of the run in progress (BUG-043, [RunGuard]). 0 = none. Taken and released by the worker only. */
+    override var activeStartedMs: Long
+        get() = prefs.getLong(K_RUN_ACTIVE, 0L)
+        set(v) { prefs.edit().putLong(K_RUN_ACTIVE, v).apply() }
+
+    /** End of the last run that completed (BUG-043, [RunGuard]). 0 = never. */
+    override var lastFinishedMs: Long
+        get() = prefs.getLong(K_RUN_FINISHED, 0L)
+        set(v) { prefs.edit().putLong(K_RUN_FINISHED, v).apply() }
+
     /** Forget the job-specific values (the last widget was removed and the jobs cancelled). */
     fun clearJobState() {
         prefs.edit().remove(K_INTERVAL).remove(K_SCHEMA).apply()
@@ -45,5 +55,7 @@ class RefreshStatusStore(context: Context) {
         const val K_SCHEMA = "work_schema_version"
         const val K_LAST_OK = "last_ok_refresh_ms"
         const val K_LAST_KICK = "last_kick_ms"
+        const val K_RUN_ACTIVE = "run_active_started_ms"
+        const val K_RUN_FINISHED = "run_last_finished_ms"
     }
 }

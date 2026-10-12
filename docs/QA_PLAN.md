@@ -288,7 +288,7 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | F Read state & Unread-only grace / dissolve | 23 | 7 | 13 | 3 |
 | G Sort / filter (incl. matrix M1) | 22 | 2 | 20 | 0 |
 | H Appearance / theme / fonts | 26 | 1 | 24 | 1 |
-| I Refresh / worker / timers / boot | 22 | 4 | 17 | 1 |
+| I Refresh / worker / timers / boot | 23 | 4 | 18 | 1 |
 | J Settings persistence / backup / multi-widget | 14 | 2 | 10 | 2 |
 | K Self-update & release notes | 19 | 3 | 15 | 1 |
 | L Robustness | 21 | 2 | 14 | 5 |
@@ -296,7 +296,7 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | N Focus as a setting & state cleanup | 31 | 12 | 19 | 0 |
 | O Story threads | 35 | 10 | 24 | 1 |
 | P Problem report & refresh log | 26 | 8 | 17 | 1 |
-| **Total** | **395** | **76** | **296** | **23** |
+| **Total** | **396** | **76** | **297** | **23** |
 
 Plus the two pairwise tables (50 configurations each, run through `H-24` and `N-22`).
 
@@ -616,6 +616,7 @@ Glamour ignores per-feed font and B/I/U (bitmap headlines).
 | I-20 | P1 | **Lost clock tick heals itself** (BUG-036). With a widget placed: `adb shell dumpsys alarm | grep CLOCK_TICK` shows the pending alarm and logcat shows ticks about every 105 s. `adb shell am force-stop com.newsfeed.widget` (this removes the alarm) ⇒ `CLOCK_TICK` is gone; then start the app process in any normal way (tap the widget's gear, or `adb shell am broadcast -a android.appwidget.action.APPWIDGET_UPDATE -n com.newsfeed.widget/.glance.NewsFeedWidgetReceiver`) ⇒ within ~1 min the alarm is pending again and ticks resume without a reboot or re-add. Also: remove the last widget ⇒ no `CLOCK_TICK` alarm afterwards and none re-appears after another broadcast (no pointless chain); with two widgets, removing one keeps the chain | JS, LC | UT:RefreshPolicyTest |
 | I-21 | P1 | **Watchdog catches a missed refresh** (BUG-036). Debug build: with `run-as com.newsfeed.widget`, edit `shared_prefs/newsfeed_refresh_status.xml` so `last_ok_refresh_ms` is older than 2 intervals (for example 0) and `last_kick_ms` is 0, then let a tick arrive (about 105 s, or send the APPWIDGET_UPDATE broadcast) ⇒ exactly one `NewsFeedRefreshNow` run is enqueued (`dumpsys jobscheduler`; CONNECTIVITY constraint), `last_kick_ms` is set, the widget refreshes and `last_ok_refresh_ms` is updated; the next ticks within one interval enqueue nothing more; with airplane mode on the job waits and is not repeated; a healthy widget (refresh within 2 intervals) is never kicked | DS, JS, LC | UT:RefreshPolicyTest |
 | I-22 | P0 | **App update and reboot re-arm everything** (BUG-036). `adb install -r` a build over the installed one with the widget NOT removed ⇒ within ~1 min (`MY_PACKAGE_REPLACED` → `BootReceiver`; `adb logcat` shows the receiver) the `CLOCK_TICK` alarm is pending, `NewsFeedRefresh` exists with `CONNECTIVITY` and the same interval as before, `NewsFeedUpdateCheck` exists, and ticks continue; then reboot ⇒ the same through `BOOT_COMPLETED`. Check the manifest of the installed build has `RECEIVE_BOOT_COMPLETED` and the receiver lists `BOOT_COMPLETED` and `MY_PACKAGE_REPLACED` but not `LOCKED_BOOT_COMPLETED` (`adb shell dumpsys package com.newsfeed.widget`); no crash in logcat before the first unlock | JS, LC | UT:RefreshPolicyTest |
+| I-23 | P1 | **Never two refreshes at once (BUG-043).** Logcat tag `WidgetWorker` (`adb logcat -s WidgetWorker`). (a) Let a periodic run and a watchdog catch-up collide: with `run-as`, set `last_ok_refresh_ms` to 0 and `last_kick_ms` to 0 in `shared_prefs/newsfeed_refresh_status.xml` right before a periodic run is due (or tap **Refresh** and, while it runs, send the APPWIDGET_UPDATE broadcast) ⇒ the second run logs one line `refresh skipped (trigger=…, attempt=…): another run is active or just finished` and writes **no** row to LAST REFRESHES (no two rows within the same second; rows of automatic runs are at least 90 s apart). (b) Tap the footer **Refresh** 5 times quickly ⇒ one run, one row. (c) Save in Settings while a run is active ⇒ skipped (a run is already fetching), Save right after a run finished ⇒ the refresh runs. (d) Offline then online with the 3-attempt retry (all feeds failing) ⇒ the retries still happen (attempts 0, 1, 2 in the log), none is skipped for the run that just failed. (e) `run-as`: set `run_active_started_ms` to a value 5 minutes old ⇒ the next run is NOT blocked (stale mark ignored) and the mark is 0 again after it. (f) A watchdog run is not enqueued while a run is active or finished within the last interval | LC, DS, JS | UT:RunGuardTest |
 
 ---
 
@@ -916,6 +917,7 @@ status recorded in `docs/BUGS.md` / `DEBUG_PLAN.md` when this plan was written (
 | BUG-009 | × opens Edit | Suspected hit-target overlap | M-29, B-07 | Open (per BUGS.md) |
 | BUG-010 | HTTP feeds never fetch | Cleartext blocked | M-36, B-06 | Fixed (BUG-042: fetched as https) |
 | BUG-042 | Two default feeds never loaded (cleartext Hindu, blocked AI News) | Defaults replaced; every `http://` feed upgraded to `https://` | A-13, B-06, M-36 | Fixed |
+| BUG-043 | Periodic, watchdog and tap runs fetched at the same time (7 of 20 runs started in the same second, 22 of 22 on another phone), doubling requests | `RunGuard` (data/RunGuard.kt): atomic active mark + finish mark, `shouldSkipRun`; a skipped run returns success without fetching or logging; the watchdog does not enqueue behind a run | I-23 | Fixed in code, device re-check pending |
 | BUG-011 | Rapid refresh taps stacked work | Unique work KEEP | M-14, I-02 | Fixed |
 | BUG-012 | Focus last row clipped | Glance list height fit | M-30 | Open |
 | BUG-013 | Raw HTML entities in titles | `Html.fromHtml` on titles; residual cases | M-22, C-09 | Partial |
