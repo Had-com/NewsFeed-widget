@@ -2,6 +2,7 @@
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -48,6 +49,8 @@ fun ReorderableCollectionItemScope.FeedConfigRow(
     modifier: Modifier = Modifier,
     useThemeColors: Boolean = false,
     theme: String = "auto",
+    /** "Not working: HTTP 403" when the feed failed in each of its last two refreshes (feedProblemText), else null. */
+    problemText: String? = null,
 ) {
     var showColorPicker by remember { mutableStateOf(false) }
     var showFontMenu    by remember { mutableStateOf(false) }
@@ -132,6 +135,16 @@ fun ReorderableCollectionItemScope.FeedConfigRow(
                     .border(0.5.dp, imgBorderColor, RoundedCornerShape(6.dp))
                     .clickable { onUpdate(feedConfig.copy(displayMode = if (isImage) "text" else "image")) }
                     .padding(horizontal = 8.dp, vertical = 3.dp),
+            )
+        }
+
+        if (problemText != null) {
+            Text(
+                text = problemText,
+                fontSize = 11.sp,
+                color = if (isSystemInDarkTheme()) Color(0xFFFFB300) else Color(0xFFB26A00),
+                maxLines = 1,
+                modifier = Modifier.padding(start = if (useThemeColors) 28.dp else 52.dp, top = 2.dp),
             )
         }
 

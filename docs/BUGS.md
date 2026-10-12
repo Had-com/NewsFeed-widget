@@ -1336,6 +1336,8 @@ Worker: `lastRefreshTime` is the last time at least ONE feed was fetched OK and 
 
 **Existing widgets:** keep their stored `http://` Hindu feed, which now loads. The dead AI News feed stays in their lists until the user removes it (the "Not working" line in the feed list, see the follow-up below, makes that visible). **Add default feeds** adds `MIT Technology Review - AI`.
 
+**Follow-up (visible failures):** `FeedProblem.kt` `feedProblemText(entries, feedUrl)` puts an amber `Not working: HTTP 403` line under a feed in the Settings feed list when that feed failed in each of its last two recorded runs (HTTP_ERROR `HTTP <code>`, TIMEOUT `timed out`, NETWORK_ERROR `can't connect`, NOT_A_FEED `not a feed`, PARSE_ERROR `can't read it`; also `cleartext blocked` and `no https version` for those two details; at most 40 characters). It matches log entries by address (`normalizeFeedUrl`), is derived from the refresh log the Settings screen already loads once (`reportState.runs`), and shows nothing for a working feed or one without two runs of history. This is how an existing widget's dead AI News feed becomes visible so the user can remove it. QA `B-25`; tests `FeedProblemTest`.
+
 **Tests:** `FeedUrlTest` (http to https, https untouched, mixed-case scheme, port / query / fragment, `http` inside the query, ftp / file / other schemes, empty, malformed, request address selection, the upgrade-failure detail and its limits), `DefaultFeedsMergeTest` (http equals https, old Hindu entry equals the new default).
 
 ## BUG-043 — The periodic and the watchdog refresh ran at the same time, doubling the requests

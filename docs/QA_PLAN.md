@@ -281,7 +281,7 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | Section | Cases | P0 | P1 | P2 |
 |---|---|---|---|---|
 | A Install / first run & default feeds | 13 | 1 | 11 | 1 |
-| B Feeds management | 24 | 3 | 19 | 2 |
+| B Feeds management | 25 | 3 | 20 | 2 |
 | C Fetching & sources (incl. Telegram) | 21 | 3 | 16 | 2 |
 | D Display & layout | 20 | 2 | 17 | 1 |
 | E Reading (expand / focus / open / share) | 24 | 5 | 19 | 0 |
@@ -296,7 +296,7 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | N Focus as a setting & state cleanup | 31 | 12 | 19 | 0 |
 | O Story threads | 35 | 10 | 24 | 1 |
 | P Problem report & refresh log | 26 | 8 | 17 | 1 |
-| **Total** | **396** | **76** | **297** | **23** |
+| **Total** | **397** | **76** | **298** | **23** |
 
 Plus the two pairwise tables (50 configurations each, run through `H-24` and `N-22`).
 
@@ -380,6 +380,7 @@ Section 6 of Settings ("FEED ORDER & STYLE") plus ADD FEED and FIND FEEDS.
 | B-22 | P1 | 30+ feeds: scroll the Settings list, drag a row from the bottom section, add/remove ⇒ smooth, no wrong-row moves, no crash | UI, LC | none |
 | B-23 | P2 | Feed with a very long or RTL name ⇒ Settings row wraps sanely; in the widget the feed name truncates (max 1 line) without pushing the circle/timestamp off the row | SS | none |
 | B-24 | P1 | Change the theme **after** feeds exist ⇒ stored accent colours are unchanged (assigned at add time); only the picker palette changes | DS | none |
+| B-25 | P1 | **A feed that keeps failing says so in the list (BUG-042 follow-up).** Add a feed that fails (for example the 404 feed of `P-07`, or the dead `https://www.artificialintelligence-news.com/feed/` that older widgets still hold), Save, let two refreshes run (tap **Refresh** twice more than 15 s apart) ⇒ Settings shows an amber `Not working: HTTP 403` (or `HTTP 404`) line under that feed's name in the feed list (and none under working feeds); after only ONE failed refresh there is no line; remove the feed, or fix its address, wait for a good refresh and reopen Settings ⇒ the line is gone. Statuses: unreachable host `can't connect`, slow host `timed out`, an HTML page `not a feed`. The line is ≤ 40 characters, one line, amber in light and dark, and does not make Settings open slower (no extra read: it uses the LAST REFRESHES log) | UI, SS | UT:FeedProblemTest |
 
 ---
 
@@ -916,7 +917,7 @@ status recorded in `docs/BUGS.md` / `DEBUG_PLAN.md` when this plan was written (
 | BUG-008/015 | Low-frequency feeds crowded out | Per-feed floor 10, By-feed default, validated search | M-23, C-16, G-10, B-17 | Fixed |
 | BUG-009 | × opens Edit | Suspected hit-target overlap | M-29, B-07 | Open (per BUGS.md) |
 | BUG-010 | HTTP feeds never fetch | Cleartext blocked | M-36, B-06 | Fixed (BUG-042: fetched as https) |
-| BUG-042 | Two default feeds never loaded (cleartext Hindu, blocked AI News) | Defaults replaced; every `http://` feed upgraded to `https://` | A-13, B-06, M-36 | Fixed |
+| BUG-042 | Two default feeds never loaded (cleartext Hindu, blocked AI News) | Defaults replaced; every `http://` feed upgraded to `https://` | A-13, B-06, B-25, M-36 | Fixed |
 | BUG-043 | Periodic, watchdog and tap runs fetched at the same time (7 of 20 runs started in the same second, 22 of 22 on another phone), doubling requests | `RunGuard` (data/RunGuard.kt): atomic active mark + finish mark, `shouldSkipRun`; a skipped run returns success without fetching or logging; the watchdog does not enqueue behind a run | I-23 | Fixed in code, device re-check pending |
 | BUG-011 | Rapid refresh taps stacked work | Unique work KEEP | M-14, I-02 | Fixed |
 | BUG-012 | Focus last row clipped | Glance list height fit | M-30 | Open |

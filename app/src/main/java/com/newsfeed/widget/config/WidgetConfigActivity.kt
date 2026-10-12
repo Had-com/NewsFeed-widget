@@ -1128,6 +1128,10 @@ class WidgetConfigActivity : ComponentActivity() {
                                         feedConfig    = feedConfig,
                                         useThemeColors = config.useThemeColors,
                                         theme         = config.widgetTheme,
+                                        // From the refresh log loaded once above (reportState.runs): no extra disk read here.
+                                        problemText   = remember(reportState.runs, feedConfig.feedUrl) {
+                                            feedProblemText(reportState.runs, feedConfig.feedUrl)
+                                        },
                                         onUpdate      = { updated ->
                                             config = config.copy(feeds = config.feeds.map { if (it.feedId == updated.feedId) updated else it })
                                         },

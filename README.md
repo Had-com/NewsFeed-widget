@@ -310,6 +310,7 @@ One row per feed, in your chosen display order:
 | TXT / IMG | Toggles whether this feed shows a thumbnail image |
 | Font dropdown | Default · Serif · Mono, for this feed's headlines |
 | B / I / U | Toggle Bold / Italic / Underline on this feed's headlines, any combination |
+| Amber line under the name | `Not working: HTTP 403` (or `timed out`, `can't connect`, `not a feed`, `can't read it`) appears when that feed failed in each of its last two refreshes, so a dead feed is easy to spot and remove; it disappears as soon as a refresh succeeds. Nothing is shown for a feed that works or has no history yet |
 
 ### 7. App Update
 - Shows your currently installed build number.
