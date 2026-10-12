@@ -327,7 +327,7 @@ file.
   passed through `redactUrl` (user-info removed, values of token/key/auth/secret/pass/sig/session/access/code
   style query parameters replaced by `REDACTED`). With the box off, no URL and no feed host appears anywhere,
   including inside exception messages and stack traces (`scrubAddresses`).
-- **Settings** (`config/ReportSection.kt`): "REPORT A PROBLEM" (note, checkbox, optional recipient kept in
+- **Settings** (`config/ReportSection.kt`): "REPORT A PROBLEM" (note, checkbox, (the optional recipient field was removed later; Share covers it) kept in
   the `report_settings` SharedPreferences file and empty by default, Preview report, Share report: always
   enabled) and "LAST REFRESHES" (collapsible, 20 rows, amber when a feed failed, expandable per feed). The
   report is written to `cacheDir/reports/newsfeed-report-<yyyyMMdd-HHmm>.txt` and shared with

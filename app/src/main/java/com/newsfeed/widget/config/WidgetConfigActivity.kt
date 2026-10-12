@@ -246,7 +246,10 @@ class WidgetConfigActivity : ComponentActivity() {
 
                 // Report a problem + last refreshes. State lives here, outside the LazyColumn, so scrolling cannot reset
                 // the note the user is typing; the log and the old-report cleanup run once when Settings opens.
-                val reportState = remember { ReportUiState(ReportSettings.recipient(this@WidgetConfigActivity), ReportSettings.lastSent(this@WidgetConfigActivity)) }
+                val reportState = remember {
+                    ReportSettings.removeLegacyRecipient(this@WidgetConfigActivity)
+                    ReportUiState(ReportSettings.lastSent(this@WidgetConfigActivity))
+                }
                 androidx.compose.runtime.LaunchedEffect(Unit) {
                     withContext(Dispatchers.IO) { cleanOldReports(this@WidgetConfigActivity) }
                     reportState.runs = withContext(Dispatchers.IO) {
@@ -1255,10 +1258,6 @@ class WidgetConfigActivity : ComponentActivity() {
                             HorizontalDivider(thickness = 0.5.dp)
                             ReportProblemSection(
                                 state = reportState,
-                                onSaveRecipient = { v ->
-                                    // Only a valid address (or blank) is remembered; never a half-typed one.
-                                    if (v.isBlank() || ReportSettings.isValidEmail(v)) ReportSettings.setRecipient(this@WidgetConfigActivity, v.trim())
-                                },
                                 onPreview = { previewReport(this@WidgetConfigActivity, scope, reportState) },
                                 onShare = { shareReport(this@WidgetConfigActivity, scope, reportState) },
                                 onSend = { requestSend(reportState) },

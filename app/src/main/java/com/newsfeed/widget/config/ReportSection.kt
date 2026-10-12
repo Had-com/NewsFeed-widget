@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
-import android.util.Patterns
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.clickable
@@ -20,7 +19,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -43,7 +41,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -103,10 +100,9 @@ import java.util.TimeZone
  */
 
 /** Everything the two sections show or edit. Hoisted out of the LazyColumn so a scroll cannot reset it. */
-class ReportUiState(initialRecipient: String, initialLastSent: LastSent? = null) {
+class ReportUiState(initialLastSent: LastSent? = null) {
     var note by mutableStateOf("")
     var includeAddresses by mutableStateOf(false)
-    var recipient by mutableStateOf(initialRecipient)
     /** The report text shown in the preview dialog; null = dialog closed. */
     var previewText by mutableStateOf<String?>(null)
     /** Mirrors [guard] for the UI (progress wheel); false during the hold-off after a share. */
@@ -149,22 +145,21 @@ const val REPORT_UI_RUNS = 20
 /** How long Share keeps rejecting taps after it launched the chooser. */
 const val SHARE_HOLD_OFF_MS = 1500L
 
-/** App-level optional recipient, kept in its own tiny SharedPreferences file. Blank by default, never hardcoded. */
+/** App-level report preferences (client id, last send) in their own tiny SharedPreferences file. */
 object ReportSettings {
     private const val NAME = REPORT_PREFS_NAME
-    private const val K_RECIPIENT = "recipient_email"
+    // The optional "Send reports to (email)" field was removed (the share sheet covers it); an address typed in an
+    // older build must not linger on the phone, so it is deleted when Settings opens.
+    private const val K_LEGACY_RECIPIENT = "recipient_email"
 
-    fun recipient(context: Context): String =
-        context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE).getString(K_RECIPIENT, "").orEmpty()
-
-    fun setRecipient(context: Context, value: String) {
-        context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
-            .edit().putString(K_RECIPIENT, value).apply()
+    fun removeLegacyRecipient(context: Context) {
+        runCatching {
+            val prefs = context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+            if (prefs.contains(K_LEGACY_RECIPIENT)) prefs.edit().remove(K_LEGACY_RECIPIENT).apply()
+        }
     }
 
     fun lastSent(context: Context): LastSent? = readLastSent(SharedPrefsReportStore(context))
-
-    fun isValidEmail(value: String): Boolean = Patterns.EMAIL_ADDRESS.matcher(value.trim()).matches()
 }
 
 private fun reportsDir(context: Context): File = File(context.cacheDir, "reports")
@@ -275,11 +270,6 @@ fun shareReport(activity: ComponentActivity, scope: CoroutineScope, state: Repor
                 File(dir, reportFileName(System.currentTimeMillis(), ZoneId.systemDefault())).also { it.writeText(text) }
             }
             val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", file)
-            val recipient = state.recipient.trim()
-            val recipientOk = recipient.isNotEmpty() && ReportSettings.isValidEmail(recipient)
-            if (recipient.isNotEmpty() && !recipientOk) {
-                Toast.makeText(activity, "The email address is not valid, so it was left out.", Toast.LENGTH_LONG).show()
-            }
             val send = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_SUBJECT, "NewsFeed problem report (build ${input.appVersionCode})")
@@ -288,7 +278,6 @@ fun shareReport(activity: ComponentActivity, scope: CoroutineScope, state: Repor
                 // ClipData + the grant flag: the receiving app may read exactly this file, nothing else.
                 clipData = ClipData.newRawUri("NewsFeed problem report", uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                if (recipientOk) putExtra(Intent.EXTRA_EMAIL, arrayOf(recipient))
             }
             activity.startActivity(Intent.createChooser(send, "Share problem report"))
             chooserStarted = true
@@ -384,7 +373,6 @@ fun ReportSectionHeader(state: ReportUiState) {
 @Composable
 fun ReportProblemSection(
     state: ReportUiState,
-    onSaveRecipient: (String) -> Unit,
     onPreview: () -> Unit,
     onShare: () -> Unit,
     onSend: () -> Unit,
@@ -421,18 +409,6 @@ fun ReportProblemSection(
                 )
             }
         }
-        Spacer(Modifier.height(4.dp))
-        val recipientInvalid = state.recipient.isNotBlank() && !ReportSettings.isValidEmail(state.recipient)
-        OutlinedTextField(
-            value = state.recipient,
-            onValueChange = { state.recipient = it.take(200); onSaveRecipient(it.take(200)) },
-            label = { Text("Send reports to (email, optional)") },
-            singleLine = true,
-            isError = recipientInvalid,
-            supportingText = { if (recipientInvalid) Text("Not a valid email address; it will be left out.") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            modifier = Modifier.fillMaxWidth(),
-        )
         Spacer(Modifier.height(8.dp))
         if (canSend) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
