@@ -20,6 +20,13 @@ key](#how-the-build-gets-the-address-and-the-key).
 - Result texts: `Sent. Report #42 — quote this number if you contact the developer.`, a "too many reports" text
   with the wait, a "couldn't reach the server" text, and for any other failure a short reason followed by
   `Use Share report instead.`
+- Optionally the user attaches **one picture** (a screenshot or photo) to the report. The confirmation then adds an amber
+  warning that the picture is sent too and may show private information, with a small preview of it. The picture is
+  uploaded only after the report itself was stored, see [Send the picture of a report](#send-the-picture-of-a-report-optional--requires-server-version--11).
+  Result texts with a picture: `Sent. Report #42 with your picture — quote this number if you contact the developer.`,
+  or, when the report arrived but the picture did not, `Report #42 was sent, but the picture could not be uploaded
+  (<reason>). You can use Share report to send the picture yourself.` A picture that fails never makes the report look
+  failed or unsent.
 - The phone remembers the time and number of the last successful send (shown as `Last sent: <time> (#42)`) and
   blocks a second send for 60 seconds. The app never retries by itself.
 
@@ -58,6 +65,50 @@ X-App-Key: <APP_KEY>
 Any other answer (a redirect, an unexpected 2xx) is treated like 400. Redirects are never followed, so a reply can
 never send the key to another host.
 
+### Send the picture of a report (optional) — requires server version ≥ 1.1
+
+**Server version ≥ 1.1 only.** A server without this endpoint answers `404` or `405`; the app then tells the user
+`Report #N was sent, but the picture could not be uploaded (the server does not accept pictures yet (404/405)). You can
+use Share report to send the picture yourself.` and the report itself stays stored.
+
+The app calls it **only** when the user attached a picture, **only after** `POST /api/v1/reports` answered `201` with a
+report number, and with the **same** `clientId` the report was sent with. At most one picture per report.
+
+```
+POST {BASE}/api/v1/reports/{id}/image
+Content-Type: image/jpeg
+X-App-Key: <APP_KEY>
+X-Client-Id: <the clientId the report was sent with>
+
+<raw JPEG bytes, at most 1,500,000>
+```
+
+`{id}` is the number from the `201` answer of the report. The body is the JPEG itself, not JSON and not base64. The
+app always sends a JPEG that it re-encoded itself (see Privacy), normally **at most 900 KB**, never more than
+**1,400,000 bytes** (a picture that would be larger is refused on the phone and not sent).
+
+| Answer | Meaning | What the app shows after `Report #N was sent, but the picture could not be uploaded (...)` |
+|---|---|---|
+| `201` `{"id":N,"imageBytes":M}` | Stored | (the success text `Sent. Report #N with your picture — ...`) |
+| `400` | Invalid: empty or not a JPEG | the server did not accept it |
+| `401` | Missing or wrong `X-App-Key` | the server did not accept this version of the app |
+| `404` `not_found` | Unknown report id **or** the `X-Client-Id` does not match the report's (deliberately the same answer); also what a server without the endpoint says | the server does not accept pictures yet (404/405) |
+| `405` | No such method here (an old server) | the server does not accept pictures yet (404/405) |
+| `409` `image_exists` | That report already has its one picture | the server already has a picture for this report |
+| `413` `too_large` | Over 1,500,000 bytes | too large |
+| `415` `unsupported_media_type` | `Content-Type` is not `image/jpeg` | the server did not accept it |
+| `429` `rate_limited` + `Retry-After` | 5 pictures per client per 24 hours reached | too many pictures today, try later |
+| `503` `storage_full` / other `5xx` | Server problem | the server had a problem |
+| no answer (offline, DNS, timeout, TLS) | Not reachable | offline |
+
+Rules for the server: the picture may only be added within **24 hours** of the report; the check on `X-Client-Id`
+must give the same `404` as an unknown id so ids cannot be probed. Redirects are never followed. Timeouts and the
+response body cap are the same as for the report (10 s connect, 15 s read and write, at most 4 KB of an answer is read).
+The app does not retry. The picture bytes, the key and the report text are never logged: the only log lines are
+`image stored bytes=M`, `image rate_limited retry_after=S`, `image network_error <ExceptionClass>`,
+`image rejected code=C`, `image server_error code=C`, `image too_large`, `image not_found`, `image already_exists`,
+`image unauthorized`, `image unreadable` and `image misconfigured`.
+
 ### Health check (not used by the app)
 
 ```
@@ -76,6 +127,9 @@ Handy to check that the server is up and that a test send raised `reports` by on
 | Reports per IP address | 20 per hour |
 | Reports in total | 500 per 24 hours |
 | App version name | 40 characters |
+| Picture (server ≥ 1.1) | 1,500,000 bytes (the app sends at most 1,400,000, normally at most 900 KB), JPEG only, one per report |
+| Pictures per `clientId` (server ≥ 1.1) | 5 per 24 hours |
+| Time to add the picture (server ≥ 1.1) | 24 hours after the report |
 
 The app stays inside the size limits on its own: the report builder already caps the text at 60,000 characters, and
 the upload step shortens it further (dropping the middle, with a marker line) if Hebrew or emoji make the encoded
@@ -108,9 +162,20 @@ recorded crashes with their stack traces.
   `Your own feeds: included (passwords and tokens removed)`.
 - Nothing is sent automatically, in the background, on a schedule or on a crash. Only the user's tap on **Send** in
   the confirmation sends one report.
+- **The attached picture (optional, one per report).** The user picks it with Android's photo picker (no storage
+  permission is requested) and it is **re-encoded by the app as a JPEG** (long edge at most 1600 px, quality 80 first,
+  lowered step by step, under 900 KB): whatever the original was (JPEG, PNG, WEBP, HEIC), the new file carries **no
+  EXIF data at all** (no GPS location, no camera or phone model, no time stamps); the camera's rotation is applied to
+  the pixels first so it is not turned. The picture can still show private things (a screenshot of a mail, a face), so
+  the app says so under the thumbnail and again in the send confirmation. It is kept only in the app's cache folder and
+  in memory, forgotten (and its file deleted) when the user leaves Settings or taps **Remove**, and it leaves the phone
+  **only** when the user taps **Send** (this endpoint) or **Share report** (the share sheet, together with the report
+  file). Choosing a picture, previewing the report or opening Settings sends nothing. The report text only says
+  `Attached picture: yes (812 KB)` so the developer can see a picture exists.
 
 What the server keeps: the report text, the `clientId`, the app build (`appVersionCode`, `appVersionName`), the
-creation time, and a **hashed** IP address (used only for the per-IP limit). Reports are deleted after **180 days**.
+creation time, and a **hashed** IP address (used only for the per-IP limit). When the user attached a picture, the server
+also keeps that JPEG with its report. Reports **and their pictures** are deleted after **180 days**.
 The developer reads them on the server with the `newsfeed-reports` tool (`newsfeed-reports show <id>`); a user who
 quotes the report number from the confirmation can be matched to their report.
 

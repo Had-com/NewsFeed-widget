@@ -82,3 +82,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 25
 - The report now names only the app's own feeds unless you choose to include yours.
+
+## Note 26
+- New: you can attach one picture to a problem report; it is re-saved without location data and sent only when you tap Send or Share.
