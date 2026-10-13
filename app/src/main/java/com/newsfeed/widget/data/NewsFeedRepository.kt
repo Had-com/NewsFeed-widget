@@ -38,6 +38,15 @@ class NewsFeedRepository(private val context: Context) {
         .followSslRedirects(true)
         .build()
 
+    // The one retry of a feed that timed out (BUG-047, FeedRetry.kt): the same client (shared connection pool) with a
+    // shorter read timeout and a hard limit for the whole call, so the retry can add at most FEED_RETRY_TIMEOUT_SECONDS.
+    private val retryClient: OkHttpClient by lazy {
+        client.newBuilder()
+            .readTimeout(FEED_RETRY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .callTimeout(FEED_RETRY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .build()
+    }
+
     // Browser-like headers improve compatibility with news sites that block bot UAs
     private fun browserHeaders(url: String) = mapOf(
         "User-Agent" to "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
@@ -57,8 +66,14 @@ class NewsFeedRepository(private val context: Context) {
                 val maxItems = if (feed.feedId in knownFeedIds) MAX_ITEMS_PER_FETCH else FIRST_LOAD_MAX_ITEMS
                 async {
                     val startMs = System.currentTimeMillis()
-                    val result = runCatching { fetchFeedArticles(feed, maxItems) }
-                    result to (System.currentTimeMillis() - startMs)
+                    // A timeout / failed connect is retried ONCE after 1.5 s (BUG-047); the result is the final outcome.
+                    // Cancellation is never retried: the wait between the attempts throws it.
+                    val attempt = fetchWithOneRetry(
+                        firstAttempt = { fetchFeedArticles(feed, maxItems) },
+                        retryAttempt = { fetchFeedArticles(feed, maxItems, retryClient) },
+                    )
+                    // elapsedMs covers both attempts and the pause.
+                    Triple(attempt.result, System.currentTimeMillis() - startMs, attempt.retried)
                 }
             }
             .awaitAll()
@@ -80,7 +95,8 @@ class NewsFeedRepository(private val context: Context) {
             val c = describeUpgradeFailure(feed.feedUrl, classifyFeedLog(count, r.exceptionOrNull()))
             FeedLogEntry(
                 label = feed.displayName, url = feed.feedUrl, status = c.status, httpCode = c.httpCode,
-                articleCount = count, elapsedMs = timed[i].second, detail = c.detail, widgetId = config.widgetId,
+                articleCount = count, elapsedMs = timed[i].second, detail = feedLogDetail(c.detail, timed[i].third),
+                widgetId = config.widgetId,
             )
         }
         ArticleFetchResult(applyFiltersAndSort(all, config, knownFeedIds), outcome, feedLog)
@@ -230,12 +246,16 @@ class NewsFeedRepository(private val context: Context) {
 
     // ── private ───────────────────────────────────────────────────────────────
 
-    private fun fetchFeedArticles(feed: FeedConfig, maxItems: Int = MAX_ITEMS_PER_FETCH): List<ArticleItem> {
+    private fun fetchFeedArticles(
+        feed: FeedConfig,
+        maxItems: Int = MAX_ITEMS_PER_FETCH,
+        httpClient: OkHttpClient = client,
+    ): List<ArticleItem> {
         // The stored feedUrl stays as the user typed it; only the request goes to the https form.
         val requestUrl = requestUrlFor(feed.feedUrl)
         var req = Request.Builder().url(requestUrl)
         browserHeaders(requestUrl).forEach { (k, v) -> req = req.header(k, v) }
-        return client.newCall(req.build()).execute().use { response ->
+        return httpClient.newCall(req.build()).execute().use { response ->
             // A failure is thrown, never returned as an empty list (BUG-035): getArticles classifies it.
             if (!response.isSuccessful) throw FeedHttpException(response.code)
             // Use string() so OkHttp honours the charset in Content-Type (fixes Windows-1255 Hebrew feeds)

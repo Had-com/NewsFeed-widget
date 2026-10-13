@@ -282,7 +282,7 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 |---|---|---|---|---|
 | A Install / first run & default feeds | 13 | 1 | 11 | 1 |
 | B Feeds management | 25 | 3 | 20 | 2 |
-| C Fetching & sources (incl. Telegram) | 21 | 3 | 16 | 2 |
+| C Fetching & sources (incl. Telegram) | 22 | 3 | 17 | 2 |
 | D Display & layout | 20 | 2 | 17 | 1 |
 | E Reading (expand / focus / open / share) | 24 | 5 | 19 | 0 |
 | F Read state & Unread-only grace / dissolve | 23 | 7 | 13 | 3 |
@@ -296,7 +296,7 @@ interrupted run resumes cleanly — record the last completed `Axx`).
 | N Focus as a setting & state cleanup | 31 | 12 | 19 | 0 |
 | O Story threads | 35 | 10 | 24 | 1 |
 | P Problem report & refresh log | 38 | 10 | 26 | 2 |
-| **Total** | **415** | **78** | **313** | **24** |
+| **Total** | **416** | **78** | **314** | **24** |
 
 Plus the two pairwise tables (50 configurations each, run through `H-24` and `N-22`).
 
@@ -409,6 +409,7 @@ Section 6 of Settings ("FEED ORDER & STYLE") plus ADD FEED and FIND FEEDS.
 | C-19 | P1 | Previously read articles stay read after refresh, reboot and app restart (global read-id store) | DS (`newsfeed_read_status`) | none |
 | C-20 | P2 | Odd feeds: gzip, redirect chain, malformed XML, empty feed, 10 MB feed, 25 s+ slow feed ⇒ failure contained to that feed within the 15 s connect / 25 s read timeouts | LC, UI | none |
 | C-21 | P1 | **Keep articles for = 15 minutes.** Settings ⇒ the dropdown lists `15 minutes · 1 day · 3 days · 1 week · 2 weeks · 1 month · Forever` (shortest first, Forever last); a brand-new widget and a widget saved by an older build still show **Forever** (no `retentionMinutes` key, `retentionDays` unchanged: a widget saved with 3 days still reads "3 days"). Pick 15 minutes + Save ⇒ `config_json` carries `"retentionMinutes":15` (and no `retentionDays`); pick 3 days ⇒ `"retentionDays":3` and no `retentionMinutes`; Forever ⇒ neither key. With 15 minutes: after a refresh the list only holds articles published in the last 15 minutes (`articles_json` `publishedAt` all within 15 min of the refresh); leave the widget idle and re-render it (open Settings and Back, tap ↻, or any tap) once an article is older than 15 minutes ⇒ it is gone from the list **without a worker run** (render-time filter), and an article of 14 min 59 s is still shown; a feed with nothing newer than 15 minutes shows no rows (the per-feed floor of 10 only protects the 300-article cap, not age: expected); an expanded story thread whose members all expire disappears whole, no stale `+N`. Switching back to Forever does not bring expired articles back (they were pruned at the last refresh), but later articles accumulate again | UI, DS (`config_json`, `articles_json`), SS | UT:ArticleRetentionTest, ThreadStateTest |
+| C-22 | P1 | **A feed that times out is retried once (BUG-047).** Needs a test feed behind **https** (every `http://` feed is upgraded, BUG-042; a small server behind a tunnel works). (a) First request is held for 30 s, the second answers at once ⇒ the run still fetches the feed (the row in LAST REFRESHES is OK; its feed detail reads `retried: ok`; `elapsedMs` about 26.5 s = 25 s read timeout + 1.5 s pause, not 25 s); the other feeds of the same run are not delayed beyond that. (b) Both requests are held ⇒ the feed fails with status `TIMEOUT`, detail `retried: SocketTimeoutException: ...`, elapsed at most about 36.5 s (25 s + 1.5 s + 10 s), the run ends normally and the other feeds are fine. (c) A feed that answers 404 / 503, an unknown host and a page that is not a feed ⇒ exactly one attempt, no `retried:` prefix, elapsed unchanged from before. (d) A healthy feed ⇒ detail empty, no extra delay. (e) Turn the screen off or switch the feed list away during the 1.5 s pause ⇒ nothing crashes. Server log: exactly 2 requests for (a)/(b), 1 for (c)/(d) | LC, DS, UI | UT:FeedRetryTest |
 
 ---
 
@@ -980,6 +981,7 @@ status recorded in `docs/BUGS.md` / `DEBUG_PLAN.md` when this plan was written (
 | BUG-041 (14.an) | A double tap on Share report still stacked two choosers (6/6) | The guard was released right after `startActivity` returned, before the chooser appeared; fix: `HoldOff` keeps rejecting taps 1.5 s after the chooser was launched | P-17 (tightened) | Fixed in code, device re-check pending |
 | Feature (no bug number): Attach one picture to a problem report (2026-10-12) | The user could describe a problem only in words; a screenshot had to be added by hand in another app | Optional `Attach a picture` (photo picker, no storage permission), decode with sampling off the main thread, re-saved as a JPEG under 900 KB without EXIF, thumbnail with Remove, picture forgotten when Settings is left, Share sends both files, send confirmation warns, picture uploaded after the report is stored with the same client id, a failing picture never fails the report | P-28 to P-38 | Shipped in code, device and server (≥ 1.1) run pending |
 | BUG-046 (14.al / 14.aj, problem report #17) | While the phone was idle the widget refreshed about hourly instead of every 15 min (29 h log of one phone: 60 min apart, up to 2 h; 15 min only while in use) | Since BUG-034 the periodic job needs a network and Android opens network windows only about hourly in Doze; the clock tick is a non-wakeup alarm. Fix: inexact wake-up alarm (`setAndAllowWhileIdle`, `RTC_WAKEUP`) at the refresh interval starts a unique EXPEDITED refresh (`IDLE_ALARM`); Settings switch, default on | I-24 to I-29 | Fixed in code (unit tested), device re-check pending |
+| BUG-047 | A single feed timed out in runs where the others worked and answered normally a moment later, so one slow answer cost the feed a whole refresh | Per-feed fetch retries ONCE after 1.5 s on a `SocketTimeoutException` / `ConnectException` (not 4xx / 5xx, DNS, TLS, not-a-feed, cancellation) with a 10 s read and call limit; the log keeps the final outcome, detail prefixed `retried: ` | C-22 | Fixed in code (unit tested), device re-check pending |
 
 ---
 

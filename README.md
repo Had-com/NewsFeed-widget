@@ -467,6 +467,7 @@ app/src/main/
 │   │   ├── RefreshLogStore.kt        # refresh_log.json in filesDir (last 50 runs, atomic writes)
 │   │   ├── RunGuard.kt               # Pure cross-run guard: one refresh at a time (shouldSkipRun, atomic mark)
 │   │   ├── IdleRefresh.kt            # Pure rules of the idle refresh alarm (delay alignment, when to arm, report lines)
+│   │   ├── FeedRetry.kt              # Pure: one retry (after 1.5 s, 10 s limit) for a feed that timed out or could not connect
 │   │   ├── BugReport.kt              # Pure plain-text problem report builder + URL redaction
 │   │   ├── ReportFiles.kt            # Pure helpers: report file name, 7-day cleanup rule, share summary
 │   │   ├── ReportAttachment.kt       # Pure rules for the one attached picture: sizes, JPEG quality ladder, file names, texts

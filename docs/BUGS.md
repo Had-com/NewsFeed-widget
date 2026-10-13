@@ -1410,3 +1410,17 @@ Worker: `lastRefreshTime` is the last time at least ONE feed was fetched OK and 
 - Not verified on a device in this change: the alarm firing with the screen off, the expedited run getting the network under `dumpsys deviceidle force-idle`, reboot persistence, the Settings switch.
 
 **Tests:** `IdleRefreshTest` (delay alignment: no last run, aligned, overdue floor of 60 s, cap at the interval, clock moved back, interval below 15 min, a grid of intervals and ages, no overflow; the arm matrix; the lost-alarm check; the switch default on, saved before arming, a failing arm step keeps the choice; the report lines), `RunGuardTest` (IDLE_ALARM like PERIODIC), `RefreshLogTest` (IDLE_ALARM round trip and label, a log without it, old trigger names unchanged), `BugReportTest` (the report lines and the `idle alarm` label).
+
+## BUG-047 — A feed that timed out once lost its whole refresh
+
+**Status:** Fixed in code (unit tested); device re-check pending, QA `C-22`.
+
+**Symptom:** in problem reports a single feed showed `TIMEOUT` in a run in which the other feeds loaded, and the same feed answered normally in the next run. One slow answer cost that feed (and its newest articles) a whole refresh interval.
+
+**Fix (`data/FeedRetry.kt`, `NewsFeedRepository.getArticles`):** pure `shouldRetryFeed(exception, attempt)`: retry only when the first attempt failed with a `SocketTimeoutException` (read or connect timeout) or a `ConnectException`, and never a second time. NOT retried: an HTTP status (4xx / 5xx), `UnknownHostException` (DNS or the background firewall: a retry only burns time), TLS failures, a body that is not a feed, a parse error, any other failure, and cancellation. `fetchWithOneRetry` runs the first attempt, waits 1.5 s with a cancellable `delay` (a cancelled coroutine throws there and the second attempt never starts) and runs the retry on `retryClient`: the same client (shared connection pool) with a 10 s read timeout and a 10 s call timeout. The refresh log records the FINAL outcome of the feed: status and exception of the second attempt, `elapsedMs` for both attempts plus the pause, and the detail prefixed `retried: ` (`retried: ok` when the retry worked; an upgraded `http://` feed keeps its `https upgrade of http feed:` text after the prefix). A feed that did not retry is logged exactly as before.
+
+**Time bound per feed:** first attempt as before (connect 15 s, read 25 s), plus 1.5 s, plus at most 10 s for the retry (call timeout), so at most 25 s + 1.5 s + 10 s = 36.5 s for the read-timeout case. Feeds are fetched in parallel, so a run is delayed by its slowest feed only. The retry also runs while the widget refresh holds the run guard, which is fine (the run is longer, not doubled).
+
+**Honest limit:** a feed that is simply slower than 10 s every time (but under 25 s) is not harmed (the first attempt succeeds, there is no retry); a feed that takes 12 to 25 s after a first timeout fails its retry at 10 s, which is the trade-off for keeping the worst case short.
+
+**Tests:** `FeedRetryTest` (the exception matrix incl. HTTP codes, DNS, TLS, not-a-feed, cancellation and a negative attempt; no second retry; first success final; timeout then success; timeout then timeout gives the second attempt's exception after exactly two calls; timeout then another failure; no retry for HTTP / DNS / TLS / not-a-feed; cancelling during the pause starts no second attempt; the log detail prefix and its length bound; the time bound).
