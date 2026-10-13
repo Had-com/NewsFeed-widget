@@ -88,3 +88,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 27
 - New: the widget now wakes up at your refresh interval to refresh while the phone is idle (switch in Settings: Refresh while the phone is idle).
+
+## Note 28
+- New: Settings shows whether Android is allowed to refresh NewsFeed while the screen is off, with a button to the right battery setting (on Samsung choose Never sleeping apps).

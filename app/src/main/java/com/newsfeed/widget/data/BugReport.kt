@@ -70,6 +70,10 @@ data class BugReportRefreshStatus(
     val idleRefreshEnabled: Boolean = DEFAULT_IDLE_REFRESH_ENABLED,
     /** When the idle alarm was last planned to fire, 0 = none planned (there is no API to query a pending alarm). */
     val idleAlarmDueMs: Long = 0L,
+    /** `PowerManager.isIgnoringBatteryOptimizations`, null = could not be read (BUG-048). */
+    val ignoringBatteryOptimizations: Boolean? = null,
+    /** `ActivityManager.isBackgroundRestricted`, null = could not be read / Android below 9 (BUG-048). */
+    val backgroundRestricted: Boolean? = null,
 )
 
 data class BugReportInput(
@@ -155,6 +159,9 @@ fun buildBugReport(input: BugReportInput): String {
     header += "Refresh interval in effect: ${input.status.effectiveIntervalMinutes} min"
     input.status.jobState?.let { header += "Periodic job: $it" }
     header += idleRefreshReportLines(input.status.idleRefreshEnabled, input.status.idleAlarmDueMs, input.timestampMs, ::at)
+    header += backgroundReportLines(
+        BackgroundStatus(input.status.ignoringBatteryOptimizations, input.status.backgroundRestricted, input.manufacturer),
+    )
 
     val widgets = Section("[Widgets] (${input.widgets.size})", mutableListOf())
     input.widgets.forEach { w ->

@@ -179,6 +179,34 @@ class BugReportTest {
     }
 
     @Test
+    fun `refresh status tells the background restrictions and the advice (BUG-048)`() {
+        val base = input()
+        // An older caller (no background info): everything unknown, advice UNKNOWN, manufacturer from the input.
+        val r0 = buildBugReport(base)
+        assertTrue(r0.contains("Battery optimization exempt: unknown"))
+        assertTrue(r0.contains("Background restricted: unknown"))
+        assertTrue(r0.contains("Manufacturer: Google"))
+        assertTrue(r0.contains("Background advice: UNKNOWN"))
+        // The lines sit inside [Refresh status], after the idle alarm lines.
+        assertTrue(r0.indexOf("Idle alarm planned for") < r0.indexOf("Battery optimization exempt"))
+        assertTrue(r0.indexOf("Background advice") < r0.indexOf("[Widgets]"))
+        // Not exempt on a Samsung phone.
+        val s = buildBugReport(base.copy(manufacturer = "samsung",
+            status = base.status.copy(ignoringBatteryOptimizations = false, backgroundRestricted = false)))
+        assertTrue(s.contains("Battery optimization exempt: no"))
+        assertTrue(s.contains("Background restricted: no"))
+        assertTrue(s.contains("Manufacturer: samsung"))
+        assertTrue(s.contains("Background advice: NEEDS_EXEMPTION"))
+        // Exempt, then restricted.
+        val ok = buildBugReport(base.copy(status = base.status.copy(ignoringBatteryOptimizations = true, backgroundRestricted = false)))
+        assertTrue(ok.contains("Battery optimization exempt: yes"))
+        assertTrue(ok.contains("Background advice: OK"))
+        val restricted = buildBugReport(base.copy(status = base.status.copy(ignoringBatteryOptimizations = true, backgroundRestricted = true)))
+        assertTrue(restricted.contains("Background restricted: yes"))
+        assertTrue(restricted.contains("Background advice: RESTRICTED"))
+    }
+
+    @Test
     fun `an idle alarm run is labelled in the recent refreshes`() {
         val entry = okRun(1_700_000_000_000L).copy(trigger = RefreshTrigger.IDLE_ALARM)
         assertTrue(buildBugReport(input(log = listOf(entry))).contains("| idle alarm | attempt 1 |"))

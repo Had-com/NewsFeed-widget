@@ -235,6 +235,7 @@ private suspend fun collectReportInput(context: Context, note: String, includeAd
                 if (prefs[WidgetStateKey.lastRefreshFailed] == true) failedAll = true
             }
         }
+        val backgroundStatus = BackgroundStatusReader.read(app)
         BugReportInput(
             appVersionName = BuildConfig.VERSION_NAME,
             appVersionCode = BuildConfig.VERSION_CODE,
@@ -260,6 +261,8 @@ private suspend fun collectReportInput(context: Context, note: String, includeAd
                 jobState = WidgetWorker.periodicJobState(app),
                 idleRefreshEnabled = statusStore.idleRefreshEnabled,
                 idleAlarmDueMs = statusStore.idleAlarmDueMs,
+                ignoringBatteryOptimizations = backgroundStatus.ignoringBatteryOptimizations,
+                backgroundRestricted = backgroundStatus.backgroundRestricted,
             ),
             refreshLog = RefreshLogStore.readAll(app),
             crashes = CrashLogStore.readAll(app),

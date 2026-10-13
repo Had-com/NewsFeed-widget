@@ -56,6 +56,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.newsfeed.widget.data.BackgroundAdvice
+import com.newsfeed.widget.data.backgroundAdvice
+import com.newsfeed.widget.data.backgroundAdviceText
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -661,6 +668,35 @@ class WidgetConfigActivity : ComponentActivity() {
                                             "Uses a little more battery; turn off to refresh only when Android allows.",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+
+                                // Background restrictions (BUG-048): Android / One UI can freeze the app while the screen is off and
+                                // hold back the idle alarm. The app cannot lift that itself, so it says so and opens the system list.
+                                // Re-read on every resume, so the line updates when the user returns from the system screen.
+                                if (idleRefresh) {
+                                    var backgroundStatus by remember { mutableStateOf(BackgroundStatusReader.read(this@WidgetConfigActivity)) }
+                                    DisposableEffect(Unit) {
+                                        val observer = LifecycleEventObserver { _, event ->
+                                            if (event == Lifecycle.Event.ON_RESUME) backgroundStatus = BackgroundStatusReader.read(this@WidgetConfigActivity)
+                                        }
+                                        lifecycle.addObserver(observer)
+                                        onDispose { lifecycle.removeObserver(observer) }
+                                    }
+                                    val advice = backgroundAdvice(backgroundStatus)
+                                    val adviceText = backgroundAdviceText(advice, backgroundStatus.manufacturer)
+                                    if (adviceText.isNotEmpty()) {
+                                        val ok = advice == BackgroundAdvice.OK
+                                        Column(Modifier.fillMaxWidth().padding(start = 12.dp)) {
+                                            Text(adviceText, style = MaterialTheme.typography.bodySmall,
+                                                color = if (ok) MaterialTheme.colorScheme.onSurfaceVariant
+                                                else if (isSystemInDarkTheme()) Color(0xFFFFB300) else Color(0xFFB26A00))
+                                            if (!ok) {
+                                                TextButton(onClick = { BackgroundStatusReader.openBatterySettings(this@WidgetConfigActivity) }) {
+                                                    Text("Open battery settings", fontSize = 13.sp)
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
