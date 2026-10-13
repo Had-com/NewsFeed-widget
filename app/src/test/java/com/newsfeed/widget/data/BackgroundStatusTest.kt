@@ -55,7 +55,7 @@ class BackgroundStatusTest {
         val t = backgroundAdviceText(BackgroundAdvice.NEEDS_EXEMPTION, "Google")
         assertEquals(
             "Android may pause NewsFeed when the screen is off, so the widget can go stale overnight. " +
-                "Allow background activity for NewsFeed.", t,
+                "Tap Open battery settings below, open NewsFeed in the list and choose Unrestricted.", t,
         )
         assertFalse(t.contains("Samsung"))
         assertEquals(t, backgroundAdviceText(BackgroundAdvice.NEEDS_EXEMPTION, ""))

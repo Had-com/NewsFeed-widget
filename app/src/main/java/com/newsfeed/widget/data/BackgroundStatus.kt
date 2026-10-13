@@ -40,7 +40,7 @@ fun backgroundAdviceText(advice: BackgroundAdvice, manufacturer: String): String
     BackgroundAdvice.OK -> "Background refresh is allowed for NewsFeed."
     BackgroundAdvice.NEEDS_EXEMPTION -> {
         val base = "Android may pause NewsFeed when the screen is off, so the widget can go stale overnight. " +
-            "Allow background activity for NewsFeed."
+            "Tap Open battery settings below, open NewsFeed in the list and choose Unrestricted."
         if (manufacturer.trim().equals("samsung", ignoreCase = true)) "$base $SAMSUNG_PATH" else base
     }
     BackgroundAdvice.RESTRICTED -> "NewsFeed is restricted in the background. Open its battery setting and choose Unrestricted."
