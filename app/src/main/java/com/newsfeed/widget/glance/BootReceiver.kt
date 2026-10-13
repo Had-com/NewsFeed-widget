@@ -29,6 +29,9 @@ class BootReceiver : BroadcastReceiver() {
                 // One step failing must not skip the others.
                 try { WidgetWorker.rearm(context) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
                 runCatching { NewsFeedWidgetReceiver.scheduleClockTick(context) }
+                // The idle alarm is gone after a reboot and after an update (BUG-046); armed only while the switch
+                // is on and a widget is placed.
+                runCatching { IdleRefresh.ensureArmed(context) }
                 val hasWidgets = try {
                     WidgetWorker.liveWidgetIds(context).isNotEmpty()
                 } catch (e: CancellationException) { throw e } catch (_: Exception) { false }

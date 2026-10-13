@@ -160,6 +160,31 @@ class BugReportTest {
     }
 
     @Test
+    fun `refresh status tells whether the idle alarm is on and when it is planned (BUG-046)`() {
+        val base = input()
+        // Default status (an older caller): the switch is on and nothing is planned.
+        val r0 = buildBugReport(base)
+        assertTrue(r0.contains("Idle refresh alarm: on"))
+        assertTrue(r0.contains("Idle alarm planned for: not armed"))
+        // The lines sit inside [Refresh status], after the periodic job line.
+        assertTrue(r0.indexOf("Periodic job: ENQUEUED") < r0.indexOf("Idle refresh alarm: on"))
+        assertTrue(r0.indexOf("Idle alarm planned for") < r0.indexOf("[Widgets]"))
+        // Planned (after the report's creation time 1_700_001_000_000) and off.
+        val planned = buildBugReport(base.copy(status = base.status.copy(idleAlarmDueMs = 1_700_001_900_000L)))
+        assertTrue(planned.contains("Idle alarm planned for: 2023-11-15 00:45:00"))
+        assertFalse(planned.contains("not armed"))
+        val off = buildBugReport(base.copy(status = base.status.copy(idleRefreshEnabled = false, idleAlarmDueMs = 1_700_001_900_000L)))
+        assertTrue(off.contains("Idle refresh alarm: off"))
+        assertFalse(off.contains("Idle alarm planned for"))
+    }
+
+    @Test
+    fun `an idle alarm run is labelled in the recent refreshes`() {
+        val entry = okRun(1_700_000_000_000L).copy(trigger = RefreshTrigger.IDLE_ALARM)
+        assertTrue(buildBugReport(input(log = listOf(entry))).contains("| idle alarm | attempt 1 |"))
+    }
+
+    @Test
     fun `runs without failures are summarized by their counts only`() {
         val r = buildBugReport(input(log = listOf(okRun(1_700_000_000_000L))))
         assertTrue(r.contains("1/1 feeds OK"))

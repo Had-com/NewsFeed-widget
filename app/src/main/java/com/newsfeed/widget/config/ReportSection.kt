@@ -258,6 +258,8 @@ private suspend fun collectReportInput(context: Context, note: String, includeAd
                 effectiveIntervalMinutes = statusStore.intervalMinutes.takeIf { it > 0 }
                     ?: effectiveRefreshIntervalMinutes(configs),
                 jobState = WidgetWorker.periodicJobState(app),
+                idleRefreshEnabled = statusStore.idleRefreshEnabled,
+                idleAlarmDueMs = statusStore.idleAlarmDueMs,
             ),
             refreshLog = RefreshLogStore.readAll(app),
             crashes = CrashLogStore.readAll(app),

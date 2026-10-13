@@ -85,3 +85,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 26
 - New: you can attach one picture to a problem report; it is re-saved without location data and sent only when you tap Send or Share.
+
+## Note 27
+- New: the widget now wakes up at your refresh interval to refresh while the phone is idle (switch in Settings: Refresh while the phone is idle).

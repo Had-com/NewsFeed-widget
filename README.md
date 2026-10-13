@@ -263,6 +263,7 @@ Core app-wide list preferences:
 | Sort by | Newest first · Oldest first · By feed · Unread first | See [Sort options](#sort-options) |
 | Show | All · Unread only · Read only | See [Filter options](#filter-options) |
 | Refresh every | 15 min · 30 min · 1h · 2h · 4h · 6h · 12h | Background auto-refresh interval; 15 min is the floor (Android WorkManager's own minimum) |
+| Refresh while the phone is idle | On (default) · Off | A checkbox under *Refresh every*, **app-wide** (it applies to every widget, not just this one) and saved immediately (no Save needed). On: the phone is woken briefly at your refresh interval so the widget stays current at night; costs a little more battery. Off: refresh only when Android allows. See [Refreshing while the phone is idle](#refreshing-while-the-phone-is-idle) |
 | Keep articles for | 15 minutes · 1 day · 3 days · 1 week · 2 weeks · 1 month · Forever | Articles older than this are dropped, both when the widget refreshes and when it is drawn (so 15 minutes takes effect without waiting for the next refresh). Independent of the 300-article accumulation cap, which always applies. A feed with nothing newer than the chosen time shows nothing |
 | Open article in | Browser · Share sheet | Where the "Open article →"/"Open in browser ↗" buttons send you |
 | When I tap an article | Expand in place · Focus (enlarge) | Per widget; see [Focus Mode](#focus-mode). Switching resets the widget's expanded/focused article (the Focus zoom set with − / + is kept) |
@@ -334,6 +335,15 @@ One row per feed, in your chosen display order:
 ## Background refresh
 
 The widget polls feeds automatically using WorkManager, on the interval set in Settings (see the manual above). The countdown to the next refresh is shown in the widget footer and updates every minute automatically. Only one refresh runs at a time: the periodic job, the catch-up run the app starts when a refresh was missed, and a tap on the footer or a Save in Settings are separate jobs, so each one first checks that no other refresh is running and that none finished a moment ago (90 seconds for the automatic ones, 15 seconds for a tap), and otherwise ends without fetching. A Save in Settings is only held back while a refresh is actually running. A separate daily background check looks for app updates on its own schedule, independent of the feed-refresh interval.
+
+### Refreshing while the phone is idle
+
+When the screen is off Android only gives apps a network connection about once an hour, so on its own the periodic job refreshes roughly hourly at night instead of every 15 minutes. To keep the widget on schedule the app sets one **wake-up alarm** at your refresh interval (the smallest *Refresh every* of your widgets, at least 15 minutes). When it goes off the app starts one short refresh that Android lets use the network even while idle, then sets the next alarm, aligned with the end of the refresh. It is the **Refresh while the phone is idle** checkbox in Settings (on by default, app-wide). Things to know:
+
+- **Battery:** one short wake-up per refresh interval (4 per hour at 15 minutes) instead of none. Turn the checkbox off and the alarm is cancelled at once; the widget then refreshes only when Android allows (about hourly while the phone sleeps).
+- **Not exact:** the alarm is deliberately inexact (no exact-alarm permission is asked for). In deep sleep (Doze) Android may delay it by roughly 9 to 15 minutes, so "every 15 minutes" at night means "about every 15 to 30 minutes".
+- **Quota:** Android limits how many of these fast refreshes an app gets; when the quota is used up the refresh still runs, just as a normal background job (possibly later).
+- It exists only while a widget is placed, comes back after a restart or an app update, and never runs together with another refresh (the same one-at-a-time rule as above).
 
 ---
 
@@ -420,6 +430,8 @@ app/src/main/
 │   │   ├── WidgetThemes.kt            # 10 colour schemes (incl. the user-defined "custom" scheme built
 │   │   │                              #   from parseHexColor()) + rawColorSchemeFor() + fontFamilyFor()
 │   │   ├── BootReceiver.kt            # Reschedules WorkManager, update-check, and clock ticks after device reboot
+│   │   ├── IdleRefresh.kt             # The idle refresh alarm (inexact wake-up alarm; arm / cancel / on fire: re-arm + expedited refresh)
+│   │   ├── IdleRefreshReceiver.kt     # Not-exported receiver for that alarm
 │   │   ├── RefreshNowCallback.kt      # ActionCallback — immediate refresh on footer tap
 │   │   ├── ToggleExpandCallback.kt    # ActionCallback — expand/collapse article (Expand mode)
 │   │   ├── ToggleThreadCallback.kt    # ActionCallback — the +N badge: expand/collapse a story thread
@@ -454,6 +466,7 @@ app/src/main/
 │   │   ├── RefreshLog.kt             # Pure model/JSON/ring buffer of the local refresh log, per-feed status mapping
 │   │   ├── RefreshLogStore.kt        # refresh_log.json in filesDir (last 50 runs, atomic writes)
 │   │   ├── RunGuard.kt               # Pure cross-run guard: one refresh at a time (shouldSkipRun, atomic mark)
+│   │   ├── IdleRefresh.kt            # Pure rules of the idle refresh alarm (delay alignment, when to arm, report lines)
 │   │   ├── BugReport.kt              # Pure plain-text problem report builder + URL redaction
 │   │   ├── ReportFiles.kt            # Pure helpers: report file name, 7-day cleanup rule, share summary
 │   │   ├── ReportAttachment.kt       # Pure rules for the one attached picture: sizes, JPEG quality ladder, file names, texts

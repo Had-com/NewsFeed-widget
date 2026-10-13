@@ -188,4 +188,28 @@ class RefreshLogTest {
         assertEquals(RefreshTrigger.OTHER, RefreshTrigger.fromName(null))
         assertEquals(RefreshTrigger.OTHER, RefreshTrigger.fromName("garbage"))
     }
+
+    // -- BUG-046: the idle alarm trigger --
+
+    @Test
+    fun `the idle alarm trigger survives the json round trip and is labelled idle alarm`() {
+        val e = RefreshLogEntry(1_700_000_000_000L, RefreshTrigger.IDLE_ALARM, 0, 900, 1, "success", listOf(feed()))
+        val back = refreshLogFromJson(refreshLogToJson(listOf(e)))
+        assertEquals(RefreshTrigger.IDLE_ALARM, back.single().trigger)
+        assertEquals("idle alarm", RefreshTrigger.IDLE_ALARM.label)
+        assertEquals(RefreshTrigger.IDLE_ALARM, RefreshTrigger.fromName("IDLE_ALARM"))
+    }
+
+    @Test
+    fun `a log written before the idle alarm existed still reads, and every old trigger name is unchanged`() {
+        val old = """[{"timestamp":1,"trigger":"PERIODIC","attempt":0,"durationMs":5,"widgetCount":1,"verdict":"success","feeds":[]},
+            |{"timestamp":2,"trigger":"WATCHDOG","attempt":0,"durationMs":5,"widgetCount":1,"verdict":"success","feeds":[]},
+            |{"timestamp":3,"trigger":"MANUAL_TAP","attempt":1,"durationMs":5,"widgetCount":1,"verdict":"retry","feeds":[]}]""".trimMargin()
+        val back = refreshLogFromJson(old)
+        assertEquals(listOf(RefreshTrigger.PERIODIC, RefreshTrigger.WATCHDOG, RefreshTrigger.MANUAL_TAP), back.map { it.trigger })
+        // Names already stored by older builds must keep meaning the same thing.
+        for (name in listOf("PERIODIC", "MANUAL_TAP", "WATCHDOG", "SETTINGS_SAVE", "WIDGET_ADDED", "OTHER")) {
+            assertEquals(name, RefreshTrigger.fromName(name).name)
+        }
+    }
 }

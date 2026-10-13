@@ -41,6 +41,12 @@
             </intent-filter>
         </receiver>
 
+        <!-- Idle refresh alarm (BUG-046). Not exported: the alarm's PendingIntent names this component explicitly, so no
+             intent filter is needed. No exact-alarm permission is declared: the alarm is inexact on purpose. -->
+        <receiver
+            android:name=".glance.IdleRefreshReceiver"
+            android:exported="false" />
+
         <activity
             android:name=".config.WidgetConfigActivity"
             android:exported="true"

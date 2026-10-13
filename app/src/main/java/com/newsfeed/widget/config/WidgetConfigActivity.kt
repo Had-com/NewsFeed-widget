@@ -30,8 +30,10 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -82,7 +84,9 @@ import com.newsfeed.widget.data.upgradeToHttps
 import com.newsfeed.widget.data.NewsFeedRepository
 import com.newsfeed.widget.data.SortOrder
 import com.newsfeed.widget.data.RETENTION_OPTIONS
+import com.newsfeed.widget.data.RefreshStatusStore
 import com.newsfeed.widget.data.RefreshTrigger
+import com.newsfeed.widget.data.applyIdleRefreshToggle
 import com.newsfeed.widget.data.TelegramFeedParser
 import com.newsfeed.widget.data.retentionOption
 import com.newsfeed.widget.data.withRetention
@@ -91,6 +95,7 @@ import com.newsfeed.widget.data.WidgetConfigStore
 import com.newsfeed.widget.data.TapMode
 import com.newsfeed.widget.data.WidgetStateKey
 import com.newsfeed.widget.glance.NewsFeedWidget
+import com.newsfeed.widget.glance.IdleRefresh
 import com.newsfeed.widget.glance.NewsFeedWidgetReceiver
 import com.newsfeed.widget.glance.resetTapState
 import com.newsfeed.widget.glance.tapModeChanged
@@ -135,6 +140,7 @@ class WidgetConfigActivity : ComponentActivity() {
         }
         // Opening Settings is a chance to heal a lost clock tick (BUG-036).
         runCatching { NewsFeedWidgetReceiver.ensureClockTick(this) }
+        runCatching { IdleRefresh.ensureArmed(this) }
 
 
         val store = WidgetConfigStore(this)
@@ -550,6 +556,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                         // (a failure here must not keep Save from finishing)
                                         runCatching { WidgetWorker.rearm(this@WidgetConfigActivity) }
                                         runCatching { NewsFeedWidgetReceiver.ensureClockTick(this@WidgetConfigActivity) }
+                                        runCatching { IdleRefresh.ensureArmed(this@WidgetConfigActivity) }
                                         runCatching {
                                             val glanceId = GlanceAppWidgetManager(this@WidgetConfigActivity).getGlanceIdBy(appWidgetId)
                                             updateAppWidgetState(this@WidgetConfigActivity, glanceId) { prefs ->
@@ -631,6 +638,29 @@ class WidgetConfigActivity : ComponentActivity() {
                                                     onClick = { config = config.copy(refreshIntervalMinutes = minutes); showRefreshMenu = false })
                                             }
                                         }
+                                    }
+                                }
+
+                                // Refresh while the phone is idle (BUG-046): app-wide (one wake-up alarm for all widgets),
+                                // so it is NOT part of the widget config and Save is not needed: it applies at once.
+                                var idleRefresh by remember { mutableStateOf(RefreshStatusStore(this@WidgetConfigActivity).idleRefreshEnabled) }
+                                val setIdleRefresh = { enabled: Boolean ->
+                                    idleRefresh = enabled
+                                    applyIdleRefreshToggle(RefreshStatusStore(this@WidgetConfigActivity), enabled) {
+                                        IdleRefresh.ensureArmed(this@WidgetConfigActivity)
+                                    }
+                                }
+                                Row(
+                                    Modifier.fillMaxWidth().clickable { setIdleRefresh(!idleRefresh) },
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Checkbox(checked = idleRefresh, onCheckedChange = { setIdleRefresh(it) })
+                                    Column(Modifier.weight(1f)) {
+                                        Text("Refresh while the phone is idle", style = MaterialTheme.typography.bodyMedium)
+                                        Text("Wakes the phone briefly at your refresh interval so the widget stays current at night. " +
+                                            "Uses a little more battery; turn off to refresh only when Android allows.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
 

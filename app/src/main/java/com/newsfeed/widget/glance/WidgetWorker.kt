@@ -1,9 +1,13 @@
 ﻿package com.newsfeed.widget.glance
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
+import android.os.Build
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.getAppWidgetState
 import androidx.glance.appwidget.state.updateAppWidgetState
@@ -14,9 +18,11 @@ import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
+import androidx.work.ForegroundInfo
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequest
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -82,7 +88,39 @@ class WidgetWorker(
         } finally {
             // Always released, cancellation included; only a run that reached its end starts the quiet period.
             guard.end(System.currentTimeMillis(), completed)
+            // Re-align the idle alarm with this run's finish time (BUG-046); cancels it when the switch is off or no
+            // widget is left. Best effort, never changes the run's result.
+            runCatching { IdleRefresh.ensureArmed(context) }
         }
+    }
+
+    /**
+     * Only used when this run is EXPEDITED (the idle alarm, BUG-046) and the phone runs Android 11 or older (below
+     * API 31 WorkManager runs expedited work as a foreground service and needs this notification; from API 31 on it
+     * is a plain expedited JobScheduler job and this is never called). A minimal, low-importance, silent notification.
+     * It never throws: a failure to create the channel only means the notification may not show.
+     */
+    override suspend fun getForegroundInfo(): ForegroundInfo {
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                if (manager.getNotificationChannel(REFRESH_CHANNEL_ID) == null) {
+                    manager.createNotificationChannel(
+                        NotificationChannel(REFRESH_CHANNEL_ID, "Refreshing feeds", NotificationManager.IMPORTANCE_LOW),
+                    )
+                }
+            }
+        }
+        val notification = NotificationCompat.Builder(context, REFRESH_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setContentTitle("Refreshing your feeds…")
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .setSilent(true)
+            .build()
+        // No foreground service type on purpose: this path only runs on API 26-30, where none is required, and the manifest
+        // declares none (BUG-046). WorkManager's own SystemForegroundService entry is merged in unchanged.
+        return ForegroundInfo(REFRESH_NOTIFICATION_ID, notification)
     }
 
     private suspend fun refresh(trigger: RefreshTrigger, startedAtMs: Long): Result {
@@ -198,6 +236,10 @@ class WidgetWorker(
         private const val REFRESH_NOW_WORK_NAME = "NewsFeedRefreshNow"
         // Input data: how this run was enqueued (RefreshTrigger.name), only used for the local refresh log.
         private const val KEY_TRIGGER = "trigger"
+        // Expedited runs below API 31 show this notification (getForegroundInfo); the id does not clash with the
+        // update notification (1001).
+        private const val REFRESH_CHANNEL_ID = "refresh"
+        private const val REFRESH_NOTIFICATION_ID = 1002
 
         private fun triggerData(trigger: RefreshTrigger): Data =
             Data.Builder().putString(KEY_TRIGGER, trigger.name).build()
@@ -222,6 +264,16 @@ class WidgetWorker(
         fun oneTimeRequest(trigger: RefreshTrigger = RefreshTrigger.MANUAL_TAP): OneTimeWorkRequest =
             OneTimeWorkRequestBuilder<WidgetWorker>().setConstraints(networkConstraints())
                 .setInputData(triggerData(trigger)).build()
+
+        /**
+         * The idle alarm's request (BUG-046): the same CONNECTED one-time run, but EXPEDITED, so the system lets it use
+         * the network and run while the phone is idle. RUN_AS_NON_EXPEDITED_WORK_REQUEST: when the app's expedited
+         * quota is used up the run is not dropped but runs as a normal job (like the periodic one).
+         */
+        fun expeditedRequest(trigger: RefreshTrigger = RefreshTrigger.IDLE_ALARM): OneTimeWorkRequest =
+            OneTimeWorkRequestBuilder<WidgetWorker>().setConstraints(networkConstraints())
+                .setInputData(triggerData(trigger))
+                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST).build()
 
         // UPDATE (WorkManager 2.8+): replaces the job's definition (interval, constraints) in place and
         // keeps its schedule phase, so calling this from several places is safe and an existing
@@ -312,6 +364,14 @@ class WidgetWorker(
         fun refreshNow(context: Context, trigger: RefreshTrigger = RefreshTrigger.MANUAL_TAP) {
             WorkManager.getInstance(context).enqueueUniqueWork(
                 REFRESH_NOW_WORK_NAME, ExistingWorkPolicy.KEEP, oneTimeRequest(trigger),
+            )
+        }
+
+        // The idle alarm's run: ONE unique expedited request under the same name as a tap, Settings Save and the
+        // watchdog (KEEP): while one of them is pending or running, this one is absorbed instead of stacked.
+        fun enqueueIdleRefresh(context: Context) {
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                REFRESH_NOW_WORK_NAME, ExistingWorkPolicy.KEEP, expeditedRequest(RefreshTrigger.IDLE_ALARM),
             )
         }
 

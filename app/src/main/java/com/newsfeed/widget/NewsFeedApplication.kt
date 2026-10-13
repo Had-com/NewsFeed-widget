@@ -2,6 +2,7 @@ package com.newsfeed.widget
 
 import android.app.Application
 import com.newsfeed.widget.data.CrashLogStore
+import com.newsfeed.widget.glance.IdleRefresh
 import com.newsfeed.widget.glance.NewsFeedWidgetReceiver
 import com.newsfeed.widget.glance.WidgetWorker
 
@@ -14,6 +15,8 @@ class NewsFeedApplication : Application() {
         // Re-arm the clock tick if a widget is placed (BUG-036): a process start is a free chance to heal
         // an alarm chain that was lost (force-stop, an OS that dropped the alarm).
         runCatching { NewsFeedWidgetReceiver.ensureClockTick(this) }
+        // Same for the idle refresh alarm (BUG-046): armed when the switch is on and a widget is placed.
+        runCatching { IdleRefresh.ensureArmed(this) }
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             // runCatching: logging itself must never be the reason a crash fails to reach

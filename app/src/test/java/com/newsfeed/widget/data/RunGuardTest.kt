@@ -13,7 +13,7 @@ import com.newsfeed.widget.data.RefreshTrigger as T
 class RunGuardTest {
 
     private val now = 10_000_000L
-    private val background = listOf(T.PERIODIC, T.WATCHDOG, T.OTHER)
+    private val background = listOf(T.PERIODIC, T.WATCHDOG, T.IDLE_ALARM, T.OTHER)
 
     private fun skip(t: T, active: Long = 0L, finished: Long = 0L, at: Long = now) = shouldSkipRun(t, at, active, finished)
 
@@ -98,6 +98,19 @@ class RunGuardTest {
     fun `a mark equal to now counts as just now`() {
         assertTrue(skip(T.PERIODIC, active = now))
         assertTrue(skip(T.PERIODIC, finished = now))
+    }
+
+    // -- the idle alarm (BUG-046) uses the same guard as the periodic job --
+
+    @Test
+    fun `an idle alarm run is skipped like a periodic one`() {
+        assertTrue(skip(T.IDLE_ALARM, active = now - 1_000))
+        assertTrue(skip(T.IDLE_ALARM, finished = now - 89_999))
+        assertFalse(skip(T.IDLE_ALARM, finished = now - 90_000))
+        assertFalse(skip(T.IDLE_ALARM, active = now - 120_000))
+        for (t in listOf(0L, 1L, 30_000L, 89_999L, 90_000L)) {
+            assertEquals(skip(T.PERIODIC, finished = now - t), skip(T.IDLE_ALARM, finished = now - t))
+        }
     }
 
     // -- the watchdog does not enqueue behind a run --

@@ -752,6 +752,7 @@ class NewsFeedWidgetReceiver : GlanceAppWidgetReceiver() {
         WidgetWorker.ensureScheduled(context)
         UpdateCheckWorker.schedule(context)
         scheduleClockTick(context)
+        runCatching { IdleRefresh.ensureArmed(context) }
     }
 
     override fun onDisabled(context: Context) {
@@ -761,6 +762,7 @@ class NewsFeedWidgetReceiver : GlanceAppWidgetReceiver() {
         WidgetWorker.cancel(context)
         UpdateCheckWorker.cancel(context)
         cancelClockTick(context)
+        IdleRefresh.cancel(context)
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
@@ -784,6 +786,7 @@ class NewsFeedWidgetReceiver : GlanceAppWidgetReceiver() {
             ensureClockTick(context)
             WidgetWorker.kickIfStale(context)
         }
+        runCatching { IdleRefresh.ensureArmed(context) }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -803,6 +806,11 @@ class NewsFeedWidgetReceiver : GlanceAppWidgetReceiver() {
         // options-changed ...) re-arms the tick chain, so one lost alarm heals itself the next time
         // anything happens. It stops by itself once no widget is placed (onDisabled has cancelled it).
         runCatching { ensureClockTick(context) }
+        // Same self-healing for the idle alarm (BUG-046). The 105 s tick only re-arms an alarm that looks lost (the idle
+        // alarm is re-aligned by every finished run, so touching it every tick would only churn); any other broadcast
+        // re-arms it.
+        if (intent.action == ACTION_CLOCK_TICK) runCatching { IdleRefresh.healIfLost(context) }
+        else runCatching { IdleRefresh.ensureArmed(context) }
     }
 
     companion object {

@@ -66,6 +66,10 @@ data class BugReportRefreshStatus(
     val effectiveIntervalMinutes: Int,
     /** WorkManager state of the periodic job ("ENQUEUED", "RUNNING", "none" ...), null when it could not be read. */
     val jobState: String? = null,
+    /** The Settings switch "Refresh while the phone is idle" (BUG-046). */
+    val idleRefreshEnabled: Boolean = DEFAULT_IDLE_REFRESH_ENABLED,
+    /** When the idle alarm was last planned to fire, 0 = none planned (there is no API to query a pending alarm). */
+    val idleAlarmDueMs: Long = 0L,
 )
 
 data class BugReportInput(
@@ -150,6 +154,7 @@ fun buildBugReport(input: BugReportInput): String {
     header += "Feeds that failed in the last attempt: ${input.status.failedFeedCount}"
     header += "Refresh interval in effect: ${input.status.effectiveIntervalMinutes} min"
     input.status.jobState?.let { header += "Periodic job: $it" }
+    header += idleRefreshReportLines(input.status.idleRefreshEnabled, input.status.idleAlarmDueMs, input.timestampMs, ::at)
 
     val widgets = Section("[Widgets] (${input.widgets.size})", mutableListOf())
     input.widgets.forEach { w ->

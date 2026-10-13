@@ -23,6 +23,8 @@ enum class RefreshTrigger(val label: String) {
     WATCHDOG("watchdog"),
     SETTINGS_SAVE("settings save"),
     WIDGET_ADDED("widget added"),
+    /** The idle wake-up alarm started an expedited run (BUG-046). Stored by name; older logs simply have none. */
+    IDLE_ALARM("idle alarm"),
     OTHER("other");
 
     companion object {

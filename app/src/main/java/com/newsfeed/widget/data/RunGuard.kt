@@ -29,7 +29,7 @@ fun isRunActive(nowMs: Long, activeRunStartedMs: Long): Boolean =
 
 /**
  * Whether a run must end at once without fetching.
- *  - PERIODIC, WATCHDOG and OTHER: skipped while another run is active, or when any run finished within the
+ *  - PERIODIC, WATCHDOG, IDLE_ALARM and OTHER: skipped while another run is active, or when any run finished within the
  *    last [RUN_BACKGROUND_QUIET_MS].
  *  - MANUAL_TAP: skipped while a run is active, or within [RUN_TAP_FLOOR_MS] of the last finish.
  *  - SETTINGS_SAVE and WIDGET_ADDED: skipped only while a run is active (the user just changed the feeds or
@@ -39,7 +39,7 @@ fun isRunActive(nowMs: Long, activeRunStartedMs: Long): Boolean =
 fun shouldSkipRun(trigger: RefreshTrigger, nowMs: Long, activeRunStartedMs: Long, lastRunFinishedMs: Long): Boolean {
     if (isRunActive(nowMs, activeRunStartedMs)) return true
     return when (trigger) {
-        RefreshTrigger.PERIODIC, RefreshTrigger.WATCHDOG, RefreshTrigger.OTHER ->
+        RefreshTrigger.PERIODIC, RefreshTrigger.WATCHDOG, RefreshTrigger.IDLE_ALARM, RefreshTrigger.OTHER ->
             withinWindow(nowMs, lastRunFinishedMs, RUN_BACKGROUND_QUIET_MS)
         RefreshTrigger.MANUAL_TAP -> withinWindow(nowMs, lastRunFinishedMs, RUN_TAP_FLOOR_MS)
         RefreshTrigger.SETTINGS_SAVE, RefreshTrigger.WIDGET_ADDED -> false
