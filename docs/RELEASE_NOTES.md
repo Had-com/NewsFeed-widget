@@ -91,3 +91,6 @@ soft-wrapped bullet gets silently truncated at the first line break.
 
 ## Note 28
 - New: Settings shows whether Android is allowed to refresh NewsFeed while the screen is off, with a button to the right battery setting (on Samsung choose Never sleeping apps).
+
+## Note 29
+- Story threads now group articles that are about the same main subject, even when the headlines use different words.

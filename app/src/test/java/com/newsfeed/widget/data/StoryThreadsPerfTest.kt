@@ -10,6 +10,11 @@ import kotlin.math.abs
  * passes and the render) and each run took ~0.6-0.7 s on the phone, so the tap felt slow. The fast
  * implementation must return EXACTLY what the original all-pairs algorithm returned. [referenceGroupStories]
  * is that original algorithm, kept here only as the oracle; [storyTokensUncached] is the original tokenizer.
+ *
+ * Since BUG-049 (2026-10-15) the matcher also has the main-subject rule. The oracle comparisons below therefore
+ * run the matcher with `subjectRule = false` (exactly the strong rule the oracle implements: this still proves
+ * that the windowed pair loop, the int-id merge and the memoised tokens equal the all-pairs original). The
+ * subject rule is covered by StoryThreadsSubjectTest (golden sets, determinism) and by the timing tests at the end.
  */
 class StoryThreadsPerfTest {
 
@@ -74,7 +79,7 @@ class StoryThreadsPerfTest {
     fun `fast grouping equals the original algorithm on the real fixtures, newest first`() {
         for (f in fixtures) {
             val arts = StoryFixtures.load(f).sortedByDescending { it.publishedAt }
-            assertEquals(f, referenceGroupStories(arts), groupStories(arts))
+            assertEquals(f, referenceGroupStories(arts), groupStoriesCore(arts, arts, subjectRule = false))
         }
     }
 
@@ -91,9 +96,9 @@ class StoryThreadsPerfTest {
                 }
             }
             for (list in listOf(mixed, mixed.sortedBy { it.publishedAt }, mixed.shuffled(java.util.Random(42)))) {
-                assertEquals(f, referenceGroupStories(list), groupStories(list))
+                assertEquals(f, referenceGroupStories(list), groupStoriesCore(list, list, subjectRule = false))
                 val subset = list.filter { !it.isRead }
-                assertEquals(f, referenceGroupStories(subset, statsFrom = list), groupStories(subset, statsFrom = list))
+                assertEquals(f, referenceGroupStories(subset, statsFrom = list), groupStoriesCore(subset, list, subjectRule = false))
             }
         }
     }
@@ -107,8 +112,8 @@ class StoryThreadsPerfTest {
             ArticleItem(id = "w$i", feedId = "feed${i % 3}", feedName = "f", title = t,
                 publishedAt = t0 + (if (i == 3) STORY_WINDOW_MS else 0L) + (if (i == 2) 0L else i * 1000L), isRead = false)
         }
-        assertEquals(referenceGroupStories(arts), groupStories(arts))
-        assertEquals(referenceGroupStories(arts.reversed()), groupStories(arts.reversed()))
+        assertEquals(referenceGroupStories(arts), groupStoriesCore(arts, arts, subjectRule = false))
+        assertEquals(referenceGroupStories(arts.reversed()), groupStoriesCore(arts.reversed(), arts.reversed(), subjectRule = false))
     }
 
     @Test
@@ -159,8 +164,33 @@ class StoryThreadsPerfTest {
             return (System.nanoTime() - t0) / 1e6 / 10
         }
         val ref = time { referenceGroupStories(arts) }
-        val fast = time { groupStories(arts) }
-        println("PERF groupStories on ${arts.size} real headlines (JVM, ms per call, warm): original=%.1f fast=%.1f".format(ref, fast))
-        assertTrue("fast=$fast ref=$ref", fast < ref * 1.5 + 5)
+        val strong = time { groupStoriesCore(arts, arts, subjectRule = false) }
+        val full = time { groupStories(arts) }
+        println("PERF groupStories on ${arts.size} real headlines (JVM, ms per call, warm): original all-pairs=%.1f strong rule fast=%.1f with main-subject rule=%.1f".format(ref, strong, full))
+        assertTrue("strong=$strong ref=$ref", strong < ref * 1.5 + 5)
+        // BUG-049: the subject rule costs one extra weighted merge per candidate pair and a clustering pass over
+        // a few hundred links; it must stay within a small multiple of the strong rule.
+        assertTrue("full=$full strong=$strong", full < strong * 6 + 30)
+    }
+
+    @Test
+    fun `300 headlines, the size of a full widget list, group within the tap budget`() {
+        // The widget keeps at most 300 articles: the newest 300 of fixture 3 (a busy news day, about a headline a minute).
+        val arts = StoryFixtures.load("story_threads_fixture3.tsv").sortedWith(NEWEST_FIRST).take(300)
+        assertEquals(300, arts.size)
+        fun time(block: () -> Unit): Double {
+            repeat(5) { block() }
+            val t0 = System.nanoTime(); repeat(20) { block() }
+            return (System.nanoTime() - t0) / 1e6 / 20
+        }
+        val full = time { groupStories(arts) }
+        val strong = time { groupStoriesCore(arts, arts, subjectRule = false) }
+        println("PERF 300 headlines (JVM, ms per call, warm): strong rule=%.1f with main-subject rule=%.1f".format(strong, full))
+        // After BUG-033 the strong rule's grouping took about 24 ms on the phone (stats 12, tokens 3, pairs 9 ms) and the
+        // JVM runs it in about 5 ms on an idle machine, i.e. the phone is roughly 5 times slower. The subject rule adds
+        // about a third on top (printed above). The absolute bound is deliberately loose (a busy build machine runs
+        // everything 3 times slower): it only catches a blow-up.
+        assertTrue("full=$full", full < 120)
+        assertTrue("full=$full strong=$strong", full < strong * 6 + 30)
     }
 }

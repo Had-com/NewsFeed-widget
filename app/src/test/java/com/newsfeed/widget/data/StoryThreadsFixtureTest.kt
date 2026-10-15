@@ -42,9 +42,12 @@ class StoryThreadsFixtureTest {
         val multi = threads.count { it.size > 1 }
         // Reviewed on 2026-10-07: 27 groups; 28 since the 2026-10-09 similarity revision (BUG-028): the
         // "מבזקן 12" label no longer dilutes the N12 chat flash, so it now joins the N12 channel's
-        // twin post about the Neve Tzuf scene. A change outside this band means the matcher was
-        // retuned - re-run the review (see the plan's Task 2 Step 8) before adjusting the band.
-        assertTrue("groups=$multi", multi in 22..32)
+        // twin post about the Neve Tzuf scene. 31 since the 2026-10-15 main-subject rule (BUG-049): the same 28
+        // groups (4 of them gained a paraphrased report) plus 3 reviewed new pairs (the Bar-Ilan professor's attack plan,
+        // the Ukrainian strike near Moscow, the North Korean missile; see docs/BUGS.md BUG-049). A change outside this band
+        // means the matcher was retuned - re-run the review (see the plan's Task 2 Step 8) before adjusting the band.
+        assertEquals(28, groupStoriesCore(articles, articles, subjectRule = false).count { it.size > 1 })
+        assertTrue("groups=$multi", multi in 28..35)
     }
 
     @Test

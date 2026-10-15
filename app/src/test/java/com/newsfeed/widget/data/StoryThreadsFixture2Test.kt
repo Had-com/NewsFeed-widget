@@ -48,9 +48,12 @@ class StoryThreadsFixture2Test {
     @Test
     fun `real group count stays in the reviewed range`() {
         val multi = threads.count { it.size > 1 }
-        // Reviewed on 2026-10-09: 35 groups (the pre-revision matcher also found 35). A change
-        // outside this band means the matcher was retuned - re-run the review before adjusting it.
-        assertTrue("groups=$multi", multi in 30..40)
+        // Reviewed on 2026-10-09: 35 groups (the pre-revision matcher also found 35). 45 since the 2026-10-15
+        // main-subject rule (BUG-049): the same 35 (4 of them gained a paraphrased report) plus 10 reviewed new
+        // groups (docs/BUGS.md BUG-049). A change outside this band means the matcher was retuned - re-run
+        // the review before adjusting it.
+        assertEquals(35, groupStoriesCore(articles, articles, subjectRule = false).count { it.size > 1 })
+        assertTrue("groups=$multi", multi in 40..50)
     }
 
     @Test
